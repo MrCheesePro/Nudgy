@@ -1,4 +1,4 @@
-import { Moon, Radio, Zap } from "lucide-react";
+import { Moon, Pause, Radio, Zap } from "lucide-react";
 
 import { formatClock, formatDuration } from "../lib/time";
 import { categoryColor } from "../lib/categories";
@@ -42,7 +42,7 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
                     : "var(--color-ok)",
               }}
             />
-            {paused ? "Tracking paused" : idle ? "Idle" : "Now tracking"}
+            {paused ? "Paused — holding" : idle ? "Idle" : "Now tracking"}
           </div>
 
           <h1 className="mt-2.5 flex items-baseline gap-2 truncate text-3xl font-semibold text-ink">
@@ -141,11 +141,15 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
 
         <div className="text-right">
           <div className="font-mono text-4xl tabular-nums text-ink">
-            {formatDuration(paused ? 0 : sessionSeconds)}
+            {formatDuration(sessionSeconds)}
           </div>
           <div className="mt-1 flex items-center justify-end gap-1 text-xs text-ink-mute">
-            {idle ? <Moon size={12} /> : <Zap size={12} />}
-            {idle ? `idle ${formatDuration(status?.idleSeconds ?? 0)}` : "current session"}
+            {paused ? <Pause size={12} /> : idle ? <Moon size={12} /> : <Zap size={12} />}
+            {paused
+              ? "held"
+              : idle
+                ? `idle ${formatDuration(status?.idleSeconds ?? 0)}`
+                : "current session"}
           </div>
         </div>
       </div>

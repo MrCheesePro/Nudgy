@@ -36,6 +36,9 @@ export function useLiveActivity() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const sessionSeconds = status ? status.sessionSeconds + elapsed : 0;
+  // `elapsed` smooths the five-second tick into a counter that moves every second.
+  // While paused there is nothing to smooth: the backend holds the number where it was,
+  // and adding local seconds on top would make a stopped clock tick.
+  const sessionSeconds = status ? status.sessionSeconds + (status.paused ? 0 : elapsed) : 0;
   return { status, sessionSeconds };
 }

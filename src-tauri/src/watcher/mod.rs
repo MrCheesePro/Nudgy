@@ -227,19 +227,25 @@ fn build_passive_sample(
 /// watcher has nothing to report (paused, or no foreground window).
 fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<LiveStatus>) {
     let paused = state.paused.load(Ordering::Relaxed);
-    // While paused the held number is what gets shown, so the header stops at the second
-    // you pressed it instead of dropping to zero.
+
+    // Pausing holds the picture still. The header keeps the app, the category and the
+    // session it was showing, flagged paused — because "what was I doing when I stopped?"
+    // is the question a pause leaves you with, and answering it with `Idle · 0s` throws
+    // away the very thing worth keeping. Only the seconds stop moving.
+    let frozen = state.session_freeze.lock().ok().and_then(|held| *held);
     let held = if paused {
-        state
-            .session_freeze
-            .lock()
-            .ok()
-            .and_then(|frozen| *frozen)
-            .unwrap_or(0)
+        state.current.read().ok().and_then(|current| {
+            current.as_ref().map(|last| LiveStatus {
+                session_seconds: frozen.unwrap_or(last.session_seconds),
+                paused: true,
+                ..last.clone()
+            })
+        })
     } else {
-        0
+        None
     };
-    let payload = live.or_else(|| {
+
+    let payload = held.or(live).or_else(|| {
         Some(LiveStatus {
             process_name: String::new(),
             app_name: if paused {
@@ -253,7 +259,7 @@ fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<Liv
             is_idle: true,
             idle_seconds: 0,
             session_started_at: 0,
-            session_seconds: held,
+            session_seconds: frozen.unwrap_or(0),
             paused,
         })
     });
