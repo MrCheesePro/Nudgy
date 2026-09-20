@@ -112,6 +112,24 @@ export const DEFAULT_BREAK_SECONDS = 5 * 60;
 /** Below this a fragment is not worth walking to the desk for. */
 const MIN_SESSION_SECONDS = 10 * 60;
 
+/**
+ * Blocks begin on a five-minute mark.
+ *
+ * A gap opens whenever the last thing happened to end, so without this a session starts
+ * at 4:32 — a time nobody would ever choose and which reads as a glitch rather than a
+ * plan. Rounding is always **up**: down would push a block into the commitment the gap
+ * just closed, or start it before now.
+ *
+ * Done on epoch seconds, which works because every current timezone offset is a whole
+ * number of five-minute steps — so a 300-second epoch boundary is also a local clock
+ * reading ending in 0 or 5.
+ */
+export const START_BOUNDARY_SECONDS = 5 * 60;
+
+function nextBoundary(ts: number): number {
+  return Math.ceil(ts / START_BOUNDARY_SECONDS) * START_BOUNDARY_SECONDS;
+}
+
 export function placeWork(input: PlacementInput): Placement {
   const breakSeconds = input.breakSeconds ?? DEFAULT_BREAK_SECONDS;
   const blocks: PlacedBlock[] = [];
@@ -155,13 +173,19 @@ export function placeWork(input: PlacementInput): Placement {
 
   if (input.mode === "continuous") {
     for (const day of slotsByDay) {
-      const slot = day.slots.find((entry) => entry.endTs - entry.startTs >= remaining);
+      // The boundary costs up to five minutes of the gap, so it is applied before the
+      // fit is judged rather than after — otherwise a slot could pass the check and then
+      // not hold the block.
+      const slot = day.slots.find(
+        (entry) => entry.endTs - nextBoundary(entry.startTs) >= remaining,
+      );
       if (!slot) continue;
+      const startTs = nextBoundary(slot.startTs);
       blocks.push({
         day: day.key,
         index: 0,
-        startTs: slot.startTs,
-        endTs: slot.startTs + remaining,
+        startTs,
+        endTs: startTs + remaining,
       });
       return {
         blocks,
@@ -188,7 +212,9 @@ export function placeWork(input: PlacementInput): Placement {
 
   for (const day of slotsByDay) {
     for (const slot of day.slots) {
-      let cursor = slot.startTs;
+      // Every session start is rounded, not just the first: a Flowmodoro break is a
+      // fifth of the session, so 45 + 9 would walk every later block off the marks.
+      let cursor = nextBoundary(slot.startTs);
 
       while (remaining > 0 && slot.endTs - cursor >= MIN_SESSION_SECONDS) {
         const available = slot.endTs - cursor;
@@ -210,7 +236,9 @@ export function placeWork(input: PlacementInput): Placement {
           sessionsPerLongBreak > 0 && sessionsSinceLongBreak >= sessionsPerLongBreak;
         if (earnedLongBreak) sessionsSinceLongBreak = 0;
 
-        cursor += session + (earnedLongBreak ? longBreakSeconds : breakSeconds);
+        cursor = nextBoundary(
+          cursor + session + (earnedLongBreak ? longBreakSeconds : breakSeconds),
+        );
       }
 
       if (remaining === 0) break;

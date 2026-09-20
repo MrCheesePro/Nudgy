@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { placeWork, styleTiming, type PlannableDay } from "./workPlanner";
 
 const HOUR = 3600;
-const DAY_ONE = 1_789_700_000;
+// On a five-minute boundary, so these fixtures test placement rather than rounding.
+// The rounding gets its own test below, from a deliberately awkward start.
+const DAY_ONE = 1_789_700_100;
 const DAY_TWO = DAY_ONE + 24 * HOUR;
 
 function day(key: string, startTs: number, hours: number, commitments: PlannableDay["commitments"] = []): PlannableDay {
@@ -253,5 +255,66 @@ describe("styleTiming", () => {
       longBreak: 0,
       sessionsPerLongBreak: 0,
     });
+  });
+});
+
+describe("placeWork — five-minute starts", () => {
+  /** Every start lands on a mark a person would actually choose. */
+  const onBoundary = (ts: number) => ts % (5 * 60) === 0;
+
+  it("rounds a block off an awkward day start up to the next mark", () => {
+    const awkward = DAY_ONE + 137; // 2m17s past the hour
+    const result = placeWork({
+      estimateSeconds: HOUR,
+      mode: "pomodoro",
+      focusSeconds: 30 * 60,
+      days: [day("2026-09-18", awkward, 8)],
+    });
+
+    expect(result.blocks.length).toBeGreaterThan(0);
+    expect(result.blocks.every((block) => onBoundary(block.startTs))).toBe(true);
+    // Up, never down: rounding back would start the work before the day opens.
+    expect(result.blocks[0].startTs).toBeGreaterThanOrEqual(awkward);
+  });
+
+  // A Flowmodoro break is a fifth of the session, so 45 + 9 would walk every later
+  // block off the marks if only the first were rounded.
+  it("keeps later sessions on the marks despite an odd break", () => {
+    const result = placeWork({
+      estimateSeconds: 3 * HOUR,
+      mode: "pomodoro",
+      focusSeconds: 45 * 60,
+      breakSeconds: 9 * 60,
+      days: [day("2026-09-18", DAY_ONE, 10)],
+    });
+
+    expect(result.blocks.length).toBeGreaterThan(2);
+    expect(result.blocks.every((block) => onBoundary(block.startTs))).toBe(true);
+  });
+
+  it("rounds a single unbroken sitting too", () => {
+    const result = placeWork({
+      estimateSeconds: HOUR,
+      mode: "continuous",
+      focusSeconds: HOUR,
+      days: [day("2026-09-18", DAY_ONE + 61, 5)],
+    });
+    expect(onBoundary(result.blocks[0].startTs)).toBe(true);
+  });
+
+  // The rounding eats up to five minutes of the gap, so the fit must be judged after it
+  // — otherwise a slot passes the check and then cannot hold the block.
+  it("does not claim a slot the rounding no longer fits", () => {
+    const start = DAY_ONE + 60;
+    const result = placeWork({
+      estimateSeconds: 59 * 60,
+      mode: "continuous",
+      focusSeconds: 59 * 60,
+      days: [day("2026-09-18", start, 1)],
+    });
+
+    for (const block of result.blocks) {
+      expect(block.endTs).toBeLessThanOrEqual(start + HOUR);
+    }
   });
 });
