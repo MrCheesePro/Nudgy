@@ -87,6 +87,16 @@ pub struct AppTotal {
     pub seconds: i64,
 }
 
+/// One window title within an app — "YouTube" inside Google Chrome. Only ever what the
+/// window called itself; the redaction pass has already replaced anything private.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowTotal {
+    pub process_name: String,
+    pub title: String,
+    pub seconds: i64,
+}
+
 /// A row in the Discord-style application registry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

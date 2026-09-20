@@ -36,8 +36,15 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
             {paused ? "Tracking paused" : idle ? "Idle" : "Now tracking"}
           </div>
 
-          <h1 className="mt-2.5 truncate text-3xl font-semibold text-ink">
+          <h1 className="mt-2.5 flex items-baseline gap-2 truncate text-3xl font-semibold text-ink">
             {status?.appName ?? "Waiting for the first tick"}
+            {/* The app is rarely the answer on its own: Chrome showing YouTube and Chrome
+                showing Canvas are not the same hour. */}
+            {status?.windowTitle && (
+              <span className="min-w-0 truncate text-base font-normal text-ink-mute">
+                {status.windowTitle}
+              </span>
+            )}
           </h1>
 
           {work ? (
@@ -63,7 +70,7 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
             </p>
           ) : (
             <p className="mt-1 h-5 truncate text-sm text-ink-mute">
-              {status?.windowTitle ?? (status ? status.processName : "")}
+              {status ? status.processName : ""}
             </p>
           )}
 

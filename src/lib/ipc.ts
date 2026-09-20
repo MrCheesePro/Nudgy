@@ -16,6 +16,7 @@ import type {
   UnmappedProcess,
   UsageBreakdown,
   VerificationResult,
+  WindowTotal,
 } from "./types";
 
 /**
@@ -30,6 +31,9 @@ export const getUsageBreakdown = (startTs: number, endTs: number) =>
 
 export const getAppTotals = (startTs: number, endTs: number, limit = 12) =>
   invoke<AppTotal[]>("get_app_totals", { startTs, endTs, limit });
+
+export const getWindowTotals = (startTs: number, endTs: number, limit = 60) =>
+  invoke<WindowTotal[]>("get_window_totals", { startTs, endTs, limit });
 
 export const listUnmappedProcesses = (sinceTs?: number) =>
   invoke<UnmappedProcess[]>("list_unmapped_processes", { sinceTs: sinceTs ?? null });

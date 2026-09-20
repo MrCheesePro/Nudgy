@@ -62,6 +62,13 @@ export interface AppTotal {
   seconds: number;
 }
 
+/** One window title inside an app — "YouTube" under Google Chrome. */
+export interface WindowTotal {
+  processName: string;
+  title: string;
+  seconds: number;
+}
+
 export interface UnmappedProcess {
   processName: string;
   appName: string;

@@ -49,7 +49,7 @@ import type {
 
 export default function App() {
   const { status, sessionSeconds } = useLiveActivity();
-  const { breakdown, apps, unmapped, error, refresh } = useUsageStats();
+  const { breakdown, apps, windows, unmapped, error, refresh } = useUsageStats();
   const { status: permissions, refresh: refreshPermissions } = usePermissions();
   const calendar = useCalendar();
   const tasks = useTasks();
@@ -357,7 +357,7 @@ export default function App() {
                 />
                 <div className="grid gap-5 xl:grid-cols-[1.3fr_1fr]">
                   <UsageBreakdown breakdown={breakdown} />
-                  <TopApps apps={filteredApps} />
+                  <TopApps apps={filteredApps} windows={windows} />
                 </div>
               </>
             )}
@@ -395,7 +395,7 @@ export default function App() {
             {view === "apps" && (
               <>
                 <RegisterAppPanel unmapped={unmapped} onRegistered={() => void refresh()} />
-                <TopApps apps={filteredApps} />
+                <TopApps apps={filteredApps} windows={windows} />
               </>
             )}
 
