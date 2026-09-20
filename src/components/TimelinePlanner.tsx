@@ -1,0 +1,140 @@
+import { useState } from "react";
+import { CalendarDays, Plus, SlidersHorizontal, Sparkles } from "lucide-react";
+
+import { PlanTimeline } from "./timeline/PlanTimeline";
+import { weekDaysAt, weekStart } from "../hooks/useSchedule";
+import { CATEGORIES, type Category } from "../lib/types";
+import type {
+  CalendarEvent,
+  LiveStatus,
+  LmsTask,
+  PlanProgress,
+  ScheduleBlock,
+  VerificationResult,
+} from "../lib/types";
+
+interface Props {
+  /** Every block in the current week. */
+  weekBlocks: ScheduleBlock[];
+  weekEvents: CalendarEvent[];
+  plans: PlanProgress[];
+  /** Only to name the class a block's plan belongs to. */
+  tasks: LmsTask[];
+  live: LiveStatus | null;
+  verifications: Record<number, VerificationResult>;
+  weekOffset: number;
+  onWeekOffset: (offset: number) => void;
+  busy: boolean;
+  note: string | null;
+  error: string | null;
+  onGenerate: () => void;
+  onAddTask: () => void;
+}
+
+export function TimelinePlanner({
+  weekBlocks,
+  weekEvents,
+  plans,
+  tasks,
+  live,
+  verifications,
+  weekOffset,
+  onWeekOffset,
+  busy,
+  note,
+  error,
+  onGenerate,
+  onAddTask,
+}: Props) {
+  const [filter, setFilter] = useState<Category | "All">("All");
+
+  const visibleBlocks =
+    filter === "All" ? weekBlocks : weekBlocks.filter((block) => block.category === filter);
+
+  // Follows the week being viewed, not today, so stepping into next month says so.
+  const monthLabel = weekDaysAt(weekOffset)[3].toLocaleDateString([], { month: "long" });
+
+  /** Jump to whichever week contains the picked date. */
+  const jumpToDate = (value: string) => {
+    if (!value) return;
+    const [year, month, day] = value.split("-").map(Number);
+    const target = weekStart(new Date(year, month - 1, day));
+    const current = weekStart(new Date());
+    const weeks = Math.round(
+      (target.getTime() - current.getTime()) / (7 * 24 * 60 * 60 * 1000),
+    );
+    onWeekOffset(weeks);
+  };
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-2xl font-semibold text-ink">Timeline Planner</h2>
+        <button
+          type="button"
+          onClick={onAddTask}
+          className="flex items-center gap-1.5 rounded-full bg-rose-wash px-3.5 py-1.5 text-sm font-medium text-rose-deep transition hover:bg-edge-strong"
+        >
+          <Plus size={14} />
+          Add task
+        </button>
+      </div>
+
+      {/* Filter chips, in the spirit of the reference layout but wired to real state. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <label className="relative flex cursor-pointer items-center gap-2 rounded-full bg-rose-wash px-4 py-2 text-xs font-semibold text-rose-deep transition hover:bg-edge-strong">
+          <CalendarDays size={13} />
+          {monthLabel}
+          {/* The native picker sits invisibly on top, so the pill itself opens it. */}
+          <input
+            type="date"
+            aria-label="Jump to date"
+            onChange={(event) => jumpToDate(event.target.value)}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
+
+        <label className="flex items-center gap-2 rounded-full bg-rose-wash px-4 py-2 text-xs font-semibold text-rose-deep">
+          <SlidersHorizontal size={13} />
+          <select
+            value={filter}
+            onChange={(event) => setFilter(event.target.value as Category | "All")}
+            className="cursor-pointer appearance-none bg-transparent pr-0 text-xs font-semibold text-rose-deep outline-none"
+          >
+            <option value="All">Filter</option>
+            {CATEGORIES.filter((entry) => entry !== "Idle").map((entry) => (
+              <option key={entry} value={entry}>
+                {entry}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={busy}
+          className="flex items-center gap-2 rounded-full bg-rose-wash px-4 py-2 text-xs font-semibold text-rose-deep transition hover:bg-edge-strong disabled:opacity-50"
+        >
+          <Sparkles size={13} />
+          {busy ? "Planning…" : "Generate plan"}
+        </button>
+
+      </div>
+
+      {error && <p className="mt-3 text-xs text-bad">{error}</p>}
+      {!error && note && <p className="mt-3 text-xs text-ink-mute">{note}</p>}
+
+      <PlanTimeline
+        blocks={visibleBlocks}
+        events={weekEvents}
+        plans={plans}
+        tasks={tasks}
+        live={live}
+        verifications={verifications}
+        weekOffset={weekOffset}
+        onWeekOffset={onWeekOffset}
+      />
+    </section>
+  );
+}

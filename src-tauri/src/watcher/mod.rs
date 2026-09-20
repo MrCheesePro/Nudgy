@@ -1,0 +1,238 @@
+pub mod flush;
+pub mod platform;
+pub mod registry;
+
+use anyhow::{anyhow, Result};
+use std::sync::atomic::Ordering;
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager};
+
+use crate::models::{
+    ActivitySample, Foreground, LiveStatus, CATEGORY_IDLE, CATEGORY_NEUTRAL, IDLE_PROCESS,
+    IDLE_THRESHOLD_SECONDS, SOURCE_PASSIVE, SOURCE_RPC, TICK_SECONDS,
+};
+use crate::rpc::{self, RpcPresence};
+use crate::state::AppState;
+use registry::REDACTED_TITLE;
+
+/// Tracks the run of consecutive ticks on the same thing, for the header's session timer.
+#[derive(Default)]
+struct SessionTracker {
+    key: Option<String>,
+    started_at: i64,
+}
+
+impl SessionTracker {
+    fn observe(&mut self, key: &str, now: i64) -> i64 {
+        if self.key.as_deref() != Some(key) {
+            self.key = Some(key.to_string());
+            self.started_at = now;
+        }
+        self.started_at
+    }
+
+    fn reset(&mut self) {
+        self.key = None;
+        self.started_at = 0;
+    }
+}
+
+pub fn spawn(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(Duration::from_secs(TICK_SECONDS));
+        // A laptop waking from sleep must not fire a burst of catch-up ticks and inflate
+        // the day's totals with time nobody was at the machine.
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        let mut session = SessionTracker::default();
+
+        loop {
+            ticker.tick().await;
+            if let Err(error) = tick(&app, &mut session).await {
+                log::warn!("watcher tick failed: {error}");
+            }
+        }
+    });
+}
+
+async fn tick(app: &AppHandle, session: &mut SessionTracker) -> Result<()> {
+    let state = app.state::<AppState>();
+    let now = chrono::Utc::now().timestamp();
+
+    if state.paused.load(Ordering::Relaxed) {
+        session.reset();
+        publish(app, &state, None);
+        return Ok(());
+    }
+
+    let idle_seconds = platform::idle_seconds().unwrap_or(0);
+
+    // An RPC client reports when its activity began, which is more accurate than the
+    // run of ticks we can observe; that start time wins when a claim is active.
+    let mut claimed_session_start: Option<i64> = None;
+
+    // Step 1 — idle wins over everything. Time with no input is never credited to
+    // whatever happens to be in the foreground.
+    let sample = if idle_seconds > IDLE_THRESHOLD_SECONDS {
+        ActivitySample {
+            ts: now,
+            duration_seconds: TICK_SECONDS as i64,
+            process_name: IDLE_PROCESS.to_string(),
+            app_name: Some("Idle".to_string()),
+            window_title: None,
+            category: CATEGORY_IDLE.to_string(),
+            source: SOURCE_PASSIVE.to_string(),
+            client_id: None,
+            is_idle: true,
+        }
+    } else {
+        // Step 2 — the passive probe runs either way, because an RPC claim still wants
+        // to know which app it belongs to.
+        let foreground = platform::foreground(app).await?;
+
+        // Step 3 — explicit beats guessed. A client that says "Writing Lab Report"
+        // outranks a window title we inferred, for as long as it keeps saying so.
+        match rpc::active_presence(&state.presence, now) {
+            Some(presence) => {
+                claimed_session_start = Some(presence.started_at.min(now));
+                build_rpc_sample(presence, foreground, now)
+            }
+            None => {
+                let Some(foreground) = foreground else {
+                    publish(app, &state, None);
+                    return Ok(());
+                };
+                build_passive_sample(&state, foreground, now)?
+            }
+        }
+    };
+
+    let tracked_start = session.observe(&sample.process_name, now);
+    let session_started_at = claimed_session_start.unwrap_or(tracked_start);
+
+    let live = LiveStatus {
+        process_name: sample.process_name.clone(),
+        app_name: sample
+            .app_name
+            .clone()
+            .unwrap_or_else(|| sample.process_name.clone()),
+        window_title: sample.window_title.clone(),
+        category: sample.category.clone(),
+        source: sample.source.clone(),
+        is_idle: sample.is_idle,
+        idle_seconds: idle_seconds as i64,
+        session_started_at,
+        session_seconds: now - session_started_at + TICK_SECONDS as i64,
+        paused: false,
+    };
+
+    {
+        let mut buffer = state
+            .buffer
+            .lock()
+            .map_err(|_| anyhow!("sample buffer lock poisoned"))?;
+        buffer.push(sample);
+    }
+
+    publish(app, &state, Some(live));
+    Ok(())
+}
+
+/// An RPC claim decorates the foreground app rather than replacing it: the process name
+/// stays whatever is actually focused, so per-app totals still add up, while the activity
+/// string and category come from the client. A claim with nothing focused (a CLI task,
+/// say) falls back to the client id as the process.
+fn build_rpc_sample(
+    presence: RpcPresence,
+    foreground: Option<Foreground>,
+    now: i64,
+) -> ActivitySample {
+    let (process_name, app_name) = match &foreground {
+        Some(front) => (
+            front.process_name.clone(),
+            front
+                .app_name
+                .clone()
+                .unwrap_or_else(|| front.process_name.clone()),
+        ),
+        None => (presence.client_id.clone(), presence.client_id.clone()),
+    };
+
+    ActivitySample {
+        ts: now,
+        duration_seconds: TICK_SECONDS as i64,
+        process_name,
+        app_name: Some(app_name),
+        window_title: Some(presence.activity),
+        category: presence
+            .category
+            .unwrap_or_else(|| CATEGORY_NEUTRAL.to_string()),
+        source: SOURCE_RPC.to_string(),
+        client_id: Some(presence.client_id),
+        is_idle: false,
+    }
+}
+
+fn build_passive_sample(
+    state: &tauri::State<'_, AppState>,
+    foreground: Foreground,
+    now: i64,
+) -> Result<ActivitySample> {
+    let registry = state
+        .registry
+        .read()
+        .map_err(|_| anyhow!("registry lock poisoned"))?;
+
+    let (app_name, category) = registry.categorize(&foreground);
+
+    // Redaction happens before the sample exists, so a private title is never held in
+    // memory, never flushed, and never recoverable from the database.
+    let window_title = if registry.is_redacted(&foreground) {
+        Some(REDACTED_TITLE.to_string())
+    } else {
+        foreground.title.clone()
+    };
+
+    Ok(ActivitySample {
+        ts: now,
+        duration_seconds: TICK_SECONDS as i64,
+        process_name: foreground.process_name,
+        app_name: Some(app_name),
+        window_title,
+        category,
+        source: SOURCE_PASSIVE.to_string(),
+        client_id: None,
+        is_idle: false,
+    })
+}
+
+/// Stores the live status and pushes it to the dashboard. A `None` status means the
+/// watcher has nothing to report (paused, or no foreground window).
+fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<LiveStatus>) {
+    let paused = state.paused.load(Ordering::Relaxed);
+    let payload = live.or_else(|| {
+        Some(LiveStatus {
+            process_name: String::new(),
+            app_name: if paused {
+                "Paused".to_string()
+            } else {
+                "Nothing in focus".to_string()
+            },
+            window_title: None,
+            category: CATEGORY_IDLE.to_string(),
+            source: SOURCE_PASSIVE.to_string(),
+            is_idle: true,
+            idle_seconds: 0,
+            session_started_at: 0,
+            session_seconds: 0,
+            paused,
+        })
+    });
+
+    if let Ok(mut current) = state.current.write() {
+        current.clone_from(&payload);
+    }
+    if let Some(payload) = payload {
+        let _ = app.emit("nudgy://tick", payload);
+    }
+}
