@@ -13,7 +13,15 @@ pub const SOURCE_RPC: &str = "rpc";
 pub const IDLE_THRESHOLD_SECONDS: u64 = 180;
 
 /// How often the watcher samples system state.
-pub const TICK_SECONDS: u64 = 5;
+///
+/// Three, not one. This is the granularity of every stored row *and* how long the header
+/// can lag an app switch, so it trades responsiveness against volume — at three seconds a
+/// busy day is roughly 28k samples rather than 17k, which SQLite does not notice.
+///
+/// Not lower: the macOS foreground probe hops to the main thread and gives up after two
+/// seconds (`MAIN_THREAD_TIMEOUT`). A tick interval at or under that would let a slow
+/// probe still be running when the next one starts.
+pub const TICK_SECONDS: u64 = 3;
 
 /// How often the in-memory buffer is drained into SQLite.
 pub const FLUSH_SECONDS: u64 = 45;

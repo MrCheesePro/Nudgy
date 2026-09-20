@@ -5,12 +5,18 @@ import { getLiveStatus } from "../lib/ipc";
 import type { LiveStatus } from "../lib/types";
 
 /**
- * Live foreground state. The backend pushes a tick every 5 seconds; between ticks the
- * session counter advances locally so the timer reads as a clock, not a stutter.
+ * Live foreground state, with a session counter that reads as a clock.
+ *
+ * The count is **derived from `sessionStartedAt` and the wall clock**, never accumulated.
+ * The previous version added a locally-ticked `elapsed` to whatever the last backend tick
+ * reported, and the two timers were never in phase: a tick landing just before the local
+ * one made the counter jump two seconds, landing just after made it sit still for nearly
+ * two. That is the stutter. Subtracting two timestamps cannot drift, so the one-second
+ * interval below is only a reason to re-render — its phase no longer matters.
  */
 export function useLiveActivity() {
   const [status, setStatus] = useState<LiveStatus | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [, setFrame] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -22,7 +28,6 @@ export function useLiveActivity() {
     const unlisten = listen<LiveStatus>("nudgy://tick", (event) => {
       if (!active) return;
       setStatus(event.payload);
-      setElapsed(0);
     });
 
     return () => {
@@ -32,13 +37,17 @@ export function useLiveActivity() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    const timer = window.setInterval(() => setFrame((value) => value + 1), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  // `elapsed` smooths the five-second tick into a counter that moves every second.
-  // While paused there is nothing to smooth: the backend holds the number where it was,
-  // and adding local seconds on top would make a stopped clock tick.
-  const sessionSeconds = status ? status.sessionSeconds + (status.paused ? 0 : elapsed) : 0;
+  // Paused, the backend holds the number and there is nothing to derive: a stopped clock
+  // must not be recomputed against a moving one.
+  const sessionSeconds = !status
+    ? 0
+    : status.paused || status.sessionStartedAt <= 0
+      ? status.sessionSeconds
+      : Math.max(0, Math.floor(Date.now() / 1000) - status.sessionStartedAt);
+
   return { status, sessionSeconds };
 }
