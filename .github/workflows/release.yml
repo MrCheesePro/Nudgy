@@ -1,0 +1,86 @@
+# Builds installers on the platforms that can actually make them.
+#
+# Windows installers are assembled by WiX (.msi) and NSIS (.exe), both of which are
+# Windows programs — no amount of cross-compilation produces one from a Mac. macOS
+# bundles are the same story in reverse: `.dmg` needs `hdiutil`. So each target gets a
+# runner of its own, and the release collects what they produce.
+#
+# Triggered by pushing a tag: `git tag v0.2.0 && git push origin v0.2.0`.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Lets a build be started by hand from the Actions tab without cutting a tag.
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon and Intel are separate binaries; both are published so a
+          # download works on either kind of Mac.
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS (Apple Silicon)
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS (Intel)
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows
+
+    runs-on: ${{ matrix.platform }}
+    name: ${{ matrix.label }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Rust builds from scratch take minutes; this makes every run after the first
+      # a fraction of that.
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The same gates as local development. A release that fails its own tests is not
+      # a release, and finding that out after publishing is too late.
+      - name: Check
+        run: |
+          npx tsc --noEmit
+          npx vitest run
+        shell: bash
+
+      - name: Clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target ${{ matrix.target }}
+          tagName: ${{ github.ref_name }}
+          releaseName: Nudgy ${{ github.ref_name }}
+          # Published as a draft so the notes can be written before anyone downloads it.
+          releaseDraft: true
+          prerelease: false
