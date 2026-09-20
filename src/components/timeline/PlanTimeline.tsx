@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleCheckBig } from "lucide-react";
 
 import { stripCourseCode } from "../../hooks/useCurrentWork";
 import { weekDaysAt } from "../../hooks/useSchedule";
@@ -47,6 +47,8 @@ interface Bar {
   endTs: number;
   percent: number;
   missed: boolean;
+  /** Its plan was marked finished. The block stays — it is a record of real time. */
+  done: boolean;
   /** The app this block is verified against, or null for "any activity". */
   targetProcess: string | null;
 }
@@ -127,6 +129,7 @@ export function PlanTimeline({
    * enough — the session starts when the work does.
    */
   const isRunning = (bar: Bar) => {
+    if (bar.done) return false;
     if (!isToday || now < bar.startTs || now >= bar.endTs) return false;
     if (!live || live.paused || live.isIdle) return false;
     if (bar.targetProcess === null) return true;
@@ -143,15 +146,17 @@ export function PlanTimeline({
         const task = plan?.plan.taskId == null ? null : taskFor.get(plan.plan.taskId);
         const courseCode = task?.courseCode ?? null;
         const verification = verifications[block.id];
+        const done = plan?.plan.status === "done";
         const target = block.targetSeconds ?? block.endTs - block.startTs;
 
         // A block inside a plan reports the plan's overall progress; a standalone block
-        // reports its own verified time.
-        const percent = plan
-          ? Math.min(100, plan.percent)
-          : verification && target > 0
+        // reports its own verified time. A finished plan reads as finished whatever the
+        // measured time came to — the user said so, and that outranks the arithmetic.
+        const measured =
+          verification && target > 0
             ? Math.min(100, Math.round((verification.accumulatedSeconds / target) * 100))
             : 0;
+        const percent = done ? 100 : plan ? Math.min(100, plan.percent) : measured;
 
         return {
           key: `block-${block.id}`,
@@ -162,7 +167,8 @@ export function PlanTimeline({
           startTs: block.startTs,
           endTs: block.endTs,
           percent,
-          missed: block.verifiedState === "missed",
+          done,
+          missed: !done && block.verifiedState === "missed",
           targetProcess: block.targetProcess,
         };
       })
@@ -338,13 +344,18 @@ export function PlanTimeline({
                 const top = Math.max(0, toY(bar.startTs));
                 const height = Math.max(MIN_BLOCK_HEIGHT, toY(bar.endTs) - top);
                 const running = isRunning(bar);
+                // Finished work keeps its place and its height — it is a record of real
+                // time — but stops competing for attention with what is still ahead.
+                const rail = bar.done ? "var(--color-ink-mute)" : color;
                 return (
                   <article
                     key={bar.key}
-                    title={`${bar.title} · ${formatClock(bar.startTs)}–${formatClock(bar.endTs)}`}
-                    className={`absolute inset-x-1 flex flex-col overflow-hidden rounded-xl border bg-surface py-1.5 pr-2.5 pl-3.5 shadow-[0_1px_3px_rgba(74,52,55,0.05)] ${
-                      running ? "border-transparent" : "border-edge"
+                    title={`${bar.title} · ${formatClock(bar.startTs)}–${formatClock(bar.endTs)}${
+                      bar.done ? " · done" : ""
                     }`}
+                    className={`absolute inset-x-1 flex flex-col overflow-hidden rounded-xl border py-1.5 pr-2.5 pl-3.5 shadow-[0_1px_3px_rgba(74,52,55,0.05)] ${
+                      running ? "border-transparent" : "border-edge"
+                    } ${bar.done ? "bg-canvas opacity-60" : "bg-surface"}`}
                     style={{
                       top,
                       height,
@@ -353,7 +364,7 @@ export function PlanTimeline({
                   >
                     <span
                       className="absolute top-1.5 bottom-1.5 left-1 w-1.5 rounded-full"
-                      style={{ background: color }}
+                      style={{ background: rail }}
                     />
 
                     <div className="flex items-start justify-between gap-2">
@@ -389,8 +400,13 @@ export function PlanTimeline({
                       </span>
                     </div>
 
-                    <span className="truncate text-[13px] leading-tight font-bold text-ink">
-                      {bar.title}
+                    <span
+                      className={`flex items-center gap-1 truncate text-[13px] leading-tight font-bold ${
+                        bar.done ? "text-ink-soft" : "text-ink"
+                      }`}
+                    >
+                      {bar.done && <CircleCheckBig size={11} className="shrink-0 text-ok" />}
+                      <span className="truncate">{bar.title}</span>
                     </span>
 
                     {height >= 56 && (
@@ -400,7 +416,7 @@ export function PlanTimeline({
                             className="h-full rounded-full transition-[width] duration-500"
                             style={{
                               width: `${bar.percent}%`,
-                              background: bar.missed ? "var(--color-bad)" : color,
+                              background: bar.missed ? "var(--color-bad)" : rail,
                             }}
                           />
                         </div>

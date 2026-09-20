@@ -104,25 +104,35 @@ wrong data.
     nothing gets squeezed. Secondary labels drop out when a block is too short to hold
     them rather than the block stretching to fit its own caption.
 12. **Deleting a plan deletes its blocks**, and deleting a goal deletes its plan. Blocks
-    that outlive their plan are work nothing owns and nothing can verify.
+    that outlive their plan are work nothing owns and nothing can verify. Deleting is the
+    only thing that removes anything: **finishing hides, and clearing hides — neither
+    deletes.** A done plan keeps its blocks and is still returned by `all_progress`, so
+    the timeline can draw it as finished rather than as never-started; `load_active` stays
+    narrow because the check-in loop must not ask about it again. Clearing the Completed
+    list writes a timestamp and filters against it.
 13. **Re-planning edits, never duplicates.** A `Plannable` carries the `planId` it is
-    editing; confirming drops that plan and its blocks before laying down new ones.
-14. **A bar belongs to exactly one day.** The timeline is a single day at hour
+    editing; confirming drops that plan and its blocks before laying down new ones. Only
+    an *active* plan is a candidate — editing a finished one would delete the record of
+    work already done.
+14. **Anything irreversible says what it will take with it.** `ConfirmDialog` names the
+    consequences that the button does not show: removing a goal takes its plan and every
+    block that plan owns.
+15. **A bar belongs to exactly one day.** The timeline is a single day at hour
     resolution, with a day strip to move between days. A plan split across Tuesday and
     Thursday draws a session on each rather than one bar spanning the gap — the gap is
     not work. Blocks inside a plan show the plan's overall percentage; standalone blocks
     show their own.
-15. **The planning window rolls forward, and a refusal names its cause.** The planner
+16. **The planning window rolls forward, and a refusal names its cause.** The planner
     looks `HORIZON_DAYS` (7) ahead from now, so a full evening means tomorrow morning, not
     "no free time left today". When nothing fits, `explainNoSlots` says what is in the way
     — the commitment, the deadline, or the size of the biggest gap. A deadline already in
     the past is not a bound: overdue work is placed as soon as possible, inside a soft
     three-day horizon.
-16. **A block says what the time is for; the live flags say whether it is happening.**
+17. **A block says what the time is for; the live flags say whether it is happening.**
     `useCurrentWork` decides membership by the clock alone, so alt-tabbing to Finder
     changes a dot from green to amber and never erases the course label. Verification
     still uses the process match — that is a different question, asked in `plans.rs`.
-17. **Calendar events are immovable.** Anything from the iCal feed becomes a commitment
+18. **Calendar events are immovable.** Anything from the iCal feed becomes a commitment
     the planner refuses to schedule over. All-day events are ignored on purpose: they
     mark a day rather than occupy it.
 

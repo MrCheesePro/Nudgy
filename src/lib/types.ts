@@ -96,6 +96,8 @@ export interface LmsTask {
   dueAt: number | null;
   htmlUrl: string | null;
   completed: boolean;
+  /** When it was ticked off here. Canvas does not report this; it is local. */
+  completedAt: number | null;
 }
 
 export interface SyncResult {
@@ -177,6 +179,8 @@ export interface Plan {
   nextCheckinSeconds: number | null;
   checkinCount: number;
   dueAt: number | null;
+  /** When the user said it was finished. Null while it is still active. */
+  completedAt: number | null;
 }
 
 export interface PlanProgress {
@@ -206,6 +210,8 @@ export interface VerificationResult {
 
 export const SETTING_GOALS = "goals";
 export const SETTING_DAY_END_HOUR = "day_end_hour";
+/** Everything finished before this is hidden from the Completed section, not deleted. */
+export const SETTING_COMPLETED_CLEARED_AT = "completed_cleared_at";
 
 /** Keys accepted by the keychain commands. The values never cross this boundary. */
 export const SECRET_CANVAS_TOKEN = "canvas_token";

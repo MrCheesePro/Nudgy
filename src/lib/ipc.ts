@@ -110,7 +110,7 @@ export const getCalendarEvents = (startTs: number, endTs: number) =>
   invoke<CalendarEvent[]>("get_calendar_events", { startTs, endTs });
 
 export const createPlan = (
-  plan: Omit<Plan, "id" | "status" | "nextCheckinSeconds" | "checkinCount">,
+  plan: Omit<Plan, "id" | "status" | "nextCheckinSeconds" | "checkinCount" | "completedAt">,
   day: string,
   blocks: Partial<ScheduleBlock>[],
 ) => invoke<number>("create_plan", { plan, day, blocks });

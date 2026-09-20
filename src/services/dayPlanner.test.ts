@@ -47,6 +47,7 @@ function task(overrides: Partial<LmsTask> = {}): LmsTask {
     dueAt: DAY_TWO,
     htmlUrl: null,
     completed: false,
+    completedAt: null,
     ...overrides,
   };
 }
@@ -66,6 +67,7 @@ function plan(overrides: Partial<PlanProgress["plan"]> = {}): PlanProgress {
       nextCheckinSeconds: null,
       checkinCount: 0,
       dueAt: null,
+      completedAt: null,
       ...overrides,
     },
     workedSeconds: 0,

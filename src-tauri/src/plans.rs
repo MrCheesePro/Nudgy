@@ -55,6 +55,9 @@ pub struct Plan {
     #[serde(default)]
     pub checkin_count: i64,
     pub due_at: Option<i64>,
+    /// When the user said it was finished. Null while it is still active.
+    #[serde(default)]
+    pub completed_at: Option<i64>,
 }
 
 fn default_status() -> String {
@@ -107,29 +110,46 @@ pub fn create(conn: &Connection, plan: &Plan) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
+const SELECT_PLAN: &str = "SELECT id, task_id, title, estimate_seconds, mode, pomodoro_style,
+                                  focus_seconds, break_seconds, status, next_checkin_seconds,
+                                  checkin_count, due_at, completed_at
+                             FROM plans";
+
+fn read_plan(row: &rusqlite::Row<'_>) -> rusqlite::Result<Plan> {
+    Ok(Plan {
+        id: row.get(0)?,
+        task_id: row.get(1)?,
+        title: row.get(2)?,
+        estimate_seconds: row.get(3)?,
+        mode: row.get(4)?,
+        pomodoro_style: row.get(5)?,
+        focus_seconds: row.get(6)?,
+        break_seconds: row.get(7)?,
+        status: row.get(8)?,
+        next_checkin_seconds: row.get(9)?,
+        checkin_count: row.get(10)?,
+        due_at: row.get(11)?,
+        completed_at: row.get(12)?,
+    })
+}
+
+/// Plans still being worked on. The check-in loop reads through this, so a finished plan
+/// is never asked about again and cannot be answered twice.
 pub fn load_active(conn: &Connection) -> Result<Vec<Plan>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT id, task_id, title, estimate_seconds, mode, pomodoro_style, focus_seconds,
-                break_seconds, status, next_checkin_seconds, checkin_count, due_at
-           FROM plans WHERE status = 'active' ORDER BY created_at ASC",
-    )?;
+    let mut stmt =
+        conn.prepare_cached(&format!("{SELECT_PLAN} WHERE status = 'active' ORDER BY created_at ASC"))?;
     let rows = stmt
-        .query_map([], |row| {
-            Ok(Plan {
-                id: row.get(0)?,
-                task_id: row.get(1)?,
-                title: row.get(2)?,
-                estimate_seconds: row.get(3)?,
-                mode: row.get(4)?,
-                pomodoro_style: row.get(5)?,
-                focus_seconds: row.get(6)?,
-                break_seconds: row.get(7)?,
-                status: row.get(8)?,
-                next_checkin_seconds: row.get(9)?,
-                checkin_count: row.get(10)?,
-                due_at: row.get(11)?,
-            })
-        })?
+        .query_map([], read_plan)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Every plan, finished ones included. The UI needs them: a plan that is done is not a
+/// plan that never happened, and the difference is what the timeline draws.
+pub fn load_all(conn: &Connection) -> Result<Vec<Plan>> {
+    let mut stmt = conn.prepare_cached(&format!("{SELECT_PLAN} ORDER BY created_at ASC"))?;
+    let rows = stmt
+        .query_map([], read_plan)?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
@@ -165,8 +185,9 @@ pub fn progress(conn: &Connection, plan: &Plan) -> Result<PlanProgress> {
         0
     };
 
-    // A NULL next check-in means one has fired and is waiting to be answered.
-    let checkin_due = plan.next_checkin_seconds.is_none();
+    // A NULL next check-in means one has fired and is waiting to be answered — but
+    // finishing a plan also nulls it, and a plan that is over is never waiting on anything.
+    let checkin_due = plan.status == STATUS_ACTIVE && plan.next_checkin_seconds.is_none();
 
     Ok(PlanProgress {
         plan: plan.clone(),
@@ -178,7 +199,7 @@ pub fn progress(conn: &Connection, plan: &Plan) -> Result<PlanProgress> {
 }
 
 pub fn all_progress(conn: &Connection) -> Result<Vec<PlanProgress>> {
-    load_active(conn)?
+    load_all(conn)?
         .iter()
         .map(|plan| progress(conn, plan))
         .collect()
@@ -294,6 +315,7 @@ mod tests {
             next_checkin_seconds: None,
             checkin_count: 0,
             due_at: None,
+            completed_at: None,
         }
     }
 
@@ -413,6 +435,43 @@ mod tests {
 
         assert!(load_active(&conn).unwrap().is_empty());
         assert!(take_due_checkins(&conn).unwrap().is_empty());
+    }
+
+    // Done means finished, not erased. The UI has to be able to tell a plan that is over
+    // from one that never existed — otherwise its blocks are still on the timeline with
+    // nothing to explain them.
+    #[test]
+    fn a_finished_plan_is_still_reported_and_keeps_its_blocks() {
+        let mut conn = memory_db();
+        let id = create(&conn, &plan(4)).unwrap();
+        work(&mut conn, id, 1_000, 7_200, false);
+        take_due_checkins(&conn).unwrap();
+
+        respond(
+            &conn,
+            &CheckinResponse {
+                plan_id: id,
+                action: "done".to_string(),
+                extra_seconds: 0,
+            },
+        )
+        .unwrap();
+
+        let all = all_progress(&conn).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].plan.status, STATUS_DONE);
+        assert!(all[0].plan.completed_at.is_some());
+        // A finished plan is not waiting on an answer, even though its next check-in is null.
+        assert!(!all[0].checkin_due);
+
+        let blocks: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM schedule_blocks WHERE plan_id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(blocks, 1);
     }
 
     #[test]

@@ -221,7 +221,9 @@ fn to_task(
         title,
         due_at: assignment.due_at.as_deref().and_then(parse_timestamp),
         html_url: assignment.html_url,
+        // Completion is local state; upsert_tasks deliberately leaves it alone on resync.
         completed: false,
+        completed_at: None,
     })
 }
 

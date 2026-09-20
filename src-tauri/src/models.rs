@@ -142,6 +142,9 @@ pub struct LmsTask {
     pub html_url: Option<String>,
     #[serde(default)]
     pub completed: bool,
+    /// When it was ticked off here. Canvas does not tell us, so this is local.
+    #[serde(default)]
+    pub completed_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

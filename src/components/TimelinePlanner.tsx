@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Plus, SlidersHorizontal, Sparkles } from "lucide-react";
+import { CalendarDays, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles } from "lucide-react";
 
 import { PlanTimeline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
@@ -47,9 +47,18 @@ export function TimelinePlanner({
   onAddTask,
 }: Props) {
   const [filter, setFilter] = useState<Category | "All">("All");
+  const [hideCompleted, setHideCompleted] = useState(false);
 
-  const visibleBlocks =
-    filter === "All" ? weekBlocks : weekBlocks.filter((block) => block.category === filter);
+  // One place decides what the chart draws. Finished plans are shown by default: the day
+  // is a record of what happened, not only of what is left.
+  const donePlanIds = new Set(
+    plans.filter((entry) => entry.plan.status === "done").map((entry) => entry.plan.id),
+  );
+  const visibleBlocks = weekBlocks.filter((block) => {
+    if (filter !== "All" && block.category !== filter) return false;
+    if (hideCompleted && block.planId !== null && donePlanIds.has(block.planId)) return false;
+    return true;
+  });
 
   // Follows the week being viewed, not today, so stepping into next month says so.
   const monthLabel = weekDaysAt(weekOffset)[3].toLocaleDateString([], { month: "long" });
@@ -109,6 +118,20 @@ export function TimelinePlanner({
             ))}
           </select>
         </label>
+
+        <button
+          type="button"
+          onClick={() => setHideCompleted((hidden) => !hidden)}
+          aria-pressed={hideCompleted}
+          className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition ${
+            hideCompleted
+              ? "bg-rose text-white hover:bg-rose-deep"
+              : "bg-rose-wash text-rose-deep hover:bg-edge-strong"
+          }`}
+        >
+          {hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
+          {hideCompleted ? "Completed hidden" : "Hide completed"}
+        </button>
 
         <button
           type="button"

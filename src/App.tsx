@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddTaskDialog } from "./components/AddTaskDialog";
 import { CanvasSyncSidebar } from "./components/CanvasSyncSidebar";
 import { CheckinPrompt } from "./components/CheckinPrompt";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { GeneratePlanDialog } from "./components/GeneratePlanDialog";
 import { LiveStatusHeader } from "./components/LiveStatusHeader";
 import { PermissionBanner } from "./components/PermissionBanner";
@@ -29,13 +30,16 @@ import {
   createPlan,
   deletePlan,
   getPaused,
+  getSettings,
   hasSecret,
   setPaused as setPausedCommand,
+  setSetting,
 } from "./lib/ipc";
 import { DAY_END_HOUR, DAY_START_HOUR } from "./lib/time";
 import {
   SECRET_CALENDAR_ICS_URL,
   SECRET_CANVAS_TOKEN,
+  SETTING_COMPLETED_CLEARED_AT,
   type Category,
   type Goal,
   type LmsTask,
@@ -46,6 +50,14 @@ import type {
   PlanMode,
   PomodoroStyle,
 } from "./services/workPlanner";
+
+/** A destructive action waiting for a yes, and what to run if it gets one. */
+interface ConfirmRequest {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  run: () => void;
+}
 
 export default function App() {
   const { status, sessionSeconds } = useLiveActivity();
@@ -65,10 +77,21 @@ export default function App() {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [canvasLinked, setCanvasLinked] = useState(false);
   const [calendarLinked, setCalendarLinked] = useState(false);
+  /** Set by "Clear": everything finished before it stops showing, nothing is deleted. */
+  const [clearedAt, setClearedAt] = useState(0);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
 
   useEffect(() => {
     getPaused()
       .then(setPausedState)
+      .catch(() => undefined);
+
+    getSettings()
+      .then((entries) => {
+        const raw = new Map(entries).get(SETTING_COMPLETED_CLEARED_AT);
+        const value = Number(raw);
+        if (Number.isFinite(value) && value > 0) setClearedAt(value);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -146,7 +169,11 @@ export default function App() {
   const planTask = useCallback(
     (task: LmsTask) => {
       // Re-planning something already planned edits it; it must not stack a second plan.
-      const existing = plans.plans.find((entry) => entry.plan.taskId === task.id);
+      // Only an active plan counts — a finished one is history, and editing it would
+      // delete the blocks that record work already done.
+      const existing = plans.plans.find(
+        (entry) => entry.plan.taskId === task.id && entry.plan.status === "active",
+      );
       setPlanning({
         taskId: task.id,
         title: task.courseCode ? `${task.courseCode}: ${task.title}` : task.title,
@@ -176,7 +203,9 @@ export default function App() {
    *  same check-in loop. The only difference is where the title came from. */
   const planGoal = useCallback(
     (goal: Goal) => {
-      const existing = plans.plans.find((entry) => entry.plan.title === goal.label);
+      const existing = plans.plans.find(
+        (entry) => entry.plan.title === goal.label && entry.plan.status === "active",
+      );
       setPlanning({
         taskId: null,
         title: goal.label,
@@ -215,6 +244,66 @@ export default function App() {
     },
     [plans, schedule],
   );
+
+  /**
+   * Destructive actions state what they will take with them before they take it. Deleting
+   * a goal silently dropped its plan and every block on the timeline that plan owned,
+   * which is not something to learn about afterwards.
+   */
+  const askRemoveGoal = useCallback(
+    (index: number) => {
+      const goal = schedule.goals[index];
+      if (!goal) return;
+      const plan = plans.plans.find((entry) => entry.plan.title === goal.label);
+      const blocks = plan
+        ? schedule.horizonBlocks.filter((block) => block.planId === plan.plan.id).length
+        : 0;
+
+      setConfirm({
+        title: `Remove “${goal.label}”?`,
+        body: blocks > 0
+          ? `This also deletes its plan and ${blocks} scheduled ${
+              blocks === 1 ? "block" : "blocks"
+            } from the timeline. The time already tracked stays in your history, but nothing will explain it.`
+          : "This removes the goal. Nothing is scheduled for it yet, so nothing else changes.",
+        confirmLabel: "Remove goal",
+        run: () => void removeGoal(index),
+      });
+    },
+    [plans.plans, removeGoal, schedule.goals, schedule.horizonBlocks],
+  );
+
+  const askDropPlan = useCallback(
+    (id: number) => {
+      const plan = plans.plans.find((entry) => entry.plan.id === id);
+      if (!plan) return;
+      const blocks = schedule.horizonBlocks.filter((block) => block.planId === id).length;
+
+      setConfirm({
+        title: `Drop the plan for “${plan.plan.title}”?`,
+        body: `This removes ${blocks} scheduled ${
+          blocks === 1 ? "block" : "blocks"
+        } from the timeline. The goal or assignment itself stays, and you can schedule it again.`,
+        confirmLabel: "Drop plan",
+        run: () => void plans.remove(id),
+      });
+    },
+    [plans, schedule.horizonBlocks],
+  );
+
+  /** Clearing empties the list. It deletes nothing — the rows stay, they just stop showing. */
+  const askClearCompleted = useCallback(() => {
+    setConfirm({
+      title: "Clear completed?",
+      body: "Everything finished so far stops showing in this list. Nothing is deleted — the assignments, the plans and every minute tracked against them stay exactly as they are.",
+      confirmLabel: "Clear the list",
+      run: () => {
+        const now = Math.floor(Date.now() / 1000);
+        setClearedAt(now);
+        void setSetting(SETTING_COMPLETED_CLEARED_AT, String(now)).catch(() => undefined);
+      },
+    });
+  }, []);
 
   const confirmPlan = useCallback(
     async (input: {
@@ -403,6 +492,8 @@ export default function App() {
 
           <CanvasSyncSidebar
             tasks={filteredTasks}
+            completedTasks={tasks.completedTasks}
+            clearedAt={clearedAt}
             canvasLinked={canvasLinked}
             syncing={tasks.syncing}
             lastSync={tasks.lastSync}
@@ -414,8 +505,9 @@ export default function App() {
             onToggleTask={(task) => void tasks.toggle(task)}
             onPlanTask={planTask}
             onPlanGoal={planGoal}
-            onDeletePlan={(id) => void plans.remove(id)}
-            onRemoveGoal={(index) => void removeGoal(index)}
+            onDeletePlan={askDropPlan}
+            onRemoveGoal={askRemoveGoal}
+            onClearCompleted={askClearCompleted}
           />
         </div>
       </div>
@@ -454,7 +546,26 @@ export default function App() {
         onConfirm={(input) => void confirmPlan(input)}
       />
 
-      <CheckinPrompt checkin={plans.checkin} onAnswer={(response) => void plans.answer(response)} />
+      {/* Answering changes what the timeline should draw, so both have to reload — the
+          blocks would otherwise keep their old look for up to a minute. */}
+      <CheckinPrompt
+        checkin={plans.checkin}
+        onAnswer={(response) => {
+          void plans.answer(response).then(() => schedule.refresh());
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirm !== null}
+        title={confirm?.title ?? ""}
+        body={confirm?.body ?? ""}
+        confirmLabel={confirm?.confirmLabel ?? "Delete"}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          confirm?.run();
+          setConfirm(null);
+        }}
+      />
 
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>

@@ -299,7 +299,8 @@ pub fn upsert_tasks(conn: &mut Connection, tasks: &[LmsTask]) -> Result<usize> {
 
 pub fn load_tasks(conn: &Connection, include_completed: bool) -> Result<Vec<LmsTask>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, provider, external_id, course_code, title, due_at, html_url, completed
+        "SELECT id, provider, external_id, course_code, title, due_at, html_url, completed,
+                completed_locally_at
            FROM tasks
           WHERE (?1 = 1 OR completed = 0)
           ORDER BY completed ASC, COALESCE(due_at, 9223372036854775807) ASC, title ASC",
@@ -315,6 +316,7 @@ pub fn load_tasks(conn: &Connection, include_completed: bool) -> Result<Vec<LmsT
                 due_at: row.get(5)?,
                 html_url: row.get(6)?,
                 completed: row.get::<_, i64>(7)? != 0,
+                completed_at: row.get(8)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
