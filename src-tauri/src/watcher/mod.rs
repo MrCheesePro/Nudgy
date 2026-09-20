@@ -31,6 +31,13 @@ impl SessionTracker {
         self.started_at
     }
 
+    /// Adopts a start time decided elsewhere — used when resuming from a pause, so the
+    /// tracker agrees with the number the header is about to show.
+    fn resume_at(&mut self, key: &str, started_at: i64) {
+        self.key = Some(key.to_string());
+        self.started_at = started_at;
+    }
+
     fn reset(&mut self) {
         self.key = None;
         self.started_at = 0;
@@ -108,7 +115,16 @@ async fn tick(app: &AppHandle, session: &mut SessionTracker) -> Result<()> {
     };
 
     let tracked_start = session.observe(&sample.process_name, now);
-    let session_started_at = claimed_session_start.unwrap_or(tracked_start);
+    let mut session_started_at = claimed_session_start.unwrap_or(tracked_start);
+
+    // Coming back from a pause: shift the start forward so the counter carries on from
+    // where it was held rather than from zero. Taken once — the freeze is then cleared.
+    if let Ok(mut frozen) = state.session_freeze.lock() {
+        if let Some(seconds) = frozen.take() {
+            session_started_at = now - seconds;
+            session.resume_at(&sample.process_name, session_started_at);
+        }
+    }
 
     let live = LiveStatus {
         process_name: sample.process_name.clone(),
@@ -211,6 +227,18 @@ fn build_passive_sample(
 /// watcher has nothing to report (paused, or no foreground window).
 fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<LiveStatus>) {
     let paused = state.paused.load(Ordering::Relaxed);
+    // While paused the held number is what gets shown, so the header stops at the second
+    // you pressed it instead of dropping to zero.
+    let held = if paused {
+        state
+            .session_freeze
+            .lock()
+            .ok()
+            .and_then(|frozen| *frozen)
+            .unwrap_or(0)
+    } else {
+        0
+    };
     let payload = live.or_else(|| {
         Some(LiveStatus {
             process_name: String::new(),
@@ -225,7 +253,7 @@ fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<Liv
             is_idle: true,
             idle_seconds: 0,
             session_started_at: 0,
-            session_seconds: 0,
+            session_seconds: held,
             paused,
         })
     });
@@ -235,5 +263,52 @@ fn publish(app: &AppHandle, state: &tauri::State<'_, AppState>, live: Option<Liv
     }
     if let Some(payload) = payload {
         let _ = app.emit("nudgy://tick", payload);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The session timer is a run of ticks on one thing. Pausing used to report zero, so
+    // the header fell to `0s` and came back counting from scratch — as though the sitting
+    // had been thrown away rather than held.
+    #[test]
+    fn a_session_runs_from_its_first_tick() {
+        let mut session = SessionTracker::default();
+        assert_eq!(session.observe("code", 1_000), 1_000);
+        assert_eq!(session.observe("code", 1_005), 1_000);
+    }
+
+    #[test]
+    fn switching_apps_starts_a_new_session() {
+        let mut session = SessionTracker::default();
+        session.observe("code", 1_000);
+        assert_eq!(session.observe("chrome", 1_010), 1_010);
+    }
+
+    /// Resuming shifts the start back by however long was held, so the next tick reports
+    /// the frozen number plus the time since — continuing rather than restarting.
+    #[test]
+    fn resuming_continues_from_the_frozen_value() {
+        let mut session = SessionTracker::default();
+        session.observe("code", 1_000);
+
+        let frozen = 20; // what the header showed when pause was pressed
+        let resumed_at = 5_000; // much later, after a long pause
+        let started_at = resumed_at - frozen;
+        session.resume_at("code", started_at);
+
+        assert_eq!(session.observe("code", resumed_at), started_at);
+        // One tick further on, the counter reads the held value plus the elapsed second.
+        assert_eq!(resumed_at + 5 - session.observe("code", resumed_at + 5), frozen + 5);
+    }
+
+    #[test]
+    fn a_reset_session_starts_again_on_the_next_tick() {
+        let mut session = SessionTracker::default();
+        session.observe("code", 1_000);
+        session.reset();
+        assert_eq!(session.observe("code", 2_000), 2_000);
     }
 }

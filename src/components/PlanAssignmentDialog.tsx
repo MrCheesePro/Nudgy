@@ -300,7 +300,12 @@ export function PlanAssignmentDialog({
         </div>
 
         <div className="mt-6">
-          <span className="text-xs font-medium text-ink-soft">How long will it take?</span>
+          <span className="text-xs font-medium text-ink-soft">
+            How long will it take?{" "}
+            <span className="font-normal text-ink-mute">
+              Nudgy checks in at the halfway mark and lets you revise it.
+            </span>
+          </span>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {ESTIMATE_PRESETS.map((minutes) => (
               <button
@@ -330,7 +335,7 @@ export function PlanAssignmentDialog({
           </div>
           <p className="mt-1.5 text-xs text-ink-mute">
             {item.planId === null
-              ? "A guess is fine — Nudgy checks in at the halfway mark and lets you revise it."
+              ? "A guess is fine."
               : "Saving replaces the existing blocks for this item, and restarts its progress."}
             {item.targetAppName
               ? ` Verified against ${item.targetAppName}.`
@@ -353,7 +358,7 @@ export function PlanAssignmentDialog({
               onClick={() => setMode("continuous")}
               icon={<CalendarClock size={14} />}
               title="One sitting"
-              detail="A single unbroken block, if a gap that long exists"
+              detail="One session, no breaks"
             />
           </div>
 
@@ -363,8 +368,8 @@ export function PlanAssignmentDialog({
                 {(
                   [
                     ["classic", "Classic", "25/5, long break every 4th"],
-                    ["flowmodoro", "Flowmodoro", "break is a fifth of the session"],
-                    ["custom", "Custom", "your lengths"],
+                    ["flowmodoro", "Flowmodoro", "Break is a fifth of the session"],
+                    ["custom", "Custom", "Your own lengths"],
                   ] as const
                 ).map(([id, label, detail]) => (
                   <button
@@ -450,7 +455,7 @@ export function PlanAssignmentDialog({
               {style === "classic" && (
                 <p className="mt-2.5 text-[11px] text-ink-mute">
                   25 minutes of work, 5 minutes off, and 15 minutes after every fourth
-                  session. Lengths are fixed — that is what makes it classic.
+                  session.
                 </p>
               )}
             </div>

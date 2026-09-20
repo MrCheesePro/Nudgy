@@ -266,3 +266,25 @@ export function streakHeat(run: number, lit = true): number {
   const heat = Math.min(1, 0.45 + Math.sqrt(run / 7) * 0.55);
   return lit ? heat : heat * 0.45;
 }
+
+/**
+ * Which category a target form is actually about.
+ *
+ * Extracted because it is where a real bug lived: the original used `??`, and `category`
+ * starts as `""` — which is neither null nor undefined, so an untouched dropdown resolved
+ * to the empty string and the save silently did nothing. The select meanwhile *displayed*
+ * the first untargeted category without ever writing it to state, so the failure looked
+ * specific to whichever category sorted first.
+ *
+ * One function feeds both the submit and the select's `value`, so what is shown and what
+ * is saved cannot drift apart. `undefined` means there is nothing to target — every
+ * category already has one — and the caller disables the button rather than relying on
+ * this being handled downstream.
+ */
+export function resolveTargetCategory(
+  editing: string | null,
+  picked: string,
+  untargeted: { name: string }[],
+): string | undefined {
+  return editing || picked || untargeted[0]?.name;
+}

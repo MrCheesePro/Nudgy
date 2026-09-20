@@ -187,10 +187,10 @@ wrong data.
 25. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
     set of categories short of a floor and uses it only to break ties among goals with no
     due date. Something due tomorrow outranks being behind on a habit.
-26. **Nothing is booked flush against a commitment.** `placeWork` leaves
-    `DEFAULT_BUFFER_SECONDS` either side: a block ending the same second a class begins is
-    a schedule nobody can keep. Day boundaries are exempt — bedtime is not somewhere you
-    have to travel from.
+26. **Pausing holds the session, it does not discard it.** `AppState.session_freeze`
+    keeps the seconds shown when pause was pressed; resuming shifts `session_started_at`
+    back by that much so the counter carries on. Reporting zero made a pause look like a
+    lost sitting.
 27. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.

@@ -6,7 +6,14 @@ import { categoryColor, useAssignableCategories } from "../lib/categories";
 import { quoteForDay } from "../lib/quotes";
 import { formatDuration } from "../lib/time";
 import type { CategoryTarget } from "../lib/types";
-import { dayKey, secondsOn, streakHeat, streakOf, type DaySeries } from "../services/progress";
+import {
+  dayKey,
+  resolveTargetCategory,
+  secondsOn,
+  streakHeat,
+  streakOf,
+  type DaySeries,
+} from "../services/progress";
 
 /**
  * Targets, on the page where today's numbers are.
@@ -74,8 +81,14 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
     setCategory("");
   };
 
+  // One source for both the submit and the select's value, so what is shown and what is
+  // saved cannot drift apart. See `resolveTargetCategory` for the bug this closes.
+  const chosenCategory = resolveTargetCategory(editing, category, untargeted);
+
   const submit = async () => {
-    const chosen = editing ?? category ?? untargeted[0]?.name;
+    const chosen = chosenCategory;
+    // Undefined only when every category already has a target, which also disables the
+    // button — this stays as the clean no-op rather than the path that holds it up.
     if (!chosen) return;
     const seconds = Number(hours) * 3600 + Number(minutes) * 60;
     setBusy(true);
@@ -121,7 +134,7 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-edge pt-3">
         <select
-          value={editing ?? category ?? untargeted[0]?.name ?? ""}
+          value={chosenCategory ?? ""}
           disabled={editing !== null || untargeted.length === 0}
           onChange={(event) => setCategory(event.target.value)}
           className="rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong disabled:opacity-60"

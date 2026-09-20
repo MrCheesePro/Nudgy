@@ -23,21 +23,7 @@ export interface SlotOptions {
   commitments?: Commitment[];
   /** Slots shorter than this are not worth scheduling into. */
   minSlotSeconds?: number;
-  /**
-   * Breathing room to leave either side of a commitment.
-   *
-   * Defaults to none, because this function answers a geometric question — where are the
-   * gaps — and a gap is a gap. Deciding you should not *use* the last five minutes of one
-   * is scheduling policy, so it lives in `placeWork`, which is what actually books time.
-   *
-   * Only applied where a slot abuts something: the start of the day and bedtime are not
-   * events you have to get away from, so those edges are left alone.
-   */
-  bufferSeconds?: number;
 }
-
-/** What the planner leaves around a commitment. */
-export const DEFAULT_BUFFER_SECONDS = 5 * 60;
 
 export const DEFAULT_MIN_SLOT_SECONDS = 15 * 60;
 
@@ -79,27 +65,17 @@ export function findFreeSlots(options: SlotOptions): Interval[] {
       .filter((interval) => interval.endTs > interval.startTs),
   );
 
-  const buffer = Math.max(0, options.bufferSeconds ?? 0);
   const free: Interval[] = [];
   let cursor = now;
-  /** Whether the gap we are about to close began at a commitment rather than at `now`. */
-  let afterCommitment = false;
 
   for (const interval of busy) {
     if (interval.startTs > cursor) {
-      free.push({
-        startTs: cursor + (afterCommitment ? buffer : 0),
-        endTs: interval.startTs - buffer,
-      });
+      free.push({ startTs: cursor, endTs: interval.startTs });
     }
     cursor = Math.max(cursor, interval.endTs);
-    afterCommitment = true;
   }
   if (cursor < dayEnd) {
-    free.push({
-      startTs: cursor + (afterCommitment ? buffer : 0),
-      endTs: dayEnd,
-    });
+    free.push({ startTs: cursor, endTs: dayEnd });
   }
 
   return free.filter((slot) => slot.endTs - slot.startTs >= minSlot);

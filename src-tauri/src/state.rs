@@ -25,6 +25,12 @@ pub struct AppState {
     pub registry: Arc<RwLock<Registry>>,
     /// Last tick, for the live header and for the tray tooltip.
     pub current: Arc<RwLock<Option<LiveStatus>>>,
+    /// Session seconds at the moment tracking was paused.
+    ///
+    /// Pausing used to report zero, so the counter fell to `0s` and resumed from there —
+    /// which read as the session having been thrown away rather than held. This keeps
+    /// the number so it can be shown while paused and resumed from on the way back.
+    pub session_freeze: Arc<Mutex<Option<i64>>>,
 }
 
 impl AppState {
@@ -36,6 +42,7 @@ impl AppState {
             presence: Arc::new(RwLock::new(HashMap::new())),
             registry: Arc::new(RwLock::new(registry)),
             current: Arc::new(RwLock::new(None)),
+            session_freeze: Arc::new(Mutex::new(None)),
         }
     }
 

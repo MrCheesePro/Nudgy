@@ -1,4 +1,4 @@
-import { Bell, Pause, Play, Search } from "lucide-react";
+import { Bell, Pause, Play } from "lucide-react";
 
 import type { View } from "./IconRail";
 
@@ -11,8 +11,6 @@ const VIEW_TITLES: Record<View, string> = {
 
 interface Props {
   view: View;
-  query: string;
-  onQuery: (value: string) => void;
   paused: boolean;
   onTogglePause: () => void;
   alerts: number;
@@ -24,8 +22,6 @@ interface Props {
 
 export function TopBar({
   view,
-  query,
-  onQuery,
   paused,
   onTogglePause,
   alerts,
@@ -35,26 +31,10 @@ export function TopBar({
 }: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-edge bg-surface px-5">
-      <div className="flex items-center gap-2 text-sm">
+      <div className="mr-auto flex min-w-0 items-center gap-2 text-sm">
         <span className="text-ink-mute">Nudgy</span>
         <span className="text-ink-mute">·</span>
         <span className="font-medium text-ink">{VIEW_TITLES[view]}</span>
-      </div>
-
-      <div className="relative mx-2 min-w-0 flex-1">
-        <Search
-          size={13}
-          className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-ink-mute"
-        />
-        <input
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-          placeholder="Filter apps and coursework…"
-          className="w-full rounded-full border border-edge bg-canvas py-1.5 pr-9 pl-8 text-[13px] text-ink outline-none transition select-text placeholder:text-ink-mute focus:border-edge-strong"
-        />
-        <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 font-mono text-[10px] text-ink-mute">
-          ⌘/
-        </kbd>
       </div>
 
       {/* Stands in for the mockup's "Synced" pill — here it reports whether the

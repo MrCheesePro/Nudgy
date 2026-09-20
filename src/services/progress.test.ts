@@ -6,6 +6,7 @@ import {
   dailySeries,
   dayKey,
   metOn,
+  resolveTargetCategory,
   secondsOn,
   streak,
   streakOf,
@@ -250,5 +251,34 @@ describe("behindCategories", () => {
   it("drops a floor once it is met", () => {
     const series = dailySeries([row(0, "Development", 3 * HOUR)], 1, TODAY);
     expect(behindCategories(series, [floor(2 * HOUR)]).size).toBe(0);
+  });
+});
+
+describe("resolveTargetCategory", () => {
+  const untargeted = [{ name: "Development" }, { name: "Productivity" }];
+
+  /**
+   * The bug, exactly: the dropdown shows Development, the user never touches it, and
+   * `picked` is still "". With `??` that resolved to "" and the save silently did
+   * nothing — which looked like "targets do not work for Development".
+   */
+  it("uses the first untargeted category when the dropdown is untouched", () => {
+    expect(resolveTargetCategory(null, "", untargeted)).toBe("Development");
+  });
+
+  it("uses what was picked once the dropdown is touched", () => {
+    expect(resolveTargetCategory(null, "Productivity", untargeted)).toBe("Productivity");
+  });
+
+  // Editing wins outright, including when the category is no longer in the list —
+  // otherwise editing a target whose category was deleted would retarget a different one.
+  it("keeps editing the loaded target, even one no longer offered", () => {
+    expect(resolveTargetCategory("Gaming", "", untargeted)).toBe("Gaming");
+    expect(resolveTargetCategory("Gaming", "Productivity", untargeted)).toBe("Gaming");
+    expect(resolveTargetCategory("Reading", "", [])).toBe("Reading");
+  });
+
+  it("is undefined when every category already has a target", () => {
+    expect(resolveTargetCategory(null, "", [])).toBeUndefined();
   });
 });

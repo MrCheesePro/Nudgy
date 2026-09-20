@@ -97,7 +97,6 @@ export default function App() {
   );
 
   const [view, setView] = useState<View>("overview");
-  const [query, setQuery] = useState("");
   const [paused, setPausedState] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [planning, setPlanning] = useState<Plannable | null>(null);
@@ -174,26 +173,6 @@ export default function App() {
       setPausedState(!next);
     }
   }, [paused]);
-
-  const needle = query.trim().toLowerCase();
-  const filteredTasks = useMemo(
-    () =>
-      needle
-        ? tasks.tasks.filter((task) =>
-            `${task.title} ${task.courseCode ?? ""}`.toLowerCase().includes(needle),
-          )
-        : tasks.tasks,
-    [needle, tasks.tasks],
-  );
-  const filteredApps = useMemo(
-    () =>
-      needle
-        ? apps.filter((app) =>
-            `${app.appName} ${app.processName}`.toLowerCase().includes(needle),
-          )
-        : apps,
-    [apps, needle],
-  );
 
   /**
    * Blocks already on the timeline count as busy, alongside the calendar — on every day
@@ -496,8 +475,6 @@ export default function App() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           view={view}
-          query={query}
-          onQuery={setQuery}
           paused={paused}
           onTogglePause={() => void togglePause()}
           alerts={alerts}
@@ -538,7 +515,7 @@ export default function App() {
                     it is the one panel whose length depends on how many apps you used. */}
                 <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
                   <UsageBreakdown breakdown={breakdown} streaks={streaks} />
-                  <TopApps apps={filteredApps} streaks={streaks} />
+                  <TopApps apps={apps} streaks={streaks} />
                 </div>
                 <div className="shrink-0">
   
@@ -576,13 +553,13 @@ export default function App() {
 
             {view === "progress" && <ProgressPage />}
 
-            {view === "apps" && <AppRegistry query={query} />}
+            {view === "apps" && <AppRegistry />}
 
           </main>
 
           {(view === "overview" || view === "timeline") && (
             <CanvasSyncSidebar
-              tasks={filteredTasks}
+              tasks={tasks.tasks}
               completedTasks={tasks.completedTasks}
               clearedAt={clearedAt}
               canvasLinked={canvasLinked}

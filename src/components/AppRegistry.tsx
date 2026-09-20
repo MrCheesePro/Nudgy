@@ -16,11 +16,6 @@ import { formatDuration } from "../lib/time";
 import type { AppRule, CategoryDef, UnmappedProcess } from "../lib/types";
 import { ConfirmDialog } from "./ConfirmDialog";
 
-interface Props {
-  /** The search box in the top bar filters this tab too. */
-  query: string;
-}
-
 /**
  * One app, however many patterns name it.
  *
@@ -58,10 +53,14 @@ function sinceLabel(epochSeconds: number): string {
  * time it records next. A correction that only applies to the future leaves every chart
  * showing the answer you just told it was wrong.
  */
-export function AppRegistry({ query }: Props) {
+export function AppRegistry() {
   const { rules, totals, unmapped, error, loading, refresh } = useAppRegistry();
   const categories = useAssignableCategories();
 
+  // The filter lives here now rather than in the top bar: this is the only list long
+  // enough to need one, and a global search box that filtered three unrelated things was
+  // never clear about what it was searching.
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -245,6 +244,19 @@ export function AppRegistry({ query }: Props) {
           {error}
         </p>
       )}
+
+      <div className="relative">
+        <Search
+          size={14}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-mute"
+        />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Filter apps by name, pattern or category…"
+          className="w-full rounded-full border border-edge bg-surface py-2 pr-4 pl-9 text-sm text-ink outline-none transition select-text placeholder:text-ink-mute focus:border-edge-strong"
+        />
+      </div>
 
       <UnmappedSection
         unmapped={unmapped}

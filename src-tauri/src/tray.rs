@@ -77,6 +77,21 @@ pub fn apply_paused(app: &AppHandle, paused: bool) -> Result<()> {
         handles.pause.set_checked(paused)?;
     }
 
+    // Hold the session counter where it is. Read from the last published tick rather
+    // than recomputed, so the number that freezes is exactly the one on screen.
+    if paused {
+        if let Ok(mut frozen) = state.session_freeze.lock() {
+            *frozen = state
+                .current
+                .read()
+                .ok()
+                .and_then(|live| live.as_ref().map(|status| status.session_seconds))
+                .filter(|seconds| *seconds > 0);
+        }
+    }
+    // Resuming deliberately leaves the value alone: the next tick takes it and clears it,
+    // which is what shifts the session start rather than restarting the count.
+
     // Pausing is a natural flush point: whatever was tracked up to now should be on disk
     // before the watcher goes quiet.
     if paused {

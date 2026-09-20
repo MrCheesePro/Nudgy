@@ -6,12 +6,7 @@
  * one continuous stretch or as pomodoro sessions with breaks between.
  */
 
-import {
-  DEFAULT_BUFFER_SECONDS,
-  findFreeSlots,
-  type Commitment,
-  type Interval,
-} from "./slotFinder";
+import { findFreeSlots, type Commitment, type Interval } from "./slotFinder";
 
 export type PlanMode = "continuous" | "pomodoro";
 
@@ -91,8 +86,6 @@ export interface PlacementInput {
   dueAt?: number | null;
   /** Epoch seconds. Defaults to the start of the first day, which is already floored at now. */
   now?: number;
-  /** Gap left either side of a commitment. Defaults to `DEFAULT_BUFFER_SECONDS`. */
-  bufferSeconds?: number;
 }
 
 /** How far out overdue work may be pushed before it stops being "as soon as possible". */
@@ -155,9 +148,6 @@ export function placeWork(input: PlacementInput): Placement {
             dayEnd,
             commitments: day.commitments,
             minSlotSeconds: MIN_SESSION_SECONDS,
-            // Nothing is booked flush against a class. A block that ends the same second
-            // the next thing starts is a schedule nobody can keep.
-            bufferSeconds: input.bufferSeconds ?? DEFAULT_BUFFER_SECONDS,
           });
 
     return { key: day.key, slots };
