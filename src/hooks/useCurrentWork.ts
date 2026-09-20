@@ -7,7 +7,15 @@ export interface CurrentWork {
   title: string;
   /** `MATH241` for a Canvas assignment; null for a goal the user typed. */
   courseCode: string | null;
+  blockStartTs: number;
   blockEndTs: number;
+  /**
+   * Measured progress on the plan this block belongs to, 0–100, or null for a standalone
+   * block. Tracked time, never the clock — invariant 10.
+   */
+  planPercent: number | null;
+  workedSeconds: number;
+  estimateSeconds: number;
   /** The app this block is verified against is in front. Styling only. */
   matchingProcess: boolean;
   idle: boolean;
@@ -51,7 +59,11 @@ export function useCurrentWork(
     return {
       title: stripCourseCode(block.label, courseCode),
       courseCode,
+      blockStartTs: block.startTs,
       blockEndTs: block.endTs,
+      planPercent: plan ? Math.min(100, plan.percent) : null,
+      workedSeconds: plan?.workedSeconds ?? 0,
+      estimateSeconds: plan?.plan.estimateSeconds ?? 0,
       matchingProcess:
         live !== null &&
         (block.targetProcess === null ||

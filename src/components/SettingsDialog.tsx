@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { KeyRound, TriangleAlert, X } from "lucide-react";
 
-import { clearSecret, getSettings, hasSecret, setSecret, setSetting } from "../lib/ipc";
+import {
+  clearActivityData,
+  clearSecret,
+  getSettings,
+  hasSecret,
+  setSecret,
+  setSetting,
+} from "../lib/ipc";
+import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
+import { chooseTheme, THEMES, useTheme } from "../lib/theme";
+import { ConfirmDialog } from "./ConfirmDialog";
 import {
   SECRET_CALENDAR_ICS_URL,
   SECRET_CANVAS_TOKEN,
-  SECRET_LLM_API_KEY,
   SETTING_CANVAS_BASE_URL,
 } from "../lib/types";
 
@@ -14,20 +23,13 @@ interface Props {
   onClose: () => void;
 }
 
-const SETTING_LLM_BASE_URL = "llm_base_url";
-const SETTING_LLM_MODEL = "llm_model";
-
-const DEFAULT_LLM_URL = "https://api.openai.com/v1";
-const DEFAULT_LLM_MODEL = "gpt-4o-mini";
 
 /** The plain settings, as loaded. Secrets are not here — they are never read back. */
 interface SettingsForm {
   canvasUrl: string;
-  llmUrl: string;
-  llmModel: string;
 }
 
-const EMPTY_FORM: SettingsForm = { canvasUrl: "", llmUrl: "", llmModel: "" };
+const EMPTY_FORM: SettingsForm = { canvasUrl: "" };
 
 export function SettingsDialog({ open, onClose }: Props) {
   const [form, setForm] = useState<SettingsForm>(EMPTY_FORM);
@@ -35,16 +37,18 @@ export function SettingsDialog({ open, onClose }: Props) {
   const [baseline, setBaseline] = useState<SettingsForm>(EMPTY_FORM);
 
   const [canvasToken, setCanvasToken] = useState("");
-  const [llmKey, setLlmKey] = useState("");
   const [calendarUrl, setCalendarUrl] = useState("");
 
   const [canvasTokenStored, setCanvasTokenStored] = useState(false);
-  const [llmKeyStored, setLlmKeyStored] = useState(false);
   const [calendarStored, setCalendarStored] = useState(false);
 
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingWipe, setConfirmingWipe] = useState(false);
+  const [wiping, setWiping] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const theme = useTheme();
+  const [autostart, setAutostart] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -52,18 +56,15 @@ export function SettingsDialog({ open, onClose }: Props) {
       const settings = new Map(await getSettings().catch(() => []));
       const loaded: SettingsForm = {
         canvasUrl: settings.get(SETTING_CANVAS_BASE_URL) ?? "",
-        llmUrl: settings.get(SETTING_LLM_BASE_URL) ?? DEFAULT_LLM_URL,
-        llmModel: settings.get(SETTING_LLM_MODEL) ?? DEFAULT_LLM_MODEL,
-      };
+          };
       setForm(loaded);
       setBaseline(loaded);
 
       setCanvasTokenStored(await hasSecret(SECRET_CANVAS_TOKEN).catch(() => false));
-      setLlmKeyStored(await hasSecret(SECRET_LLM_API_KEY).catch(() => false));
       setCalendarStored(await hasSecret(SECRET_CALENDAR_ICS_URL).catch(() => false));
+      setAutostart(await autostartEnabled().catch(() => false));
 
       setCanvasToken("");
-      setLlmKey("");
       setCalendarUrl("");
       setStatus(null);
       setConfirmingClose(false);
@@ -75,20 +76,15 @@ export function SettingsDialog({ open, onClose }: Props) {
   const dirty = useMemo(
     () =>
       form.canvasUrl !== baseline.canvasUrl ||
-      form.llmUrl !== baseline.llmUrl ||
-      form.llmModel !== baseline.llmModel ||
       canvasToken.trim() !== "" ||
-      llmKey.trim() !== "" ||
       calendarUrl.trim() !== "",
-    [form, baseline, canvasToken, llmKey, calendarUrl],
+    [form, baseline, canvasToken, calendarUrl],
   );
 
   const save = useCallback(async () => {
     setSaving(true);
     try {
       await setSetting(SETTING_CANVAS_BASE_URL, form.canvasUrl.trim());
-      await setSetting(SETTING_LLM_BASE_URL, form.llmUrl.trim());
-      await setSetting(SETTING_LLM_MODEL, form.llmModel.trim());
 
       // A blank secret field means "leave the keychain alone", not "erase it" — blank is
       // the normal state, since the stored value is never echoed back into the form.
@@ -96,11 +92,6 @@ export function SettingsDialog({ open, onClose }: Props) {
         await setSecret(SECRET_CANVAS_TOKEN, canvasToken.trim());
         setCanvasTokenStored(true);
         setCanvasToken("");
-      }
-      if (llmKey.trim()) {
-        await setSecret(SECRET_LLM_API_KEY, llmKey.trim());
-        setLlmKeyStored(true);
-        setLlmKey("");
       }
       if (calendarUrl.trim()) {
         await setSecret(SECRET_CALENDAR_ICS_URL, calendarUrl.trim());
@@ -110,13 +101,10 @@ export function SettingsDialog({ open, onClose }: Props) {
 
       setBaseline({
         canvasUrl: form.canvasUrl.trim(),
-        llmUrl: form.llmUrl.trim(),
-        llmModel: form.llmModel.trim(),
       });
       setForm((current) => ({
+        ...current,
         canvasUrl: current.canvasUrl.trim(),
-        llmUrl: current.llmUrl.trim(),
-        llmModel: current.llmModel.trim(),
       }));
       setStatus("Saved");
       return true;
@@ -126,7 +114,7 @@ export function SettingsDialog({ open, onClose }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [form, canvasToken, llmKey, calendarUrl]);
+  }, [form, canvasToken, calendarUrl]);
 
   /** Closing with unsaved edits asks first, instead of quietly throwing them away. */
   const requestClose = useCallback(() => {
@@ -145,7 +133,6 @@ export function SettingsDialog({ open, onClose }: Props) {
   const discardAndClose = useCallback(() => {
     setForm(baseline);
     setCanvasToken("");
-    setLlmKey("");
     setCalendarUrl("");
     setConfirmingClose(false);
     onClose();
@@ -173,9 +160,22 @@ export function SettingsDialog({ open, onClose }: Props) {
   const forget = async (key: string) => {
     await clearSecret(key).catch(() => undefined);
     if (key === SECRET_CANVAS_TOKEN) setCanvasTokenStored(false);
-    else if (key === SECRET_CALENDAR_ICS_URL) setCalendarStored(false);
-    else setLlmKeyStored(false);
+    else setCalendarStored(false);
     setStatus("Removed from keychain");
+  };
+
+  /** The command drains the sample buffer first, so nothing already measured leaks back
+   *  in on the next flush, and emits `nudgy://flushed` so every chart empties together. */
+  const wipe = async () => {
+    setWiping(true);
+    try {
+      const deleted = await clearActivityData();
+      setStatus(`Cleared ${deleted.toLocaleString()} recorded samples`);
+    } catch (cause) {
+      setStatus(String(cause));
+    } finally {
+      setWiping(false);
+    }
   };
 
   const update = (patch: Partial<SettingsForm>) =>
@@ -183,7 +183,7 @@ export function SettingsDialog({ open, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/25 p-8 backdrop-blur-sm"
+      className="scroll-area fixed inset-0 z-50 flex items-start justify-center bg-ink/25 p-8 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
@@ -209,6 +209,42 @@ export function SettingsDialog({ open, onClose }: Props) {
         </div>
 
         <div className="mt-6 space-y-5">
+          <div>
+            <span className="text-xs font-medium tracking-wide text-ink-soft">Colours</span>
+            <p className="mt-1 text-xs text-ink-mute">
+              Applies straight away. Category colours are set on the App registry tab and
+              are left alone — they mean something specific, so a theme does not repaint
+              them.
+            </p>
+            <ul className="mt-2.5 flex flex-wrap gap-2">
+              {THEMES.map((entry) => (
+                <li key={entry.id}>
+                  <button
+                    type="button"
+                    onClick={() => void chooseTheme(entry.id)}
+                    aria-pressed={entry.id === theme}
+                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                      entry.id === theme
+                        ? "border-edge-strong bg-canvas font-medium text-ink"
+                        : "border-edge text-ink-soft hover:border-edge-strong"
+                    }`}
+                  >
+                    <span className="flex shrink-0 overflow-hidden rounded-full border border-edge">
+                      {entry.swatch.map((shade) => (
+                        <span
+                          key={shade}
+                          className="h-3.5 w-3"
+                          style={{ background: shade }}
+                        />
+                      ))}
+                    </span>
+                    {entry.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <Field
             label="Canvas base URL"
             hint="e.g. https://canvas.institution.edu"
@@ -240,28 +276,68 @@ export function SettingsDialog({ open, onClose }: Props) {
           </div>
 
           <div className="border-t border-edge pt-5">
-            <Field
-              label="LLM endpoint"
-              hint="Any OpenAI-compatible /chat/completions server"
-              value={form.llmUrl}
-              onChange={(llmUrl) => update({ llmUrl })}
-            />
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={autostart}
+                onChange={async (event) => {
+                  const next = event.target.checked;
+                  setAutostart(next);
+                  try {
+                    if (next) await enableAutostart();
+                    else await disableAutostart();
+                  } catch (cause) {
+                    setAutostart(!next);
+                    setStatus(String(cause));
+                  }
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-rose"
+              />
+              <span>
+                <span className="text-xs font-medium tracking-wide text-ink-soft">
+                  Start Nudgy when I log in
+                </span>
+                <span className="mt-1 block text-xs text-ink-mute">
+                  Nudgy opens by itself after you restart or sign in, so the day is tracked
+                  without you having to remember. It starts in the background — no window
+                  appears until you click the tray icon. Turn this off and nothing is
+                  tracked between a reboot and the next time you open it, which is also how
+                  a streak gets lost to a restart rather than to you.
+                </span>
+              </span>
+            </label>
           </div>
 
-          <Field
-            label="Model"
-            value={form.llmModel}
-            onChange={(llmModel) => update({ llmModel })}
-          />
-
-          <SecretField
-            label="LLM API key"
-            stored={llmKeyStored}
-            value={llmKey}
-            onChange={setLlmKey}
-            onForget={() => void forget(SECRET_LLM_API_KEY)}
-          />
+          <div className="border-t border-edge pt-5">
+            <span className="text-xs font-medium tracking-wide text-ink-soft">
+              Tracked activity
+            </span>
+            <p className="mt-1 text-xs text-ink-mute">
+              Deletes every recorded sample, so categories can be tested against a clean
+              day. Plans, schedule, tasks and your app rules are kept.
+            </p>
+            <button
+              type="button"
+              disabled={wiping}
+              onClick={() => setConfirmingWipe(true)}
+              className="mt-2.5 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-bad/40 hover:text-bad disabled:opacity-50"
+            >
+              {wiping ? "Clearing…" : "Clear tracked activity"}
+            </button>
+          </div>
         </div>
+
+        <ConfirmDialog
+          open={confirmingWipe}
+          title="Clear tracked activity?"
+          body="Every recorded sample is deleted, so today's chart and every past day go back to empty. Plans, schedule blocks, Canvas tasks and your app rules are kept. This cannot be undone."
+          confirmLabel="Delete it all"
+          onConfirm={() => {
+            setConfirmingWipe(false);
+            void wipe();
+          }}
+          onCancel={() => setConfirmingWipe(false)}
+        />
 
         <p className="mt-5 flex items-start gap-2 text-xs text-ink-mute">
           <KeyRound size={13} className="mt-0.5 shrink-0" />

@@ -149,6 +149,104 @@ const MIGRATIONS: &[&str] = &[
        AND is_user_defined = 0
        AND pattern = '(?i)(^|\s)(x|twitter)\s*[/(]|\bon x\b|\btwitter\b';
     "#,
+    // 7 — categories stop being a compile-time constant and become rows, so a person can
+    //     add one. `Free Time` arrives as an eighth built-in; Gaming and Social stay
+    //     separate, because "a game" and "a group chat" are not the same evening.
+    //
+    //     `priority` fixes a real ambiguity: title rules used to fire in alphabetical
+    //     pattern order, so which rule claimed "YouTube — how to write a thesis" was luck.
+    //     School rules now outrank media rules, which is what "Chrome is Neutral unless it
+    //     is coursework" actually means, and a rule the user wrote outranks both.
+    r#"
+    CREATE TABLE IF NOT EXISTS categories (
+        id         INTEGER PRIMARY KEY,
+        name       TEXT    NOT NULL UNIQUE,
+        color      TEXT    NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 100,
+        is_builtin INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Colours are the ones the frontend already drew, so nothing on screen shifts hue.
+    INSERT OR IGNORE INTO categories (name, color, sort_order, is_builtin) VALUES
+      ('Development',  '#8b7bd8', 10, 1),
+      ('Productivity', '#4fa88c', 20, 1),
+      ('Creative',     '#e0a05e', 30, 1),
+      ('Social',       '#e0818f', 40, 1),
+      ('Gaming',       '#b07bd4', 50, 1),
+      ('Free Time',    '#7fb2e5', 60, 1),
+      ('Neutral',      '#bda3a7', 70, 1),
+      ('Idle',         '#e7d2d5', 80, 1);
+
+    ALTER TABLE known_apps ADD COLUMN priority INTEGER NOT NULL DEFAULT 100;
+
+    -- Seeding is insert-or-ignore and cannot move an existing row, so the reclassification
+    -- of watching-things happens here. The samples already recorded move with the rule:
+    -- a correction that only applies going forward leaves the charts wrong forever.
+    UPDATE known_apps SET category = 'Free Time'
+     WHERE match_type = 'title_regex'
+       AND is_user_defined = 0
+       AND display_name IN ('YouTube', 'Netflix', 'Twitch', 'Spotify');
+
+    UPDATE activity_samples SET category = 'Free Time'
+     WHERE is_idle = 0
+       AND window_title IN ('YouTube', 'Netflix', 'Twitch', 'Spotify');
+
+    UPDATE known_apps SET priority = 200
+     WHERE match_type = 'title_regex' AND category = 'Productivity';
+    UPDATE known_apps SET priority = 300 WHERE is_user_defined = 1;
+    "#,
+    // 8 — places and the time between them.
+    //
+    //     A day is not just hours, it is hours in rooms. An 8:00 class twenty-five minutes
+    //     away means work stops at 7:35, and a planner that does not know this hands you a
+    //     schedule you cannot physically keep.
+    //
+    //     `travel_cache` is not an optimisation, it is the offline story: addresses do not
+    //     move, so one lookup answers forever and a plan made on a train still knows how
+    //     far the library is.
+    r#"
+    CREATE TABLE IF NOT EXISTS places (
+        id         INTEGER PRIMARY KEY,
+        name       TEXT    NOT NULL UNIQUE,
+        address    TEXT    NOT NULL,
+        -- Exactly one row may carry this; `set_base_place` clears the others first.
+        is_base    INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS travel_cache (
+        origin_id      INTEGER NOT NULL,
+        destination_id INTEGER NOT NULL,
+        mode           TEXT    NOT NULL,
+        seconds        INTEGER NOT NULL,
+        fetched_at     INTEGER NOT NULL,
+        PRIMARY KEY (origin_id, destination_id, mode),
+        FOREIGN KEY (origin_id)      REFERENCES places(id) ON DELETE CASCADE,
+        FOREIGN KEY (destination_id) REFERENCES places(id) ON DELETE CASCADE
+    );
+
+    -- Where a hand-written task happens. NULL is the normal case and means no travel.
+    ALTER TABLE schedule_blocks ADD COLUMN place_id INTEGER;
+    -- Travel already accounted for before this block starts, in seconds. Stored rather
+    -- than recomputed so a block drawn tomorrow shows the number it was planned against.
+    ALTER TABLE schedule_blocks ADD COLUMN travel_before_seconds INTEGER NOT NULL DEFAULT 0;
+    "#,
+    // 9 — what a good day is supposed to look like.
+    //
+    //     Tracking answers "where did it go". A target is the other half: "where did I
+    //     want it to go", which is the only thing that makes a week comparable to the one
+    //     before it. Keyed by category name, the same way `known_apps` and
+    //     `schedule_blocks` already refer to categories.
+    r#"
+    CREATE TABLE IF NOT EXISTS category_targets (
+        category        TEXT    PRIMARY KEY,
+        -- 'at_least' is a floor to reach, 'at_most' a ceiling not to pass. The direction
+        -- is what makes a fall in minutes good news or bad news.
+        direction       TEXT    NOT NULL,
+        seconds_per_day INTEGER NOT NULL,
+        created_at      INTEGER NOT NULL
+    );
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

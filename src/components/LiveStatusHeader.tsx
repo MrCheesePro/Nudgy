@@ -1,7 +1,8 @@
 import { Moon, Radio, Zap } from "lucide-react";
 
 import { formatClock, formatDuration } from "../lib/time";
-import { CATEGORY_COLORS, type LiveStatus } from "../lib/types";
+import { categoryColor } from "../lib/categories";
+import type { LiveStatus } from "../lib/types";
 import type { CurrentWork } from "../hooks/useCurrentWork";
 
 interface Props {
@@ -12,14 +13,22 @@ interface Props {
   work?: CurrentWork | null;
 }
 
+/** How far through a block the clock is. Only used when there is no plan to measure. */
+function elapsedPercent(startTs: number, endTs: number): number {
+  const span = endTs - startTs;
+  if (span <= 0) return 0;
+  const gone = Math.floor(Date.now() / 1000) - startTs;
+  return Math.min(100, Math.max(0, Math.round((gone / span) * 100)));
+}
+
 export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props) {
   const idle = status?.isIdle ?? true;
-  const color = status ? CATEGORY_COLORS[status.category] : CATEGORY_COLORS.Idle;
+  const color = status ? categoryColor(status.category) : categoryColor("Idle");
   // The block says what this time is *for*; the flags only decide how loudly it is said.
   const onTask = work !== null && work !== undefined && work.matchingProcess && !idle && !paused;
 
   return (
-    <header className="rounded-2xl border border-edge bg-surface p-6">
+    <header className="shrink-0 rounded-2xl border border-edge bg-surface p-6">
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-semibold tracking-widest text-ink-mute uppercase">
@@ -65,13 +74,47 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
               )}
               <span className="truncate">{work.title}</span>
               <span className="shrink-0 text-xs text-ink-mute">
-                until {formatClock(work.blockEndTs)}
+                {formatClock(work.blockStartTs)} – {formatClock(work.blockEndTs)}
               </span>
             </p>
           ) : (
             <p className="mt-1 h-5 truncate text-sm text-ink-mute">
               {status ? status.processName : ""}
             </p>
+          )}
+
+          {/* How the scheduled work is going, right here rather than only in the
+              sidebar. Where a plan exists the number is measured working time, not the
+              clock — sitting in front of a block you are not doing is not progress. A
+              standalone block has nothing to measure against, so it reports the honest
+              thing instead: how much of the block has gone by. */}
+          {work && (
+            <div className="mt-3 max-w-md">
+              <div className="flex items-baseline justify-between gap-3 text-[11px]">
+                <span className="text-ink-mute">
+                  {work.planPercent !== null
+                    ? `${formatDuration(work.workedSeconds)} of ${formatDuration(
+                        work.estimateSeconds,
+                      )} worked`
+                    : "through this block"}
+                </span>
+                <span className="font-mono font-semibold tabular-nums text-ink-soft">
+                  {work.planPercent ?? elapsedPercent(work.blockStartTs, work.blockEndTs)}%
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{
+                    width: `${Math.max(
+                      2,
+                      work.planPercent ?? elapsedPercent(work.blockStartTs, work.blockEndTs),
+                    )}%`,
+                    background: onTask ? color : "var(--color-edge-strong)",
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">

@@ -29,6 +29,10 @@ export interface QueueItem {
   category: string;
   targetProcess: string | null;
   estimateSeconds: number;
+  /** Where it happens, when the user said. Null means wherever they already are. */
+  placeId?: number | null;
+  /** Seconds to get there from the base, when that leg has been measured. */
+  travelBeforeSeconds?: number;
 }
 
 const DEFAULT_ESTIMATE_SECONDS = 60 * 60;
@@ -43,6 +47,10 @@ export function planQueue(
   goals: Goal[],
   tasks: LmsTask[],
   plans: PlanProgress[],
+  /** Travel from the base to a place, in seconds, for goals that name one. */
+  travelFromBase?: (placeId: number) => number,
+  /** Categories short of a floor today. Nudges the undated tail, never the deadlines. */
+  behind?: Set<string>,
 ): QueueItem[] {
   const plannedTitles = new Set(
     plans.filter((entry) => entry.plan.status === "active").map((entry) => entry.plan.title),
@@ -60,10 +68,16 @@ export function planQueue(
       taskId: null,
       title: goal.label,
       subtitle: goal.category ?? null,
-      dueAt: null,
+      // A goal with a deadline sorts among the assignments rather than after them.
+      dueAt: goal.dueAt ?? null,
       category: goal.category ?? "Productivity",
       targetProcess: goal.targetProcess ?? null,
       estimateSeconds: goal.targetSeconds > 0 ? goal.targetSeconds : DEFAULT_ESTIMATE_SECONDS,
+      placeId: goal.placeId ?? null,
+      // Unmeasured is zero, not a guess: silently shrinking the day by an invented
+      // commute is worse than ignoring a real one.
+      travelBeforeSeconds:
+        goal.placeId != null && travelFromBase ? travelFromBase(goal.placeId) : 0,
     }));
 
   const fromTasks: QueueItem[] = tasks
@@ -80,11 +94,22 @@ export function planQueue(
     }));
 
   // Deadlines first, in order; undated intentions after them.
+  //
+  // A target may reorder the undated tail but must never touch the dated head: something
+  // due tomorrow outranks being behind on a habit, and quietly demoting it would be the
+  // planner deciding a deadline matters less than a preference.
   return [...fromTasks, ...fromGoals].sort((left, right) => {
-    if (left.dueAt === right.dueAt) return 0;
-    if (left.dueAt === null) return 1;
-    if (right.dueAt === null) return -1;
-    return left.dueAt - right.dueAt;
+    if (left.dueAt !== right.dueAt) {
+      if (left.dueAt === null) return 1;
+      if (right.dueAt === null) return -1;
+      return left.dueAt - right.dueAt;
+    }
+    if (left.dueAt === null && behind && behind.size > 0) {
+      const leftBehind = behind.has(left.category);
+      const rightBehind = behind.has(right.category);
+      if (leftBehind !== rightBehind) return leftBehind ? -1 : 1;
+    }
+    return 0;
   });
 }
 
@@ -123,6 +148,8 @@ export function nextProposal(input: ProposalInput): Placement {
     dueAt: input.item.dueAt,
     days,
     now: input.now,
+    // A gap only counts if it is long enough to get there and still do the work.
+    travelBeforeSeconds: input.item.travelBeforeSeconds,
   });
 }
 

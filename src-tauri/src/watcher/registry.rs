@@ -17,9 +17,14 @@ pub const REDACTED_TITLE: &str = "[Private]";
 #[derive(Default)]
 pub struct Registry {
     exact: HashMap<String, (String, String)>,
+    /// Already in precedence order — `load_app_rules` sorts by priority — so the first
+    /// match is the answer and nothing has to be re-ranked on the tick path.
     title_rules: Vec<TitleRule>,
     redact_exact: HashSet<String>,
     redact_title: Vec<Regex>,
+    /// The live category vocabulary. It is a table now, not a constant, so "is this a
+    /// real category?" has to be asked of something that was loaded.
+    categories: HashSet<String>,
 }
 
 struct TitleRule {
@@ -87,7 +92,25 @@ impl Registry {
             }
         }
 
+        registry.categories = queries::category_names(conn)?.into_iter().collect();
+
         Ok(registry)
+    }
+
+    /// True when `name` is a category someone could actually have chosen. Replaces the old
+    /// compile-time list, so a category added at runtime is valid immediately.
+    pub fn has_category(&self, name: &str) -> bool {
+        self.categories.contains(name)
+    }
+
+    /// A registry that knows nothing but a vocabulary — enough to test the callers that
+    /// only ask `has_category`, without standing up a database.
+    #[cfg(test)]
+    pub fn with_categories(names: &[&str]) -> Self {
+        Registry {
+            categories: names.iter().map(|name| name.to_string()).collect(),
+            ..Registry::default()
+        }
     }
 
     /// Resolve a foreground observation to what gets stored.
@@ -191,6 +214,7 @@ impl Registry {
                             display_name: display_name.clone(),
                             category: category.clone(),
                             is_user_defined: false,
+                            priority: crate::models::PRIORITY_DEFAULT,
                         },
                     ));
                 }
@@ -218,7 +242,7 @@ impl Registry {
 
 /// Lowercase, letters and digits only, so "Clip Studio Paint", "clipstudiopaint" and
 /// "ClipStudioPaint.exe" all reduce to the same thing.
-fn normalize(value: &str) -> String {
+pub(crate) fn normalize(value: &str) -> String {
     value
         .chars()
         .filter(|character| character.is_alphanumeric())
@@ -284,13 +308,26 @@ mod tests {
                     ("Clip Studio Paint".to_string(), "Creative".to_string()),
                 ),
             ]),
-            title_rules: vec![TitleRule {
-                regex: Regex::new("(?i)youtube").unwrap(),
-                display_name: "YouTube".to_string(),
-                category: "Social".to_string(),
-            }],
+            // In precedence order, as `load_app_rules` returns them: the coursework rule
+            // outranks the media one, so a lecture recording is school, not leisure.
+            title_rules: vec![
+                TitleRule {
+                    regex: Regex::new("(?i)canvas|assignment").unwrap(),
+                    display_name: "Canvas".to_string(),
+                    category: "Productivity".to_string(),
+                },
+                TitleRule {
+                    regex: Regex::new("(?i)youtube").unwrap(),
+                    display_name: "YouTube".to_string(),
+                    category: "Free Time".to_string(),
+                },
+            ],
             redact_exact: HashSet::from(["1password.exe".to_string()]),
             redact_title: vec![Regex::new("(?i)incognito").unwrap()],
+            categories: ["Development", "Productivity", "Creative", "Free Time", "Neutral"]
+                .iter()
+                .map(|name| name.to_string())
+                .collect(),
         }
     }
 
@@ -307,8 +344,35 @@ mod tests {
     #[test]
     fn a_site_decides_the_category_inside_a_browser() {
         let resolved = registry().resolve(&foreground("chrome.exe", Some("YouTube - x")));
-        assert_eq!(resolved.category, "Social");
+        assert_eq!(resolved.category, "Free Time");
         assert_eq!(resolved.context.as_deref(), Some("YouTube"));
+    }
+
+    // Chrome is Neutral by default and coursework moves it to Productivity. A lecture
+    // watched on YouTube matches both rules, and the answer must not depend on which
+    // pattern happens to sort first — the higher-priority rule is listed first and wins.
+    #[test]
+    fn a_school_title_beats_a_media_title() {
+        let resolved = registry().resolve(&foreground(
+            "chrome.exe",
+            Some("YouTube - CS101 assignment walkthrough"),
+        ));
+        assert_eq!(resolved.category, "Productivity");
+        assert_eq!(resolved.context.as_deref(), Some("Canvas"));
+    }
+
+    #[test]
+    fn a_browser_with_nothing_matching_stays_neutral() {
+        let resolved = registry().resolve(&foreground("chrome.exe", Some("Weather tomorrow")));
+        assert_eq!(resolved.category, CATEGORY_NEUTRAL);
+        assert_eq!(resolved.context, None);
+    }
+
+    #[test]
+    fn categories_come_from_the_loaded_set() {
+        let registry = registry();
+        assert!(registry.has_category("Free Time"));
+        assert!(!registry.has_category("Gardening"));
     }
 
     // The browser keeps its own name; the site rides alongside it as context.
@@ -321,7 +385,7 @@ mod tests {
         );
         let resolved = registry.resolve(&foreground("chrome.exe", Some("YouTube - x")));
         assert_eq!(resolved.display_name, "Google Chrome");
-        assert_eq!(resolved.category, "Social");
+        assert_eq!(resolved.category, "Free Time");
     }
 
     #[test]

@@ -1,10 +1,12 @@
+mod categorize;
 mod checkin;
 mod commands;
 mod db;
 mod error;
 mod integrations;
-mod llm;
+mod location;
 mod models;
+mod nudge;
 mod plans;
 mod rpc;
 mod scheduler;
@@ -78,6 +80,7 @@ fn setup(app: &AppHandle) -> Result<()> {
     watcher::flush::spawn(app.clone());
     rpc::spawn(app.clone());
     checkin::spawn(app.clone());
+    nudge::spawn(app.clone());
     Ok(())
 }
 
@@ -96,6 +99,13 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        // Tracking that only runs when you remember to open the app answers a different,
+        // much less useful question than "where did my day go". Launching at login is
+        // opt-in and off until asked for — see `set_autostart`.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             setup(app.handle()).map_err(|error| -> Box<dyn std::error::Error> {
@@ -117,7 +127,28 @@ pub fn run() {
             commands::list_unmapped_processes,
             commands::get_app_rules,
             commands::register_app,
+            commands::set_app_category,
             commands::delete_app_rule,
+            commands::get_categories,
+            commands::add_category,
+            commands::delete_category,
+            commands::category_usage,
+            commands::suggest_category,
+            commands::clear_activity_data,
+            commands::get_daily_totals,
+            commands::get_category_targets,
+            commands::set_category_target,
+            commands::clear_category_target,
+            commands::get_places,
+            commands::add_place,
+            commands::update_place,
+            commands::delete_place,
+            commands::set_base_place,
+            commands::get_travel_times,
+            commands::lookup_travel,
+            commands::set_travel_time,
+            commands::detect_current_location,
+            commands::estimate_address,
             commands::resolve_app_for_text,
             commands::get_redaction_rules,
             commands::add_redaction_rule,
@@ -136,7 +167,6 @@ pub fn run() {
             commands::save_schedule,
             commands::verify_schedule,
             commands::verify_goal,
-            commands::generate_agenda,
             commands::create_plan,
             commands::get_plans,
             commands::respond_checkin,

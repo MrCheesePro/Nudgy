@@ -40,6 +40,10 @@ pub struct CalendarEvent {
     /// Google's iCal export does not, so this is usually None and the UI derives a
     /// colour from the title instead.
     pub color: Option<String>,
+    /// The feed's own `LOCATION`, verbatim and trimmed. Matched against the places the
+    /// user has named, so a lecture in a room they call "Campus" gets travel time
+    /// without them tagging anything. Nothing is inferred from it beyond that match.
+    pub location: Option<String>,
 }
 
 pub async fn fetch_feed(url: &str) -> Result<String> {
@@ -151,6 +155,10 @@ fn expand_event(
         .map(|(ts, _)| ts)
         .collect();
 
+    let location = property(event, "LOCATION")
+        .map(|value| sanitize(&value))
+        .filter(|value| !value.is_empty());
+
     let color = property(event, "COLOR")
         .or_else(|| property(event, "X-APPLE-CALENDAR-COLOR"))
         .or_else(|| calendar_color.map(str::to_string))
@@ -171,6 +179,7 @@ fn expand_event(
             end_ts: start + duration,
             all_day: start_all_day,
             color: color.clone(),
+            location: location.clone(),
         })
         // Overlap, not containment: a lecture that began before the window still blocks it.
         .filter(|event| event.end_ts > window_start && event.start_ts < window_end)

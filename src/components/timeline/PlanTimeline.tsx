@@ -3,9 +3,9 @@ import { ChevronLeft, ChevronRight, CircleCheckBig } from "lucide-react";
 
 import { stripCourseCode } from "../../hooks/useCurrentWork";
 import { weekDaysAt } from "../../hooks/useSchedule";
+import { categoryColor } from "../../lib/categories";
 import { formatClock } from "../../lib/time";
 import {
-  CATEGORY_COLORS,
   eventColor,
   type CalendarEvent,
   type Category,
@@ -34,8 +34,8 @@ const START_HOUR = 0;
 const END_HOUR = 24;
 /** Pixels per hour. The day runs downward, so height is free and nothing scrolls
  *  sideways — a 30-minute block still has room for its title. */
-const HOUR_HEIGHT = 72;
-const MIN_BLOCK_HEIGHT = 26;
+const HOUR_HEIGHT = 96;
+const MIN_BLOCK_HEIGHT = 34;
 
 interface Bar {
   key: string;
@@ -76,7 +76,8 @@ export function PlanTimeline({
     return () => window.clearInterval(timer);
   }, []);
 
-  // Stepping to another week lands on today if it is in view, otherwise on the Monday.
+  // Stepping to another week lands on today if it is in view, otherwise on the first
+  // day of that week.
   useEffect(() => {
     const week = weekDaysAt(weekOffset);
     const today = week.find((date) => date.toDateString() === new Date().toDateString());
@@ -260,7 +261,7 @@ export function PlanTimeline({
       </div>
 
       {/* The only scroller on this page: the grid scrolls, the page behind it does not. */}
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto">
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="relative flex pt-2" style={{ height: gridHeight + 16 }}>
           {/* Hour gutter */}
           <div className="relative w-14 shrink-0">
@@ -327,11 +328,10 @@ export function PlanTimeline({
                     >
                       {event.summary}
                     </span>
-                    {height >= 42 && (
-                      <span className="block truncate font-mono text-[9px] text-ink-mute">
-                        {formatClock(event.startTs)} – {formatClock(event.endTs)}
-                      </span>
-                    )}
+                    <span className="block truncate font-mono text-[9px] text-ink-mute">
+                      {formatClock(event.startTs)} – {formatClock(event.endTs)}
+                      {height >= 52 && ` · ${spanLabel(event.startTs, event.endTs)}`}
+                    </span>
                   </article>
                 );
               })}
@@ -340,7 +340,7 @@ export function PlanTimeline({
             {/* Plan column */}
             <div className="absolute inset-y-0 right-0 left-[40%]">
               {bars.map((bar) => {
-                const color = CATEGORY_COLORS[bar.category];
+                const color = categoryColor(bar.category);
                 const top = Math.max(0, toY(bar.startTs));
                 const height = Math.max(MIN_BLOCK_HEIGHT, toY(bar.endTs) - top);
                 const running = isRunning(bar);
@@ -353,64 +353,53 @@ export function PlanTimeline({
                     title={`${bar.title} · ${formatClock(bar.startTs)}–${formatClock(bar.endTs)}${
                       bar.done ? " · done" : ""
                     }`}
-                    className={`absolute inset-x-1 flex flex-col overflow-hidden rounded-xl border py-1.5 pr-2.5 pl-3.5 shadow-[0_1px_3px_rgba(74,52,55,0.05)] ${
-                      running ? "border-transparent" : "border-edge"
-                    } ${bar.done ? "bg-canvas opacity-60" : "bg-surface"}`}
+                    className={`absolute inset-x-1 flex flex-col overflow-hidden rounded-lg border py-1 pr-1.5 pl-2.5 ${
+                      bar.done ? "opacity-60" : ""
+                    }`}
                     style={{
                       top,
                       height,
-                      boxShadow: running ? `0 0 0 2px ${color}` : undefined,
+                      borderColor: running ? color : `${rail}44`,
+                      background: bar.done ? "var(--color-surface-sunken)" : `${rail}14`,
+                      boxShadow: running ? `0 0 0 1px ${color}` : undefined,
                     }}
                   >
                     <span
-                      className="absolute top-1.5 bottom-1.5 left-1 w-1.5 rounded-full"
+                      className="absolute top-1.5 bottom-1.5 left-0.5 w-1 rounded-full"
                       style={{ background: rail }}
                     />
 
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        {running && (
-                          <span
-                            className="live-dot h-1.5 w-1.5 shrink-0 rounded-full"
-                            style={{ background: color }}
-                            title="Running — this app is in front"
-                          />
-                        )}
-                        <span className="truncate font-mono text-[9px] tracking-widest text-ink-mute uppercase">
-                          {formatClock(bar.startTs)} – {formatClock(bar.endTs)}
-                        </span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        {bar.courseCode && (
-                          <span
-                            className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[9px] font-medium text-ink-soft"
-                            title="Course this block is for"
-                          >
-                            {bar.courseCode}
-                          </span>
-                        )}
-                        {height >= 64 && (
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[9px] font-semibold"
-                            style={{ background: `${color}26`, color }}
-                          >
-                            {bar.category}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-
                     <span
-                      className={`flex items-center gap-1 truncate text-[13px] leading-tight font-bold ${
-                        bar.done ? "text-ink-soft" : "text-ink"
-                      }`}
+                      className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-tight font-semibold"
+                      style={{ color: bar.done ? "var(--color-ink-mute)" : color }}
                     >
-                      {bar.done && <CircleCheckBig size={11} className="shrink-0 text-ok" />}
+                      {running && (
+                        <span
+                          className="live-dot h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: color }}
+                          title="Running — this app is in front"
+                        />
+                      )}
+                      {bar.done && <CircleCheckBig size={10} className="shrink-0 text-ok" />}
                       <span className="truncate">{bar.title}</span>
                     </span>
 
-                    {height >= 56 && (
-                      <div className="mt-auto flex items-center gap-2">
+                    {/* Start to end, then how long that is — the two questions a block on
+                        a calendar gets asked, in the order they get asked. A block too
+                        short for the second line keeps the first. */}
+                    <span className="block truncate font-mono text-[9px] text-ink-mute">
+                      {formatClock(bar.startTs)} – {formatClock(bar.endTs)}
+                      {height >= 52 && ` · ${spanLabel(bar.startTs, bar.endTs)}`}
+                    </span>
+
+                    {bar.courseCode && height >= 68 && (
+                      <span className="mt-0.5 w-fit shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[9px] font-medium text-ink-soft">
+                        {bar.courseCode}
+                      </span>
+                    )}
+
+                    {height >= 60 && (
+                      <div className="mt-auto flex items-center gap-2 pt-1">
                         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-rose-wash">
                           <div
                             className="h-full rounded-full transition-[width] duration-500"
@@ -452,6 +441,15 @@ function rangeLabel(start: Date, end: Date): string {
   const format = (date: Date) =>
     date.toLocaleDateString([], { month: "short", day: "numeric" });
   return `${format(start)} – ${format(end)}, ${end.getFullYear()}`;
+}
+
+/** `2h`, `45m`, `1h 30m` — how long a block lasts, next to when it runs. */
+function spanLabel(startTs: number, endTs: number): string {
+  const minutes = Math.round((endTs - startTs) / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
 function hourOn(date: Date, hour: number): number {

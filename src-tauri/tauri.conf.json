@@ -36,7 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/known_apps.json"],
+    "resources": [
+      "resources/known_apps.json"
+    ],
     "macOS": {
       "minimumSystemVersion": "11.0"
     }

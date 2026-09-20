@@ -9,9 +9,9 @@ import {
   X,
 } from "lucide-react";
 
+import { categoryColor } from "../lib/categories";
 import { formatDuration } from "../lib/time";
 import {
-  CATEGORY_COLORS,
   type Category,
   type Goal,
   type LmsTask,
@@ -79,9 +79,23 @@ export function CanvasSyncSidebar({
   onRemoveGoal,
   onClearCompleted,
 }: Props) {
-  const [completedOpen, setCompletedOpen] = useState(false);
+  // Every section collapses. In-progress work, coursework and goals start open because
+  // they are the reason the panel exists; Completed starts closed because it is a record,
+  // not a to-do.
+  const [open, setOpen] = useState<Record<string, boolean>>({
+    progress: true,
+    coursework: true,
+    inactive: true,
+    completed: false,
+  });
+  const toggle = (key: string) =>
+    setOpen((current) => ({ ...current, [key]: !current[key] }));
 
   const activePlans = plans.filter((entry) => entry.plan.status === "active");
+
+  const inactiveGoals = goals
+    .map((goal, index) => ({ goal, index }))
+    .filter(({ goal }) => stateForGoal(plans, goal) !== "Active");
 
   // Both sources of "finished", in one list, newest first — so done means one thing.
   const completed: CompletedEntry[] = [
@@ -111,7 +125,7 @@ export function CanvasSyncSidebar({
         <h2 className="text-sm font-semibold text-ink">Academic &amp; Project Sync</h2>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+      <div className="scroll-area min-h-0 flex-1 space-y-5 px-5 py-4">
         <div className="flex items-center gap-3 rounded-xl bg-rose-wash p-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-rose-deep">
             <Link2 size={15} />
@@ -141,58 +155,13 @@ export function CanvasSyncSidebar({
           <p className="rounded-lg bg-bad/10 px-3 py-2 text-[11px] text-bad">{syncError}</p>
         )}
 
-        {activePlans.length > 0 && (
-          <section>
-            <h3 className="text-[11px] font-semibold tracking-wider text-ink-soft uppercase">
-              In progress
-            </h3>
-            <ul className="mt-2 space-y-2">
-              {activePlans.map((entry) => (
-                <li key={entry.plan.id} className="rounded-xl border border-edge p-3">
-                  <div className="flex items-center gap-2">
-                    <StateChip state="Active" />
-                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
-                      {entry.plan.title}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Drop plan for ${entry.plan.title}`}
-                      onClick={() => onDeletePlan(entry.plan.id)}
-                      className="shrink-0 rounded p-0.5 text-ink-mute transition hover:bg-canvas hover:text-bad"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-                    <div
-                      className="h-full rounded-full bg-rose transition-[width] duration-500"
-                      style={{ width: `${Math.min(100, entry.percent)}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-ink-mute">
-                    <span className="font-mono">
-                      {formatDuration(entry.workedSeconds)} /{" "}
-                      {formatDuration(entry.plan.estimateSeconds)}
-                    </span>
-                    <span>
-                      {entry.plan.mode === "pomodoro" ? "sessions" : "one sitting"}
-                      {entry.plan.checkinCount > 0 && ` · revised ${entry.plan.checkinCount}×`}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[11px] font-semibold tracking-wider text-ink-soft uppercase">
-              Canvas coursework
-            </h3>
-            <span className="text-[11px] text-ink-mute">{tasks.length} upcoming</span>
-          </div>
-
+        <Section
+          title="Canvas coursework"
+          count={tasks.length}
+          hint={tasks.length > 0 ? "upcoming" : undefined}
+          open={open.coursework}
+          onToggle={() => toggle("coursework")}
+        >
           {tasks.length === 0 ? (
             <p className="py-8 text-center text-xs text-ink-mute">
               {canvasLinked
@@ -242,25 +211,78 @@ export function CanvasSyncSidebar({
               ))}
             </ul>
           )}
-        </section>
+        </Section>
 
-        <section>
-          <div className="flex items-baseline justify-between">
-            <h3 className="text-[11px] font-semibold tracking-wider text-ink-soft uppercase">
-              Your goals
-            </h3>
-            <span className="text-[11px] text-ink-mute">{goals.length}</span>
-          </div>
-
-          {goals.length === 0 ? (
-            <p className="py-8 text-center text-xs text-ink-mute">
-              Nothing added yet. Type a goal below — “draw for 30m”, “read chapter 4”.
+        <Section
+          title="In progress"
+          count={activePlans.length}
+          open={open.progress}
+          onToggle={() => toggle("progress")}
+        >
+          {activePlans.length === 0 ? (
+            <p className="py-6 text-center text-xs text-ink-mute">
+              Nothing scheduled right now.
             </p>
           ) : (
             <ul className="mt-3 space-y-2">
-              {goals.map((goal, index) => {
+              {activePlans.map((entry) => (
+                <li
+                  key={entry.plan.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Options for ${entry.plan.title}`}
+                  onClick={() => onDeletePlan(entry.plan.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onDeletePlan(entry.plan.id);
+                    }
+                  }}
+                  className="cursor-pointer rounded-xl border border-edge p-3 transition hover:border-edge-strong hover:bg-canvas"
+                >
+                  <div className="flex items-center gap-2">
+                    <StateChip state="Active" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
+                      {entry.plan.title}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
+                    <div
+                      className="h-full rounded-full bg-rose transition-[width] duration-500"
+                      style={{ width: `${Math.min(100, entry.percent)}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-ink-mute">
+                    <span className="font-mono">
+                      {formatDuration(entry.workedSeconds)} /{" "}
+                      {formatDuration(entry.plan.estimateSeconds)}
+                    </span>
+                    <span>
+                      {entry.plan.mode === "pomodoro" ? "sessions" : "one sitting"}
+                      {entry.plan.checkinCount > 0 && ` · revised ${entry.plan.checkinCount}×`}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+
+        {/* Everything with an active plan is already listed under In progress, so this
+            is the other half: intentions with nothing scheduled against them yet. */}
+        <Section
+          title="Inactive"
+          count={inactiveGoals.length}
+          open={open.inactive}
+          onToggle={() => toggle("inactive")}
+        >
+          {inactiveGoals.length === 0 ? (
+            <p className="py-8 text-center text-xs text-ink-mute">Nothing added yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {inactiveGoals.map(({ goal, index }) => {
                 const category = (goal.category as Category) ?? "Neutral";
-                const color = CATEGORY_COLORS[category] ?? CATEGORY_COLORS.Neutral;
+                const color = categoryColor(category);
                 return (
                   <RowShell
                     key={`${goal.label}-${index}`}
@@ -294,20 +316,15 @@ export function CanvasSyncSidebar({
               })}
             </ul>
           )}
-        </section>
+        </Section>
 
-        <section>
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setCompletedOpen((open) => !open)}
-              className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-ink-soft uppercase transition hover:text-ink"
-            >
-              {completedOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              Completed
-              <span className="font-normal normal-case text-ink-mute">({completed.length})</span>
-            </button>
-            {completedOpen && completed.length > 0 && (
+        <Section
+          title="Completed"
+          count={completed.length}
+          open={open.completed}
+          onToggle={() => toggle("completed")}
+          action={
+            completed.length > 0 ? (
               <button
                 type="button"
                 onClick={onClearCompleted}
@@ -315,16 +332,13 @@ export function CanvasSyncSidebar({
               >
                 Clear
               </button>
-            )}
-          </div>
-
-          {completedOpen &&
-            (completed.length === 0 ? (
-              <p className="py-6 text-center text-xs text-ink-mute">
-                Nothing finished yet.
-              </p>
-            ) : (
-              <ul className="mt-2 space-y-1.5">
+            ) : undefined
+          }
+        >
+          {completed.length === 0 ? (
+            <p className="py-8 text-center text-xs text-ink-mute">Nothing finished yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
                 {completed.map((entry) => (
                   <li
                     key={entry.key}
@@ -347,12 +361,67 @@ export function CanvasSyncSidebar({
                       {entry.subtitle}
                     </span>
                   </li>
-                ))}
-              </ul>
-            ))}
-        </section>
+              ))}
+            </ul>
+          )}
+        </Section>
       </div>
     </aside>
+  );
+}
+
+/**
+ * One section header, used by all four.
+ *
+ * They used to disagree: three were fixed headings with the count floated right, and only
+ * Completed could be collapsed — so the one section you rarely need was the one that got
+ * out of your way. Now the chevron means the same thing everywhere and the count reads
+ * the same everywhere, which is the whole point of a panel that stacks four lists.
+ */
+function Section({
+  title,
+  count,
+  hint,
+  open,
+  onToggle,
+  action,
+  children,
+}: {
+  title: string;
+  count: number;
+  /** A word after the count — "upcoming" — when the number alone is ambiguous. */
+  hint?: string;
+  open: boolean;
+  onToggle: () => void;
+  /** Shown beside the header, and only while the section is open. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold tracking-wider text-ink-soft uppercase transition hover:text-ink"
+        >
+          {open ? (
+            <ChevronDown size={12} className="shrink-0" />
+          ) : (
+            <ChevronRight size={12} className="shrink-0" />
+          )}
+          <span className="truncate">{title}</span>
+          <span className="shrink-0 font-normal normal-case text-ink-mute">
+            ({count}
+            {hint ? ` ${hint}` : ""})
+          </span>
+        </button>
+        {open && action}
+      </div>
+
+      {open && children}
+    </section>
   );
 }
 
@@ -395,7 +464,7 @@ function RowClose({ label, onClick }: { label: string; onClick: () => void }) {
         event.stopPropagation();
         onClick();
       }}
-      className="ml-auto shrink-0 rounded p-0.5 text-ink-mute transition hover:bg-surface-sunken hover:text-bad"
+      className="shrink-0 rounded p-0.5 text-ink-mute transition hover:bg-surface-sunken hover:text-bad"
     >
       <X size={14} />
     </button>

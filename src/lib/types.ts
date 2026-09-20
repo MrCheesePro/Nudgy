@@ -1,31 +1,36 @@
 /** Mirrors the serde structs in `src-tauri/src/models.rs`. Keep the two in step. */
 
-export type Category =
-  | "Development"
-  | "Productivity"
-  | "Gaming"
-  | "Creative"
-  | "Social"
-  | "Neutral"
-  | "Idle";
+/**
+ * A category name. Open, not a union: the vocabulary lives in the `categories` table so
+ * someone can add one without a rebuild. Read the live list with `useCategories()` and a
+ * colour with `categoryColor()`, both from `lib/categories`.
+ */
+export type Category = string;
 
-export const CATEGORIES: Category[] = [
-  "Development",
-  "Productivity",
-  "Gaming",
-  "Creative",
-  "Social",
-  "Neutral",
-  "Idle",
-];
+export const CATEGORY_NEUTRAL = "Neutral";
+export const CATEGORY_IDLE = "Idle";
 
-/** Tuned for the blush light theme: saturated enough to separate, warm enough to belong. */
-export const CATEGORY_COLORS: Record<Category, string> = {
+/** One row of the vocabulary, as `get_categories` returns it. */
+export interface CategoryDef {
+  id: number;
+  name: string;
+  color: string;
+  sortOrder: number;
+  /** Built-ins cannot be deleted — Neutral catches everything unmatched, Idle is absence. */
+  isBuiltin: boolean;
+}
+
+/**
+ * Only used before the table has loaded, and for a name the table no longer has. Tuned
+ * for the blush light theme: saturated enough to separate, warm enough to belong.
+ */
+export const FALLBACK_COLORS: Record<string, string> = {
   Development: "#8b7bd8",
   Productivity: "#4fa88c",
   Creative: "#e0a05e",
   Social: "#e0818f",
   Gaming: "#b07bd4",
+  "Free Time": "#7fb2e5",
   Neutral: "#bda3a7",
   Idle: "#e7d2d5",
 };
@@ -64,6 +69,22 @@ export interface AppTotal {
   seconds: number;
 }
 
+/** One category's total on one local day, as `get_daily_totals` returns it. */
+export interface DailyTotal {
+  day: string;
+  category: Category;
+  seconds: number;
+}
+
+/** What a good day looks like for one category. */
+export interface CategoryTarget {
+  category: Category;
+  /** `at_least` is a floor to reach, `at_most` a ceiling not to pass. */
+  direction: "at_least" | "at_most";
+  secondsPerDay: number;
+  createdAt: number;
+}
+
 export interface UnmappedProcess {
   processName: string;
   appName: string;
@@ -78,6 +99,14 @@ export interface AppRule {
   displayName: string;
   category: Category;
   isUserDefined: boolean;
+  /** Higher wins when two title rules match one window. School 200, media 100, yours 300. */
+  priority: number;
+}
+
+/** What `suggest_category` came back with. `category` is null when nothing could tell. */
+export interface CategorySuggestion {
+  category: Category | null;
+  source: "heuristic" | "llm" | "none";
 }
 
 export interface RedactionRule {
@@ -124,6 +153,8 @@ export interface CalendarEvent {
   startTs: number;
   endTs: number;
   allDay: boolean;
+  /** The feed's own LOCATION, verbatim. Matched against named places to get travel time. */
+  location: string | null;
   /** Only when the feed carries one. Google's iCal export does not. */
   color: string | null;
 }
@@ -164,7 +195,52 @@ export interface Goal {
   targetSeconds: number;
   targetProcess?: string | null;
   category?: string;
+  /** Where it happens. Undefined is the normal case and means no travel. */
+  placeId?: number | null;
+  /** When it is due, in epoch seconds. Null means no deadline, which is the default. */
+  dueAt?: number | null;
 }
+
+/** Somewhere you go. Exactly one place is the base — where a day starts and ends. */
+export interface Place {
+  id: number;
+  name: string;
+  address: string;
+  isBase: boolean;
+  createdAt: number;
+}
+
+export type TravelMode = "driving" | "transit" | "walking" | "bicycling";
+
+export interface TravelEstimate {
+  originId: number;
+  destinationId: number;
+  seconds: number;
+  mode: TravelMode;
+  /** True when it came from the local cache rather than the network. */
+  cached: boolean;
+}
+
+export interface DetectedLocation {
+  placeId: number;
+  address: string;
+  /** The address is really a lat,lng pair — it routes, it just reads badly. */
+  coarse: boolean;
+}
+
+/** A typed address, turned into a place, with how far away it is. */
+export interface AddressEstimate {
+  placeId: number;
+  name: string;
+  address: string;
+  /** Null when there is no base yet, or the route could not be found. */
+  seconds: number | null;
+  /** Why there is no number, in a sentence that can be shown as-is. */
+  note: string | null;
+}
+
+/** `[originId, destinationId, mode, seconds]`, as `get_travel_times` returns them. */
+export type TravelRow = [number, number, string, number];
 
 export interface Plan {
   id: number;
@@ -215,9 +291,18 @@ export const SETTING_COMPLETED_CLEARED_AT = "completed_cleared_at";
 
 /** Keys accepted by the keychain commands. The values never cross this boundary. */
 export const SECRET_CANVAS_TOKEN = "canvas_token";
-export const SECRET_LLM_API_KEY = "llm_api_key";
+/** Maps provider key, for travel times between places. */
+export const SECRET_MAPS_API_KEY = "maps_api_key";
 
 export const SETTING_CANVAS_BASE_URL = "canvas_base_url";
+
+/** Set once the first launch has decided about starting at login. */
+export const SETTING_AUTOSTART_ASKED = "autostart_initialised";
+
+/** Which routing service times a trip. Default is the one that needs no credit card. */
+export const SETTING_TRAVEL_PROVIDER = "travel_provider";
+export const PROVIDER_ORS = "openrouteservice";
+export const PROVIDER_GOOGLE = "google";
 
 export interface PermissionStatus {
   accessibility: boolean;

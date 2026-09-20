@@ -2,10 +2,11 @@ use anyhow::Result;
 use rusqlite::{params, Connection};
 
 use crate::models::{
-    ActivitySample, AppRule, AppTotal, CategoryTotal, LmsTask, RedactionRule, UnmappedProcess,
-    UsageBreakdown, CATEGORY_IDLE,
+    ActivitySample, AppRule, AppTotal, Category, CategoryTarget, CategoryTotal, DailyTotal,
+    LmsTask, Place, RedactionRule, UnmappedProcess, UsageBreakdown, CATEGORY_IDLE,
+    CATEGORY_NEUTRAL,
 };
-use crate::watcher::registry::REDACTED_TITLE;
+use crate::watcher::registry::{MATCH_EXE, REDACTED_TITLE};
 
 /// Writes a batch in one transaction. Returns the number of rows written.
 pub fn insert_samples(conn: &mut Connection, samples: &[ActivitySample]) -> Result<usize> {
@@ -137,11 +138,13 @@ pub fn unmapped_processes(conn: &Connection, since_ts: i64) -> Result<Vec<Unmapp
           WHERE s.ts >= ?1
             AND s.is_idle = 0
             AND NOT EXISTS (
-                -- NOCASE to match the categorizer, which lowercases both sides. Without
-                -- it, mapping `Code.exe` would leave `code.exe` listed as unrecognised.
+                -- LOWER() on both sides, matching what the categorizer actually does, so a
+                -- rule typed as `Code.exe` retires `code.exe` from this list the moment it
+                -- is saved. A COLLATE clause against a UNIQUE (BINARY) index is subtle
+                -- enough not to be worth trusting here.
                 SELECT 1 FROM known_apps k
                  WHERE k.match_type = 'exe'
-                   AND k.pattern = s.process_name COLLATE NOCASE
+                   AND LOWER(k.pattern) = LOWER(s.process_name)
             )
           GROUP BY s.process_name
           ORDER BY seconds DESC",
@@ -159,11 +162,14 @@ pub fn unmapped_processes(conn: &Connection, since_ts: i64) -> Result<Vec<Unmapp
     Ok(rows)
 }
 
+/// Ordered so the compiled registry can take the first matching title rule and be right:
+/// higher `priority` first, so a coursework rule beats whatever is playing in another tab,
+/// and a rule the user wrote beats every seeded one.
 pub fn load_app_rules(conn: &Connection) -> Result<Vec<AppRule>> {
     let mut stmt = conn.prepare(
-        "SELECT id, match_type, pattern, display_name, category, is_user_defined
+        "SELECT id, match_type, pattern, display_name, category, is_user_defined, priority
            FROM known_apps
-          ORDER BY match_type, pattern",
+          ORDER BY match_type, priority DESC, pattern",
     )?;
     let rows = stmt
         .query_map([], |row| {
@@ -174,10 +180,363 @@ pub fn load_app_rules(conn: &Connection) -> Result<Vec<AppRule>> {
                 display_name: row.get(3)?,
                 category: row.get(4)?,
                 is_user_defined: row.get::<_, i64>(5)? != 0,
+                priority: row.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
+}
+
+pub fn load_app_rule(conn: &Connection, id: i64) -> Result<Option<AppRule>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, match_type, pattern, display_name, category, is_user_defined, priority
+           FROM known_apps WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query_map(params![id], |row| {
+        Ok(AppRule {
+            id: row.get(0)?,
+            match_type: row.get(1)?,
+            pattern: row.get(2)?,
+            display_name: row.get(3)?,
+            category: row.get(4)?,
+            is_user_defined: row.get::<_, i64>(5)? != 0,
+            priority: row.get(6)?,
+        })
+    })?;
+    Ok(rows.next().transpose()?)
+}
+
+/// Moves the time a rule has *already* recorded into its new category.
+///
+/// Without this a correction only steers the future, and every chart keeps showing the
+/// old answer for work that was mis-filed — which reads as the app ignoring you. The two
+/// shapes are not interchangeable:
+///
+/// * An `exe` rule owns the rows it named, but **only those with no site label**. A row
+///   carrying a label was categorized by the site, not by the browser, so re-filing Chrome
+///   must not drag an hour of YouTube along with it.
+/// * A `title_regex` rule owns exactly the rows stamped with its display name. That is an
+///   equality check rather than a re-run of the regex: `app_totals` already treats
+///   `window_title` as the rule's own short label, never the page's words.
+///
+/// Idle rows are never touched, for the same reason idle time is never attributed to an
+/// app in the first place.
+pub fn recategorize_samples(conn: &Connection, rule: &AppRule, new_category: &str) -> Result<usize> {
+    let changed = if rule.match_type == MATCH_EXE {
+        conn.execute(
+            "UPDATE activity_samples
+                SET category = ?1
+              WHERE LOWER(process_name) = LOWER(?2)
+                AND is_idle = 0
+                AND (window_title IS NULL OR window_title = ?3)",
+            params![new_category, rule.pattern, REDACTED_TITLE],
+        )?
+    } else {
+        conn.execute(
+            "UPDATE activity_samples
+                SET category = ?1
+              WHERE window_title = ?2 AND is_idle = 0",
+            params![new_category, rule.display_name],
+        )?
+    };
+    Ok(changed)
+}
+
+pub fn load_categories(conn: &Connection) -> Result<Vec<Category>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, color, sort_order, is_builtin
+           FROM categories ORDER BY sort_order, name",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Category {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                color: row.get(2)?,
+                sort_order: row.get(3)?,
+                is_builtin: row.get::<_, i64>(4)? != 0,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+pub fn category_names(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM categories")?;
+    let rows = stmt
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// New categories sort after every built-in, in the order they were added.
+pub fn insert_category(conn: &Connection, name: &str, color: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO categories (name, color, sort_order, is_builtin)
+         VALUES (?1, ?2, (SELECT COALESCE(MAX(sort_order), 0) + 10 FROM categories), 0)",
+        params![name, color],
+    )?;
+    Ok(())
+}
+
+pub fn load_category(conn: &Connection, id: i64) -> Result<Option<Category>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, color, sort_order, is_builtin FROM categories WHERE id = ?1",
+    )?;
+    let mut rows = stmt.query_map(params![id], |row| {
+        Ok(Category {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            color: row.get(2)?,
+            sort_order: row.get(3)?,
+            is_builtin: row.get::<_, i64>(4)? != 0,
+        })
+    })?;
+    Ok(rows.next().transpose()?)
+}
+
+/// How much would be reassigned if this category went away — the numbers
+/// `ConfirmDialog` has to name before the button is pressed.
+pub fn category_usage(conn: &Connection, name: &str) -> Result<(i64, i64)> {
+    let rules: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM known_apps WHERE category = ?1",
+        params![name],
+        |row| row.get(0),
+    )?;
+    let seconds: i64 = conn.query_row(
+        "SELECT COALESCE(SUM(duration_seconds), 0) FROM activity_samples WHERE category = ?1",
+        params![name],
+        |row| row.get(0),
+    )?;
+    Ok((rules, seconds))
+}
+
+/// Deleting a category does not delete what was in it. Rules and recorded time fall back
+/// to `Neutral`, because time that was really spent must not vanish because its label did.
+pub fn delete_category(conn: &mut Connection, id: i64, name: &str) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "UPDATE known_apps SET category = ?1 WHERE category = ?2",
+        params![CATEGORY_NEUTRAL, name],
+    )?;
+    tx.execute(
+        "UPDATE activity_samples SET category = ?1 WHERE category = ?2",
+        params![CATEGORY_NEUTRAL, name],
+    )?;
+    tx.execute(
+        "UPDATE schedule_blocks SET category = ?1 WHERE category = ?2",
+        params![CATEGORY_NEUTRAL, name],
+    )?;
+    tx.execute(
+        "DELETE FROM category_targets WHERE category = ?1",
+        params![name],
+    )?;
+    tx.execute("DELETE FROM categories WHERE id = ?1", params![id])?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Every category's total, per local day, over a range.
+///
+/// `localtime` is doing real work: SQLite resolves it against this machine's own timezone,
+/// DST included, which is the same boundary `dayBounds()` uses in the frontend. A fixed UTC
+/// offset would quietly misfile an hour twice a year and nobody would notice until a
+/// streak broke for no reason.
+///
+/// Idle rows are kept. `Idle` is a category like any other here, and a chart that hides it
+/// would draw a day of nothing as a day of nothing happening — which are different claims.
+pub fn daily_totals(conn: &Connection, start_ts: i64, end_ts: i64) -> Result<Vec<DailyTotal>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT date(ts, 'unixepoch', 'localtime') AS day,
+                category,
+                SUM(duration_seconds) AS seconds
+           FROM activity_samples
+          WHERE ts >= ?1 AND ts < ?2
+          GROUP BY day, category
+          ORDER BY day, seconds DESC",
+    )?;
+    let rows = stmt
+        .query_map(params![start_ts, end_ts], |row| {
+            Ok(DailyTotal {
+                day: row.get(0)?,
+                category: row.get(1)?,
+                seconds: row.get(2)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+pub fn load_targets(conn: &Connection) -> Result<Vec<CategoryTarget>> {
+    let mut stmt = conn.prepare(
+        "SELECT category, direction, seconds_per_day, created_at
+           FROM category_targets ORDER BY category",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(CategoryTarget {
+                category: row.get(0)?,
+                direction: row.get(1)?,
+                seconds_per_day: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+pub fn upsert_target(conn: &Connection, target: &CategoryTarget, now: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO category_targets (category, direction, seconds_per_day, created_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(category) DO UPDATE SET
+            direction = excluded.direction,
+            seconds_per_day = excluded.seconds_per_day",
+        params![
+            target.category,
+            target.direction,
+            target.seconds_per_day,
+            now
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn delete_target(conn: &Connection, category: &str) -> Result<usize> {
+    Ok(conn.execute(
+        "DELETE FROM category_targets WHERE category = ?1",
+        params![category],
+    )?)
+}
+
+pub fn load_places(conn: &Connection) -> Result<Vec<Place>> {
+    // Base first: it is the one everything else is measured from, so it leads the list.
+    let mut stmt = conn.prepare(
+        "SELECT id, name, address, is_base, created_at
+           FROM places ORDER BY is_base DESC, name",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Place {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                address: row.get(2)?,
+                is_base: row.get::<_, i64>(3)? != 0,
+                created_at: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+pub fn load_place(conn: &Connection, id: i64) -> Result<Option<Place>> {
+    Ok(load_places(conn)?.into_iter().find(|place| place.id == id))
+}
+
+pub fn insert_place(conn: &Connection, name: &str, address: &str, now: i64) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO places (name, address, is_base, created_at)
+         VALUES (?1, ?2, 0, ?3)",
+        params![name, address, now],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Changing an address invalidates every cached time that involved this place — the
+/// numbers were about somewhere else.
+pub fn update_place(conn: &Connection, id: i64, name: &str, address: &str) -> Result<()> {
+    let moved: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM places WHERE id = ?1 AND address <> ?2",
+        params![id, address],
+        |row| row.get(0),
+    )?;
+    conn.execute(
+        "UPDATE places SET name = ?1, address = ?2 WHERE id = ?3",
+        params![name, address, id],
+    )?;
+    if moved > 0 {
+        conn.execute(
+            "DELETE FROM travel_cache WHERE origin_id = ?1 OR destination_id = ?1",
+            params![id],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn delete_place(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "DELETE FROM travel_cache WHERE origin_id = ?1 OR destination_id = ?1",
+        params![id],
+    )?;
+    conn.execute(
+        "UPDATE schedule_blocks SET place_id = NULL, travel_before_seconds = 0 WHERE place_id = ?1",
+        params![id],
+    )?;
+    conn.execute("DELETE FROM places WHERE id = ?1", params![id])?;
+    Ok(())
+}
+
+/// Exactly one base, always. Two would make "how far is it from home" ambiguous, and
+/// none would make it unanswerable.
+pub fn set_base_place(conn: &mut Connection, id: i64) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("UPDATE places SET is_base = 0", [])?;
+    tx.execute("UPDATE places SET is_base = 1 WHERE id = ?1", params![id])?;
+    tx.commit()?;
+    Ok(())
+}
+
+pub fn cached_travel(
+    conn: &Connection,
+    origin_id: i64,
+    destination_id: i64,
+    mode: &str,
+) -> Result<Option<i64>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT seconds FROM travel_cache
+          WHERE origin_id = ?1 AND destination_id = ?2 AND mode = ?3",
+    )?;
+    let mut rows = stmt.query_map(params![origin_id, destination_id, mode], |row| row.get(0))?;
+    Ok(rows.next().transpose()?)
+}
+
+pub fn store_travel(
+    conn: &Connection,
+    origin_id: i64,
+    destination_id: i64,
+    mode: &str,
+    seconds: i64,
+    now: i64,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO travel_cache (origin_id, destination_id, mode, seconds, fetched_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(origin_id, destination_id, mode) DO UPDATE SET
+            seconds = excluded.seconds,
+            fetched_at = excluded.fetched_at",
+        params![origin_id, destination_id, mode, seconds, now],
+    )?;
+    Ok(())
+}
+
+/// Every travel time already known, so the frontend can pad a whole week of commitments
+/// without a round trip per pair.
+pub fn all_travel(conn: &Connection) -> Result<Vec<(i64, i64, String, i64)>> {
+    let mut stmt = conn.prepare("SELECT origin_id, destination_id, mode, seconds FROM travel_cache")?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Wipes measured activity and nothing else. Plans, schedule, tasks and the registry are
+/// answers to different questions and survive.
+pub fn clear_activity_samples(conn: &Connection) -> Result<usize> {
+    let deleted = conn.execute("DELETE FROM activity_samples", [])?;
+    conn.execute_batch("VACUUM")?;
+    Ok(deleted)
 }
 
 /// Upsert by pattern. Seeding uses `is_user_defined = 0` and must not clobber a rule the
@@ -185,36 +544,49 @@ pub fn load_app_rules(conn: &Connection) -> Result<Vec<AppRule>> {
 pub fn upsert_app_rule(conn: &Connection, rule: &AppRule, overwrite: bool) -> Result<()> {
     if overwrite {
         conn.execute(
-            "INSERT INTO known_apps (match_type, pattern, display_name, category, is_user_defined)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO known_apps
+                (match_type, pattern, display_name, category, is_user_defined, priority)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(pattern) DO UPDATE SET
                 match_type = excluded.match_type,
                 display_name = excluded.display_name,
                 category = excluded.category,
-                is_user_defined = excluded.is_user_defined",
+                is_user_defined = excluded.is_user_defined,
+                priority = excluded.priority",
             params![
                 rule.match_type,
                 rule.pattern,
                 rule.display_name,
                 rule.category,
-                rule.is_user_defined as i64
+                rule.is_user_defined as i64,
+                rule.priority
             ],
         )?;
     } else {
         conn.execute(
             "INSERT OR IGNORE INTO known_apps
-                (match_type, pattern, display_name, category, is_user_defined)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+                (match_type, pattern, display_name, category, is_user_defined, priority)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 rule.match_type,
                 rule.pattern,
                 rule.display_name,
                 rule.category,
-                rule.is_user_defined as i64
+                rule.is_user_defined as i64,
+                rule.priority
             ],
         )?;
     }
     Ok(())
+}
+
+/// Moves one rule to another category, leaving its pattern and name alone. The caller
+/// pairs this with `recategorize_samples` so the correction reaches the past too.
+pub fn set_app_rule_category(conn: &Connection, id: i64, category: &str) -> Result<usize> {
+    Ok(conn.execute(
+        "UPDATE known_apps SET category = ?1 WHERE id = ?2",
+        params![category, id],
+    )?)
 }
 
 pub fn delete_app_rule(conn: &Connection, id: i64) -> Result<usize> {
@@ -357,4 +729,134 @@ pub fn all_settings(conn: &Connection) -> Result<Vec<(String, String)>> {
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{ActivitySample, TARGET_AT_MOST};
+
+    fn memory_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run_migrations(&conn).unwrap();
+        conn
+    }
+
+    fn sample(ts: i64, category: &str, seconds: i64) -> ActivitySample {
+        ActivitySample {
+            ts,
+            duration_seconds: seconds,
+            process_name: "thing".to_string(),
+            app_name: None,
+            window_title: None,
+            category: category.to_string(),
+            source: "passive".to_string(),
+            client_id: None,
+            is_idle: false,
+        }
+    }
+
+    /// Local midnight for a day `days_ago`, as a UTC timestamp — the same boundary
+    /// `date(ts,'unixepoch','localtime')` will resolve against.
+    fn local_midnight(conn: &Connection, days_ago: i64) -> i64 {
+        conn.query_row(
+            "SELECT unixepoch(date('now', 'localtime', ?1 || ' days'), 'utc')",
+            params![-days_ago],
+            |row| row.get(0),
+        )
+        .unwrap()
+    }
+
+    // The whole reason `localtime` is in that query. Two samples an hour either side of
+    // local midnight are two different days to a person, and a UTC grouping would file
+    // them together for anyone west of Greenwich.
+    #[test]
+    fn samples_are_bucketed_by_local_day() {
+        let mut conn = memory_db();
+        let midnight = local_midnight(&conn, 0);
+
+        insert_samples(
+            &mut conn,
+            &[
+                sample(midnight - 3600, "Development", 600), // late yesterday
+                sample(midnight + 3600, "Development", 900), // early today
+            ],
+        )
+        .unwrap();
+
+        let rows = daily_totals(&conn, midnight - 86_400, midnight + 86_400).unwrap();
+        assert_eq!(rows.len(), 2, "expected one row per local day, got {rows:?}");
+        assert_eq!(rows[0].seconds, 600);
+        assert_eq!(rows[1].seconds, 900);
+        assert_ne!(rows[0].day, rows[1].day);
+    }
+
+    #[test]
+    fn daily_totals_splits_categories_within_a_day() {
+        let mut conn = memory_db();
+        let midnight = local_midnight(&conn, 0);
+        insert_samples(
+            &mut conn,
+            &[
+                sample(midnight + 3600, "Development", 600),
+                sample(midnight + 7200, "Development", 300),
+                sample(midnight + 7200, "Free Time", 1200),
+            ],
+        )
+        .unwrap();
+
+        let rows = daily_totals(&conn, midnight, midnight + 86_400).unwrap();
+        assert_eq!(rows.len(), 2);
+        // Ordered by seconds within the day, so the biggest slice leads.
+        assert_eq!(rows[0].category, "Free Time");
+        assert_eq!(rows[0].seconds, 1200);
+        assert_eq!(rows[1].seconds, 900);
+    }
+
+    #[test]
+    fn a_target_is_upserted_rather_than_duplicated() {
+        let conn = memory_db();
+        let mut target = CategoryTarget {
+            category: "Free Time".to_string(),
+            direction: TARGET_AT_MOST.to_string(),
+            seconds_per_day: 3600,
+            created_at: 0,
+        };
+        upsert_target(&conn, &target, 100).unwrap();
+        target.seconds_per_day = 5400;
+        upsert_target(&conn, &target, 200).unwrap();
+
+        let stored = load_targets(&conn).unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].seconds_per_day, 5400);
+    }
+
+    // A target pointing at a category that no longer exists could never be shown or met.
+    #[test]
+    fn deleting_a_category_takes_its_target() {
+        let mut conn = memory_db();
+        conn.execute(
+            "INSERT INTO categories (name, color, sort_order, is_builtin) VALUES ('Reading', '#fff', 90, 0)",
+            [],
+        )
+        .unwrap();
+        let id: i64 = conn
+            .query_row("SELECT id FROM categories WHERE name = 'Reading'", [], |row| row.get(0))
+            .unwrap();
+
+        upsert_target(
+            &conn,
+            &CategoryTarget {
+                category: "Reading".to_string(),
+                direction: TARGET_AT_MOST.to_string(),
+                seconds_per_day: 3600,
+                created_at: 0,
+            },
+            0,
+        )
+        .unwrap();
+
+        delete_category(&mut conn, id, "Reading").unwrap();
+        assert!(load_targets(&conn).unwrap().is_empty());
+    }
 }

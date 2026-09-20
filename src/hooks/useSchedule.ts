@@ -31,13 +31,13 @@ export function dayKeyAt(offset: number): string {
 /** Monday of the week containing `reference`. Weeks start Monday, not Sunday. */
 export function weekStart(reference = new Date()): Date {
   const start = new Date(reference);
-  const weekday = (start.getDay() + 6) % 7; // Monday = 0
-  start.setDate(start.getDate() - weekday);
+  // Sunday-anchored: `getDay()` is already 0 for Sunday, so it needs no shifting.
+  start.setDate(start.getDate() - start.getDay());
   start.setHours(0, 0, 0, 0);
   return start;
 }
 
-/** The Monday-anchored week `offset` weeks away from today. */
+/** The Sunday-anchored week `offset` weeks away from today. */
 export function weekDaysAt(offset: number): Date[] {
   const reference = new Date();
   reference.setDate(reference.getDate() + offset * 7);

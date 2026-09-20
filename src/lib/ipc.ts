@@ -4,12 +4,21 @@ import type {
   AppRule,
   AppTotal,
   CalendarEvent,
+  CategoryDef,
+  CategoryTarget,
+  DailyTotal,
+  CategorySuggestion,
   CheckinResponse,
   LiveStatus,
   LmsTask,
   Plan,
   PlanProgress,
   PermissionStatus,
+  AddressEstimate,
+  DetectedLocation,
+  Place,
+  TravelEstimate,
+  TravelRow,
   RedactionRule,
   ScheduleBlock,
   SyncResult,
@@ -44,6 +53,103 @@ export const registerApp = (input: {
 }) => invoke<void>("register_app", input);
 
 export const deleteAppRule = (id: number) => invoke<void>("delete_app_rule", { id });
+
+/** Moves a rule to another category and moves the time it already recorded with it.
+ *  Resolves with the number of samples that were re-filed. */
+export const setAppCategory = (id: number, category: string) =>
+  invoke<number>("set_app_category", { id, category });
+
+export const getCategories = () => invoke<CategoryDef[]>("get_categories");
+
+/** Per-day, per-category totals over a range — what the Progress chart is built from. */
+export const getDailyTotals = (startTs: number, endTs: number) =>
+  invoke<DailyTotal[]>("get_daily_totals", { startTs, endTs });
+
+export const getCategoryTargets = () => invoke<CategoryTarget[]>("get_category_targets");
+
+export const setCategoryTarget = (
+  category: string,
+  direction: "at_least" | "at_most",
+  secondsPerDay: number,
+) => invoke<void>("set_category_target", { category, direction, secondsPerDay });
+
+export const clearCategoryTarget = (category: string) =>
+  invoke<void>("clear_category_target", { category });
+
+export const addCategory = (name: string, color: string) =>
+  invoke<void>("add_category", { name, color });
+
+export const deleteCategory = (id: number) => invoke<void>("delete_category", { id });
+
+/** `[rules, seconds]` that would fall back to Neutral if this category were deleted. */
+export const getCategoryUsage = (name: string) =>
+  invoke<[number, number]>("category_usage", { name });
+
+/** Offline keyword guess first; the model only when that has no opinion. */
+export const suggestCategory = (processName: string, appName?: string | null) =>
+  invoke<CategorySuggestion>("suggest_category", { processName, appName: appName ?? null });
+
+export const getPlaces = () => invoke<Place[]>("get_places");
+
+/** Works out where you are and makes it the base. Pass coordinates when the browser
+ *  will give them; without them the provider infers a rougher position from the network. */
+export const detectCurrentLocation = (latitude?: number, longitude?: number) =>
+  invoke<DetectedLocation>("detect_current_location", {
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+  });
+
+/** Turns a typed address into a place and times the trip from where you are. */
+export const estimateAddress = (address: string, name?: string, mode?: string) =>
+  invoke<AddressEstimate>("estimate_address", {
+    address,
+    name: name ?? null,
+    mode: mode ?? null,
+  });
+
+export const addPlace = (name: string, address: string) =>
+  invoke<number>("add_place", { name, address });
+
+export const updatePlace = (id: number, name: string, address: string) =>
+  invoke<void>("update_place", { id, name, address });
+
+export const deletePlace = (id: number) => invoke<void>("delete_place", { id });
+
+export const setBasePlace = (id: number) => invoke<void>("set_base_place", { id });
+
+/** Every travel time already known locally — one call pads a whole week. */
+export const getTravelTimes = () => invoke<TravelRow[]>("get_travel_times");
+
+/** Records a travel time by hand, in minutes — how travel works without a maps key. */
+export const setTravelTime = (
+  originId: number,
+  destinationId: number,
+  minutes: number,
+  mode?: string,
+) =>
+  invoke<void>("set_travel_time", {
+    originId,
+    destinationId,
+    minutes,
+    mode: mode ?? null,
+  });
+
+/** Cache first. `refresh` forces a fresh lookup when a commute has actually changed. */
+export const lookupTravel = (
+  originId: number,
+  destinationId: number,
+  mode?: string,
+  refresh?: boolean,
+) =>
+  invoke<TravelEstimate>("lookup_travel", {
+    originId,
+    destinationId,
+    mode: mode ?? null,
+    refresh: refresh ?? null,
+  });
+
+/** Deletes every recorded sample. Plans, schedule, tasks and rules are untouched. */
+export const clearActivityData = () => invoke<number>("clear_activity_data");
 
 /** Guesses which app a goal is about from its wording; null when it cannot tell. */
 export const resolveAppForText = (text: string) =>

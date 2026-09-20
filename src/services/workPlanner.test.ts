@@ -92,7 +92,42 @@ describe("placeWork — pomodoro", () => {
       const overlaps = block.startTs < lecture.endTs && lecture.startTs < block.endTs;
       expect(overlaps).toBe(false);
     }
-    expect(result.placedSeconds).toBe(2 * HOUR);
+    // Within one minimum session of the estimate: the buffer costs time, and a remainder
+    // too small to be worth sitting down for is dropped rather than booked.
+    expect(result.placedSeconds).toBeGreaterThanOrEqual(2 * HOUR - 10 * 60);
+    expect(result.placedSeconds).toBeLessThanOrEqual(2 * HOUR);
+  });
+
+  // You cannot close a laptop and be in a lecture theatre at the same second.
+  it("leaves a gap either side of a commitment", () => {
+    const lecture = { startTs: DAY_ONE + 2 * HOUR, endTs: DAY_ONE + 3 * HOUR, label: "CS 330" };
+    const result = placeWork({
+      estimateSeconds: 3 * HOUR,
+      mode: "pomodoro",
+      focusSeconds: 30 * 60,
+      days: [day("2026-09-18", DAY_ONE, 8, [lecture])],
+    });
+
+    expect(result.blocks.length).toBeGreaterThan(0);
+    for (const block of result.blocks) {
+      if (block.endTs <= lecture.startTs) {
+        expect(block.endTs).toBeLessThanOrEqual(lecture.startTs - 5 * 60);
+      } else {
+        expect(block.startTs).toBeGreaterThanOrEqual(lecture.endTs + 5 * 60);
+      }
+    }
+  });
+
+  it("can be told not to leave one", () => {
+    const lecture = { startTs: DAY_ONE + 2 * HOUR, endTs: DAY_ONE + 3 * HOUR, label: "CS 330" };
+    const result = placeWork({
+      estimateSeconds: 2 * HOUR,
+      mode: "pomodoro",
+      focusSeconds: 30 * 60,
+      bufferSeconds: 0,
+      days: [day("2026-09-18", DAY_ONE, 8, [lecture])],
+    });
+    expect(result.blocks.some((block) => block.endTs === lecture.startTs)).toBe(true);
   });
 
   it("spills onto the next day when today runs out", () => {

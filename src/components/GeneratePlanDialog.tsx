@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Check, Clock, RotateCw, SkipForward, TriangleAlert, X } from "lucide-react";
 
-import { DAY_END_HOUR, DAY_START_HOUR, formatClock, formatDuration, parseTimeOfDay } from "../lib/time";
-import { CATEGORY_COLORS, type Category } from "../lib/types";
+import { DAY_END_HOUR, formatClock, formatDuration, parseTimeOfDay } from "../lib/time";
+import { categoryColor } from "../lib/categories";
 import {
   describeFreeTime,
   explainNoSlots,
@@ -171,7 +171,7 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/25 p-8 backdrop-blur-sm"
+      className="scroll-area fixed inset-0 z-50 flex items-start justify-center bg-ink/25 p-8 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) finish();
       }}
@@ -230,8 +230,8 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
                   <span
                     className="rounded-full px-2 py-0.5 font-medium"
                     style={{
-                      background: `${CATEGORY_COLORS[item.category as Category] ?? CATEGORY_COLORS.Neutral}1f`,
-                      color: CATEGORY_COLORS[item.category as Category] ?? CATEGORY_COLORS.Neutral,
+                      background: `${categoryColor(item.category)}1f`,
+                      color: categoryColor(item.category),
                     }}
                   >
                     {item.subtitle ?? item.category}
@@ -263,7 +263,7 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
                   {explainNoSlots(days, item, placement, now)}
                 </p>
               ) : (
-                <ul className="mt-2 max-h-36 space-y-1 overflow-y-auto">
+                <ul className="scroll-area mt-2 max-h-36 space-y-1">
                   {blocks.map((block) => (
                     <li
                       key={`${block.day}-${block.startTs}`}
@@ -322,9 +322,7 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
                     }`}
                   />
                   <span className="text-xs text-ink-mute">
-                    {timeIsBad
-                      ? "Try 2pm, 2:30pm or 14:30."
-                      : `Pick a day and a time between ${String(DAY_START_HOUR).padStart(2, "0")}:00 and ${String(DAY_END_HOUR).padStart(2, "0")}:00.`}
+                    {timeIsBad ? "Try 2pm, 2:30pm or 14:30." : "Pick a day, or leave it blank."}
                   </span>
                 </div>
               </div>

@@ -2,7 +2,18 @@ import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
 import { resolveAppForText } from "../lib/ipc";
-import { CATEGORIES, CATEGORY_COLORS, type AppRule, type Category } from "../lib/types";
+import { categoryColor, useAssignableCategories } from "../lib/categories";
+import { clearPref, readPref, writePref } from "../lib/prefs";
+import type { AppRule, Category } from "../lib/types";
+
+const DRAFT_KEY = "task.draft";
+
+interface TaskDraft {
+  title: string;
+  category: Category;
+  dueDate: string;
+  dueTime: string;
+}
 
 interface Props {
   open: boolean;
@@ -11,6 +22,10 @@ interface Props {
     title: string;
     category: Category;
     targetProcess: string | null;
+    /** Where it happens. Null is the normal case and means no travel is counted. */
+    placeId: number | null;
+    /** Epoch seconds, or null when nothing is due. */
+    dueAt: number | null;
   }) => void;
 }
 
@@ -24,13 +39,30 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<Category>("Productivity");
   const [detected, setDetected] = useState<AppRule | null>(null);
+  const categories = useAssignableCategories();
+  /** Mothballed with the rest of the travel feature — always null until it returns. */
+  const placeId: number | null = null;
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
+
+  /**
+   * The dialog closes on a backdrop click, so it no longer wipes what you typed. The
+   * draft is restored on reopen and only cleared once the task is actually added.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const saved = readPref<TaskDraft | null>(DRAFT_KEY, null);
+    setTitle(saved?.title ?? "");
+    setCategory(saved?.category ?? "Productivity");
+    setDueDate(saved?.dueDate ?? "");
+    setDueTime(saved?.dueTime ?? "");
+    setDetected(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setCategory("Productivity");
-    setDetected(null);
-  }, [open]);
+    writePref<TaskDraft>(DRAFT_KEY, { title, category, dueDate, dueTime });
+  }, [open, title, category, dueDate, dueTime]);
 
   // Debounced so it does not fire a command on every keystroke.
   useEffect(() => {
@@ -61,19 +93,36 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
 
   if (!open) return null;
 
+  /**
+   * A date, and optionally a time on it. A date with no time means end of day rather than
+   * midnight — "due Friday" has never meant "due Friday 00:00", and treating it that way
+   * would make everything look a day late.
+   */
+  const parseDue = (date: string, time: string): number | null => {
+    if (!date) return null;
+    const [year, month, day] = date.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    const [hour, minute] = time ? time.split(":").map(Number) : [23, 59];
+    const stamp = new Date(year, month - 1, day, hour ?? 23, minute ?? 59, 0, 0);
+    return Math.floor(stamp.getTime() / 1000);
+  };
+
   const submit = () => {
     if (!title.trim()) return;
+    clearPref(DRAFT_KEY);
     onAdd({
       title: title.trim(),
       category,
       targetProcess: detected?.pattern ?? null,
+      placeId,
+      dueAt: parseDue(dueDate, dueTime),
     });
     onClose();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/25 p-8 backdrop-blur-sm"
+      className="scroll-area fixed inset-0 z-50 flex items-start justify-center bg-ink/25 p-8 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -104,6 +153,46 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
           </label>
 
 
+          <div>
+            <span className="text-xs font-medium tracking-wide text-ink-soft">
+              Due <span className="text-ink-mute">(optional)</span>
+            </span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+                aria-label="Due date"
+                className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
+              />
+              <input
+                type="time"
+                value={dueTime}
+                disabled={!dueDate}
+                onChange={(event) => setDueTime(event.target.value)}
+                aria-label="Due time"
+                className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong disabled:opacity-50"
+              />
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDueDate("");
+                    setDueTime("");
+                  }}
+                  className="text-[11px] text-ink-mute transition hover:text-ink-soft"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <span className="mt-1 block text-[11px] text-ink-mute">
+              {dueDate && !dueTime
+                ? "No time given, so it is due by the end of that day."
+                : "A deadline moves it ahead of undated work when planning."}
+            </span>
+          </div>
+
           <label className="block">
             <span className="text-xs font-medium tracking-wide text-ink-soft">
               Type of activity
@@ -113,20 +202,21 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
               onChange={(event) => setCategory(event.target.value as Category)}
               className="mt-1.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
             >
-              {CATEGORIES.filter((entry) => entry !== "Idle").map((entry) => (
-                <option key={entry} value={entry}>
-                  {entry}
+              {categories.map((entry) => (
+                <option key={entry.id} value={entry.name}>
+                  {entry.name}
                 </option>
               ))}
             </select>
           </label>
 
+
           {detected && (
             <span
               className="flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
               style={{
-                background: `${CATEGORY_COLORS[detected.category]}1f`,
-                color: CATEGORY_COLORS[detected.category],
+                background: `${categoryColor(detected.category)}1f`,
+                color: categoryColor(detected.category),
               }}
             >
               <Sparkles size={11} />

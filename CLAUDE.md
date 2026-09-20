@@ -7,6 +7,21 @@ explicit "Rich Presence" activity over a local IPC socket, pulls deadlines from 
 and schedules the day with a deterministic slot finder plus an LLM — then checks its own
 tracking database to verify whether a scheduled block actually happened.
 
+## Context Budget & Token Guardrails
+
+To prevent context bloat and preserve prompt caching, the agent must adhere to these limits:
+
+1. **Never perform recursive workspace dumps.** Do not glob or inspect directory trees broadly.
+2. **Strictly banned paths:** Never read, search across, or open:
+   - `node_modules/`, `dist/`, `build/`
+   - `src-tauri/target/` (Rust build artifacts)
+   - Lockfiles: `package-lock.json`, `pnpm-lock.yaml`, `Cargo.lock`
+   - `.git/` logs, diffs, or commit histories
+3. **Single-feature file scope:** Read and modify only the exact files required for the current prompt. Do not inspect unrelated modules "just to explore."
+4. **Targeted lookups over full-file reads:** Use targeted string or ripgrep searches for exact function/type names rather than dumping entire multi-hundred-line files into context.
+5. **No sub-agent sprawl:** Run sequentially in a single context; do not spawn parallel exploratory sub-agents to map the repository.
+6. **Concise diffs only:** Output only the specific functions, interfaces, or blocks being modified. Never reprint complete, unchanged files.
+
 ## Naming
 
 | Thing | Value |
@@ -38,12 +53,17 @@ tracking database to verify whether a scheduled block actually happened.
 | `src-tauri/src/integrations/` | `LmsProvider` trait, the Canvas client, and `calendar.rs` (iCal feed + RRULE expansion) |
 | `src-tauri/src/plans.rs` | Work plans: estimate, measured progress, the check-in loop |
 | `src-tauri/src/checkin.rs` | Once-a-minute worker that fires the halfway check-in |
-| `src-tauri/src/llm/mod.rs` | OpenAI-compatible JSON completion, used only by the scheduler |
+| `src-tauri/src/nudge.rs` | Five-minute worker that announces a passed ceiling, once a day |
+| `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
+| `src-tauri/src/integrations/travel.rs` | `TravelProvider`: OpenRouteService (default) and Google, plus geocoding |
+| `src-tauri/src/location/` | Where the device is, per OS. The only `cfg(target_os)` for location |
+| `src/lib/geolocation.ts` | Asks the webview where it is, raced against a timeout |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
 | `src-tauri/src/tray.rs` | Tray menu, pause plumbing, ordered shutdown |
 | `src-tauri/src/commands.rs` | Every `#[tauri::command]` |
-| `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits) |
+| `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits), `progress.ts` (streaks, averages, direction-aware trend) |
+| `src/components/ProgressPage.tsx` | Day-by-day history, targets, and whether it is getting better |
 | `src/lib/ipc.ts` | One typed wrapper per command; components never call `invoke` directly |
 | `src/lib/types.ts` | Mirror of `models.rs` — keep the two in step |
 | `src/hooks/` | `useLiveActivity`, `useUsageStats`, `usePermissions`, `useTasks`, `useSchedule`, `useCalendar`, `usePlans`, `useCurrentWork` (which block, and which class, is running now) |
@@ -53,6 +73,10 @@ tracking database to verify whether a scheduled block actually happened.
 | `src/components/AddTaskDialog.tsx` | The only way to add a task by hand: title, time, activity type |
 | `src/components/GeneratePlanDialog.tsx` | Walks the unplanned queue, proposes one real gap at a time, writes only what is accepted |
 | `src/components/CanvasSyncSidebar.tsx` | Right panel: Canvas link, in-progress plans, coursework, user goals, focus-block picker |
+| `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
+| `src/components/PlacesPanel.tsx` | Places and their travel times, inside Settings |
+| `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
+| `src/services/travel.ts` | Matching a feed's LOCATION to a place, and padding commitments by travel |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,
@@ -74,8 +98,10 @@ wrong data.
    `Idle`. Goal verification filters on `is_idle = 0` for the same reason.
 4. **The arithmetic proposes, the user disposes.** `Generate plan` reads the calendar and
    the timeline, places work with `placeWork`, and asks about one slot at a time.
-   Nothing reaches SQLite without an explicit yes, and skipping is always free. No model
-   is involved: `generate_agenda` and `llm/` are still wired but have no caller.
+   Nothing reaches SQLite without an explicit yes, and skipping is always free. **There is
+   no model anywhere in Nudgy** — `llm/`, `generate_agenda` and the LLM settings were
+   removed once nothing called them. Category suggestions are a keyword table; scheduling
+   is arithmetic. Adding an LLM back means re-earning its place, not restoring a file.
 5. **Explicit RPC presence outranks a guessed window title**, and expires 60 s after the
    client's last message.
 6. **No keystrokes, no mouse coordinates, no screenshots, no assignment descriptions.**
@@ -135,13 +161,85 @@ wrong data.
 18. **Calendar events are immovable.** Anything from the iCal feed becomes a commitment
     the planner refuses to schedule over. All-day events are ignored on purpose: they
     mark a day rather than occupy it.
+19. **The category vocabulary is data, not a constant.** `categories` is a table, so
+    "is this a real category?" is asked of the loaded `Registry` (`has_category`), never
+    of a compiled list — including on the RPC path. `Neutral` and `Idle` are built in and
+    cannot be deleted; deleting any other moves its rules and its recorded time to
+    `Neutral` rather than destroying either.
+20. **A correction rewrites the past.** Changing an app's category runs
+    `recategorize_samples`, so the time it already recorded moves with it — a fix that
+    only applied going forward would leave every chart showing the answer you just
+    corrected. An `exe` rule owns only its rows with no site label: re-filing Chrome must
+    not drag an hour of YouTube along. Idle rows are never touched.
+21. **Title rules are ranked, not alphabetical.** `priority` decides which rule claims a
+    window — coursework (200) over media (100), and anything hand-written (300) over both.
+    This is what makes "Chrome is Neutral *unless* it is school work" deterministic
+    instead of a side effect of pattern ordering.
+27. **A number moving is not news until you know which way the target points.** `trend`
+    in `services/progress.ts` is direction-aware: less Gaming is `better`, less Development
+    is `worse`. It also **excludes today**, because a partial morning measured against
+    whole-day averages reads as a collapse every day before lunch — the easiest way for a
+    progress page to lie. `streak` includes today, because a floor already cleared this
+    morning really is met.
+28. **Only a ceiling interrupts.** `nudge.rs` fires on `at_most` targets and never on
+    `at_least` ones: being told at 3pm that you are behind on reading helps nobody, while
+    being told you have hit your limit is the whole point. Once per category per day,
+    recorded in `settings` as `nudged:<category>` so a restart does not re-announce it.
+29. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
+    set of categories short of a floor and uses it only to break ties among goals with no
+    due date. Something due tomorrow outranks being behind on a habit, and quietly
+    demoting it would be the planner deciding a deadline matters less than a preference.
+
+### Mothballed: places and travel (shelved — routing costs money)
+
+Everything below invariant 21 is **built, tested and deliberately unreachable**. The
+schema, the Rust commands, `integrations/travel.rs`, `location/`, `services/travel.ts`
+and the slot-finder arithmetic are all intact; only the UI and the network calls were
+removed, because timing a trip needs a paid routing service and that is a decision for
+later. Nothing here is dead code to be tidied away — deleting it throws away working
+work.
+
+To switch it back on: restore `<PlacesPanel />` and the routing-provider block in
+`SettingsDialog`, the Where picker in `AddTaskDialog` (its `placeId` is pinned to `null`),
+and the two `getPlaces()` / `getTravelTimes()` calls in `useCalendar`. Migrations 8 and 9
+have already run, so there is nothing to undo in the database.
+
+22. **Locating is a device capability; routing is a service.** Finding where you are
+    costs nothing and needs no key — CoreLocation on macOS, `Windows.Devices.Geolocation`
+    on Windows, behind a permission prompt like the watcher's. Only timing a trip needs a
+    provider. Conflating the two is what made an earlier version spend an API call
+    answering a question the OS already knew. `location/` is the only place
+    `cfg(target_os)` appears for this, and its blocking poll runs on a blocking thread so
+    an eight-second wait for a GPS fix cannot stall every other command.
+23. **The default provider costs an email, not a card.** OpenRouteService is the default;
+    Google is opt-in for anyone who wants traffic-aware times and already has billing.
+    ORS routes between coordinates, so a lookup is geocode-geocode-matrix — three
+    requests, which is why caching is aggressive and why a `Place` keeps its address.
+24. **Places accumulate, they are not curated.** Typing an address in `Add task` creates
+    the place, so the Settings list is a record of where you go rather than a form to fill
+    in first. The same address typed twice reuses its place, keeping the travel already
+    looked up. `Use where I am now` detects the base: the browser's own geolocation first
+    (a doorstep), falling back to the provider inferring from the network (a
+    neighbourhood) — and coordinates that cannot be reverse geocoded are kept as `lat,lng`,
+    because they route perfectly well and only read badly.
+25. **Travel minutes can always be typed.** A looked-up number and a hand-typed one land
+    in the same `travel_cache` row, so nothing downstream can tell them apart. Timing a
+    trip from an address needs the maps key — routing is not arithmetic — but a known
+    commute never does.
+26. **Travel is an edge on a commitment, never a block.** A class at 2pm twenty-five
+    minutes away ends the morning at 1:35, so `findFreeSlots` grows each commitment by its
+    travel. Travel is not schedulable, so it clips with the commitment at the day boundary
+    rather than surviving on its own. An unmeasured leg is zero, never a guess: silently
+    shrinking a day by an invented commute is worse than ignoring a real one. Back-to-back
+    commitments within `chainGapSeconds` are one outing, not two round trips.
 
 ## Secrets
 
-Canvas tokens and LLM API keys live in the OS keychain via the `keyring` crate, wrapped
-by `src-tauri/src/secrets.rs` (M3). Never in the `settings` table, never in a log line,
-never returned to the frontend — the frontend may ask *whether* a secret is set, not
-what it is.
+The Canvas token, the secret iCal URL and the maps API key live in the OS keychain via
+the `keyring` crate, wrapped by `src-tauri/src/secrets.rs` (M3). Never in the `settings`
+table, never in a log line, never returned to the frontend — the frontend may ask
+*whether* a secret is set, not what it is. A travel log line names the *place*, never the
+address, since a log outlives the request that needed it.
 
 ## Adding a command
 
@@ -170,45 +268,3 @@ npx tsc --noEmit
 sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
   "SELECT category, SUM(duration_seconds)/60 AS mins FROM activity_samples
    WHERE ts > strftime('%s','now','-1 day') GROUP BY category ORDER BY mins DESC;"
-```
-
-The idle path is the one worth testing by hand: leave the machine untouched for over
-180 seconds and confirm samples flip to `is_idle = 1` / `category = 'Idle'` instead of
-continuing to credit the foreground app.
-
-## Milestone status
-
-- [x] **M0** — toolchain, scaffold, Tailwind v4, naming, this file
-- [x] **M1** — tracking core: schema + migrations, macOS probe, registry + redaction,
-      batch flush, tray + close interception, permissions pre-flight, live dashboard
-- [x] **M2** — Rich Presence listener + `scripts/rpc-test-client.mjs`; verified end to end
-      (a claim decorates the focused app, `source = 'rpc'`)
-- [x] **M3** — Canvas client (pagination, 429 backoff, sanitation), keychain secrets,
-      Task Hub, Settings dialog. **Not verified against a live Canvas instance** — needs a
-      real base URL and token.
-- [x] **M4** — slot finder, work planner and day planner (Vitest), goal verifier (4 Rust
-      cases), Schedule Panel. The LLM agenda path is **retired**: planning is deterministic
-      and confirmed slot by slot in `GeneratePlanDialog`. `agendaSchema.ts` and
-      `promptFormatter.ts` are gone; the Rust LLM client stays, uncalled.
-- [x] **M5** — `watcher/windows.rs` + `.github/workflows/build.yml`. **Never compiled** —
-      the `windows-latest` job is where it is first proven.
-
-## Known deviations from the original spec
-
-- **`rusqlite` instead of `tauri-plugin-sql`.** The hot write path is a Rust background
-  task; routing it through the JS layer would be backwards, and two pools on one file
-  invite `SQLITE_BUSY` under WAL.
-- **Tailwind v4** (CSS-first, `@import "tailwindcss"` + `@theme` in `src/index.css`), so
-  there is no `tailwind.config.js`.
-- **Three views, not four.** The rail is Overview / Timeline Planner / App Registry. The
-  separate Coursework view was folded into the right sidebar, which is now the single
-  home for anything with a deadline or an intention: Canvas assignments plus
-  user-entered goals. Measured-time panels (donut, top apps) live only on Overview, so
-  nothing is shown twice.
-- **Light blush theme, no dark mode.** Tokens live in `@theme` in `src/index.css`:
-  `canvas` / `surface` / `surface-sunken` for planes, `edge` / `edge-strong` for borders,
-  `ink` / `ink-soft` / `ink-mute` for text, `rose` / `rose-deep` / `rose-wash` for accent,
-  `ok` / `warn` / `bad` for status. Components use these names, never raw hex — changing
-  the palette is a one-file edit.
-- **Windows code is unverified on this machine** — no Windows toolchain here. M5 adds a
-  CI matrix so the first real Windows compile is visible rather than silent.

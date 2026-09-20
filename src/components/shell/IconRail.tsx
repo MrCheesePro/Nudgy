@@ -1,6 +1,6 @@
-import { CalendarDays, LayoutGrid, Settings, Sparkles, Zap } from "lucide-react";
+import { CalendarDays, LayoutGrid, Settings, Sparkles, TrendingUp } from "lucide-react";
 
-export type View = "overview" | "timeline" | "apps";
+export type View = "overview" | "timeline" | "progress" | "apps";
 
 interface Props {
   view: View;
@@ -10,17 +10,14 @@ interface Props {
 
 const ITEMS: { id: View; icon: typeof LayoutGrid; label: string }[] = [
   { id: "overview", icon: LayoutGrid, label: "Overview" },
-  { id: "timeline", icon: CalendarDays, label: "Timeline Planner" },
+  { id: "timeline", icon: CalendarDays, label: "Planner" },
+  { id: "progress", icon: TrendingUp, label: "Progress" },
   { id: "apps", icon: Sparkles, label: "App registry" },
 ];
 
 export function IconRail({ view, onChange, onOpenSettings }: Props) {
   return (
     <nav className="flex w-16 shrink-0 flex-col items-center gap-1 border-r border-edge bg-surface py-4">
-      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-rose text-white">
-        <Zap size={17} strokeWidth={2.4} />
-      </div>
-
       {ITEMS.map((item) => {
         const Icon = item.icon;
         const active = view === item.id;

@@ -1,581 +1,901 @@
 {
-  "version": 3,
+  "version": 4,
   "apps": [
     {
       "matchType": "exe",
       "pattern": "Code.exe",
       "displayName": "Visual Studio Code",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.microsoft.VSCode",
       "displayName": "Visual Studio Code",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Cursor.exe",
       "displayName": "Cursor",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.todesktop.230313mzl4w4u92",
       "displayName": "Cursor",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "devenv.exe",
       "displayName": "Visual Studio",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "idea64.exe",
       "displayName": "IntelliJ IDEA",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.jetbrains.intellij",
       "displayName": "IntelliJ IDEA",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "pycharm64.exe",
       "displayName": "PyCharm",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "javaw.exe",
       "displayName": "Java Application",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "sublime_text.exe",
       "displayName": "Sublime Text",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.dt.Xcode",
       "displayName": "Xcode",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.Terminal",
       "displayName": "Terminal",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.googlecode.iterm2",
       "displayName": "iTerm",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.mitchellh.ghostty",
       "displayName": "Ghostty",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "WindowsTerminal.exe",
       "displayName": "Windows Terminal",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "WINWORD.EXE",
       "displayName": "Microsoft Word",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "EXCEL.EXE",
       "displayName": "Microsoft Excel",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "POWERPNT.EXE",
       "displayName": "Microsoft PowerPoint",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "OUTLOOK.EXE",
       "displayName": "Microsoft Outlook",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.microsoft.Word",
       "displayName": "Microsoft Word",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.microsoft.Excel",
       "displayName": "Microsoft Excel",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.microsoft.Powerpoint",
       "displayName": "Microsoft PowerPoint",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Notion.exe",
       "displayName": "Notion",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "notion.id",
       "displayName": "Notion",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Obsidian.exe",
       "displayName": "Obsidian",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "md.obsidian",
       "displayName": "Obsidian",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.Notes",
       "displayName": "Notes",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.mail",
       "displayName": "Mail",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.Preview",
       "displayName": "Preview",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.iCal",
       "displayName": "Calendar",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Acrobat.exe",
       "displayName": "Adobe Acrobat",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Zoom.exe",
       "displayName": "Zoom",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "us.zoom.xos",
       "displayName": "Zoom",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Overwatch.exe",
       "displayName": "Overwatch",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "steam.exe",
       "displayName": "Steam",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "steamwebhelper.exe",
       "displayName": "Steam",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.valvesoftware.steam",
       "displayName": "Steam",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "LeagueClient.exe",
       "displayName": "League of Legends",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "League of Legends.exe",
       "displayName": "League of Legends",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "VALORANT-Win64-Shipping.exe",
       "displayName": "Valorant",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Minecraft.Windows.exe",
       "displayName": "Minecraft",
-      "category": "Gaming"
+      "category": "Gaming",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "photoshop.exe",
       "displayName": "Adobe Photoshop",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.adobe.Photoshop",
       "displayName": "Adobe Photoshop",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Illustrator.exe",
       "displayName": "Adobe Illustrator",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "AfterFX.exe",
       "displayName": "After Effects",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "blender.exe",
       "displayName": "Blender",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "org.blenderfoundation.blender",
       "displayName": "Blender",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "ClipStudioPaint.exe",
       "displayName": "Clip Studio Paint",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "jp.co.celsys.ClipStudioPaint",
       "displayName": "Clip Studio Paint",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Figma.exe",
       "displayName": "Figma",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.figma.Desktop",
       "displayName": "Figma",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.FinalCut",
       "displayName": "Final Cut Pro",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Discord.exe",
       "displayName": "Discord",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.hnc.Discord",
       "displayName": "Discord",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Slack.exe",
       "displayName": "Slack",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.tinyspeck.slackmacgap",
       "displayName": "Slack",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.MobileSMS",
       "displayName": "Messages",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "Telegram.exe",
       "displayName": "Telegram",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "WhatsApp.exe",
       "displayName": "WhatsApp",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "chrome.exe",
       "displayName": "Google Chrome",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.google.Chrome",
       "displayName": "Google Chrome",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "firefox.exe",
       "displayName": "Firefox",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "org.mozilla.firefox",
       "displayName": "Firefox",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "msedge.exe",
       "displayName": "Microsoft Edge",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.Safari",
       "displayName": "Safari",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "company.thebrowser.Browser",
       "displayName": "Arc",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "exe",
       "pattern": "com.apple.finder",
       "displayName": "Finder",
-      "category": "Neutral"
+      "category": "Neutral",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\byoutube\\b",
       "displayName": "YouTube",
-      "category": "Social"
+      "category": "Free Time",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bnetflix\\b",
       "displayName": "Netflix",
-      "category": "Social"
+      "category": "Free Time",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\btwitch\\b",
       "displayName": "Twitch",
-      "category": "Social"
+      "category": "Free Time",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\btiktok\\b",
       "displayName": "TikTok",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\binstagram\\b",
       "displayName": "Instagram",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\breddit\\b",
       "displayName": "Reddit",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\btwitter\\b|\\bx\\.com\\b",
       "displayName": "X",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bfacebook\\b",
       "displayName": "Facebook",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bdiscord\\b",
       "displayName": "Discord",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bpinterest\\b",
       "displayName": "Pinterest",
-      "category": "Social"
+      "category": "Social",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bspotify\\b",
       "displayName": "Spotify",
-      "category": "Social"
+      "category": "Free Time",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bcanvas\\b",
       "displayName": "Canvas",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bgmail\\b|\\binbox \\(\\d",
       "displayName": "Gmail",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google docs|\\bdocs\\.google\\b",
       "displayName": "Google Docs",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google drive|\\bdrive\\.google\\b",
       "displayName": "Google Drive",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google slides",
       "displayName": "Google Slides",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google sheets",
       "displayName": "Google Sheets",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google calendar",
       "displayName": "Google Calendar",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bnotion\\b",
       "displayName": "Notion",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bhandshake\\b",
       "displayName": "Handshake",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\blinkedin\\b",
       "displayName": "LinkedIn",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bwikipedia\\b",
       "displayName": "Wikipedia",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)google gemini|\\bgemini\\b",
       "displayName": "Gemini",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bchatgpt\\b",
       "displayName": "ChatGPT",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bclaude\\b",
       "displayName": "Claude",
-      "category": "Productivity"
+      "category": "Productivity",
+      "priority": 200
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bgithub\\b",
       "displayName": "GitHub",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)stack overflow|stackoverflow",
       "displayName": "Stack Overflow",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bmdn web docs\\b",
       "displayName": "MDN",
-      "category": "Development"
+      "category": "Development",
+      "priority": 100
     },
     {
       "matchType": "title_regex",
       "pattern": "(?i)\\bfigma\\b",
       "displayName": "Figma",
-      "category": "Creative"
+      "category": "Creative",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google classroom|classroom\\.google",
+      "displayName": "Google Classroom",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bschoology\\b",
+      "displayName": "Schoology",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bblackboard\\b",
+      "displayName": "Blackboard",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bmoodle\\b",
+      "displayName": "Moodle",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bbrightspace\\b|\\bd2l\\b",
+      "displayName": "Brightspace",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bpowerschool\\b",
+      "displayName": "PowerSchool",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)infinite campus",
+      "displayName": "Infinite Campus",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bgradescope\\b",
+      "displayName": "Gradescope",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bturnitin\\b",
+      "displayName": "Turnitin",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bpiazza\\b",
+      "displayName": "Piazza",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\boverleaf\\b",
+      "displayName": "Overleaf",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)khan academy",
+      "displayName": "Khan Academy",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bquizlet\\b",
+      "displayName": "Quizlet",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bdesmos\\b",
+      "displayName": "Desmos",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bkahoot\\b",
+      "displayName": "Kahoot",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bcoursera\\b",
+      "displayName": "Coursera",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bedx\\b",
+      "displayName": "edX",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bwolframalpha\\b|wolfram alpha",
+      "displayName": "Wolfram Alpha",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bsymbolab\\b",
+      "displayName": "Symbolab",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bjstor\\b|google scholar",
+      "displayName": "Research",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)[a-z0-9-]+\\.edu\\b",
+      "displayName": "School site",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\b(assignment|syllabus|homework|problem set|lecture notes|study guide|gradebook)\\b",
+      "displayName": "Coursework",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bhulu\\b",
+      "displayName": "Hulu",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)disney\\+|disneyplus",
+      "displayName": "Disney+",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)prime video",
+      "displayName": "Prime Video",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bcrunchyroll\\b",
+      "displayName": "Crunchyroll",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bhbo max\\b|\\bmax\\.com\\b",
+      "displayName": "Max",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)chess\\.com|\\blichess\\b",
+      "displayName": "Chess",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bcoolmath\\b|\\bpoki\\b",
+      "displayName": "Browser games",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\broblox\\b",
+      "displayName": "Roblox",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bsteam\\b.*\\bstore\\b|store\\.steampowered",
+      "displayName": "Steam Store",
+      "category": "Free Time",
+      "priority": 100
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bsoundcloud\\b|\\bbandcamp\\b",
+      "displayName": "Music",
+      "category": "Free Time",
+      "priority": 100
     }
   ],
   "redactions": [

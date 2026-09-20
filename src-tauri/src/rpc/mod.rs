@@ -24,7 +24,6 @@ use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::models::is_valid_category;
 use crate::state::AppState;
 
 /// Windows: `\\.\pipe\nudgy-rpc`.
@@ -166,7 +165,12 @@ async fn handle_client(
     app: AppHandle,
     stream: interprocess::local_socket::tokio::Stream,
 ) -> Result<()> {
-    let presence: PresenceMap = app.state::<AppState>().presence.clone();
+    let (presence, registry) = {
+        let state = app.state::<AppState>();
+        // The category vocabulary is a table now, so validating a client's claim means
+        // asking the loaded registry rather than a constant compiled into this file.
+        (state.presence.clone(), state.registry.clone())
+    };
     let mut reader = BufReader::new(stream);
     let mut line = Vec::new();
     // Remembered so the presence can be dropped when this connection closes.
@@ -196,7 +200,7 @@ async fn handle_client(
             }
         };
 
-        match validate(payload) {
+        match validate(payload, &registry) {
             Ok(Command::Set(entry)) => {
                 owned_client = Some(entry.client_id.clone());
                 if let Ok(mut map) = presence.write() {
@@ -228,7 +232,10 @@ enum Command {
     Clear(String),
 }
 
-fn validate(payload: PresencePayload) -> Result<Command> {
+fn validate(
+    payload: PresencePayload,
+    registry: &std::sync::RwLock<crate::watcher::registry::Registry>,
+) -> Result<Command> {
     let client_id = payload.client_id.trim().to_string();
     if client_id.is_empty() || client_id.chars().count() > MAX_CLIENT_ID_CHARS {
         return Err(anyhow!("client_id must be 1..={MAX_CLIENT_ID_CHARS} chars"));
@@ -244,8 +251,16 @@ fn validate(payload: PresencePayload) -> Result<Command> {
     }
 
     let category = match payload.category {
-        Some(value) if is_valid_category(&value) => Some(value),
-        Some(value) => return Err(anyhow!("unknown category `{value}`")),
+        Some(value) => {
+            let known = registry
+                .read()
+                .map(|registry| registry.has_category(&value))
+                .unwrap_or(false);
+            if !known {
+                return Err(anyhow!("unknown category `{value}`"));
+            }
+            Some(value)
+        }
         None => None,
     };
 
@@ -269,6 +284,19 @@ fn validate(payload: PresencePayload) -> Result<Command> {
 mod tests {
     use super::*;
 
+    use crate::watcher::registry::Registry;
+
+    /// The vocabulary a client is validated against, without a database behind it.
+    fn vocabulary() -> std::sync::RwLock<Registry> {
+        std::sync::RwLock::new(Registry::with_categories(&[
+            "Development",
+            "Productivity",
+            "Creative",
+            "Free Time",
+            "Neutral",
+        ]))
+    }
+
     fn payload(client_id: &str, activity: &str, category: Option<&str>) -> PresencePayload {
         PresencePayload {
             client_id: client_id.to_string(),
@@ -281,27 +309,38 @@ mod tests {
 
     #[test]
     fn accepts_a_well_formed_payload() {
-        let result = validate(payload("vscode-extension", "Writing Lab Report", Some("Productivity")));
+        let result = validate(
+            payload("vscode-extension", "Writing Lab Report", Some("Productivity")),
+            &vocabulary(),
+        );
         assert!(matches!(result, Ok(Command::Set(_))));
     }
 
     #[test]
     fn rejects_unknown_category() {
-        assert!(validate(payload("cli", "Doing things", Some("Slacking"))).is_err());
+        assert!(validate(payload("cli", "Doing things", Some("Slacking")), &vocabulary()).is_err());
+    }
+
+    // The vocabulary is a table now, so a category added at runtime has to be accepted
+    // here without anything in this file changing.
+    #[test]
+    fn accepts_a_category_that_was_added_after_the_build() {
+        let result = validate(payload("cli", "Watching a film", Some("Free Time")), &vocabulary());
+        assert!(matches!(result, Ok(Command::Set(_))));
     }
 
     #[test]
     fn rejects_empty_and_oversized_fields() {
-        assert!(validate(payload("", "Writing", None)).is_err());
+        assert!(validate(payload("", "Writing", None), &vocabulary()).is_err());
         let long = "x".repeat(MAX_ACTIVITY_CHARS + 1);
-        assert!(validate(payload("cli", &long, None)).is_err());
+        assert!(validate(payload("cli", &long, None), &vocabulary()).is_err());
     }
 
     #[test]
     fn clamps_a_future_start_time_to_now() {
         let mut input = payload("cli", "Writing", None);
         input.started_at = Some(chrono::Utc::now().timestamp() + 10_000);
-        let Ok(Command::Set(entry)) = validate(input) else {
+        let Ok(Command::Set(entry)) = validate(input, &vocabulary()) else {
             panic!("expected a set command");
         };
         assert!(entry.started_at <= chrono::Utc::now().timestamp() + 1);

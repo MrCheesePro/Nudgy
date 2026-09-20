@@ -43,20 +43,50 @@ body {
   overflow: hidden;
 }
 
+/* Scrollable, but never a scrollbar.
+ *
+ * The panels are short and self-describing, so a track sitting permanently against every
+ * card was drawing a chrome edge around content that reads as one surface. Hiding it
+ * changes nothing about what scrolls — wheel, trackpad, keyboard and the smooth behaviour
+ * below all still work — it only stops the app announcing that it has overflow. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 0;
+  height: 0;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--color-edge-strong);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Every scroll container, not just the page: a jump-to-position inside a panel should
+ * glide the same way the timeline's scroll-into-view already does. `auto` for anyone who
+ * has asked the OS for less motion — this is exactly the animation that setting is for. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Momentum on trackpads, and no rubber-banding the whole window when a panel bottoms
+ * out — the page behind a scrolling card should stay put. */
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 @keyframes pulse-dot {

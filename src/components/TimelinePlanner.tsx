@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { CalendarDays, Eye, EyeOff, Plus, SlidersHorizontal, Sparkles } from "lucide-react";
+import { CalendarDays, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
 
 import { PlanTimeline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
-import { CATEGORIES, type Category } from "../lib/types";
+import { useAssignableCategories } from "../lib/categories";
+import type { Category } from "../lib/types";
 import type {
   CalendarEvent,
   LiveStatus,
@@ -24,10 +25,8 @@ interface Props {
   verifications: Record<number, VerificationResult>;
   weekOffset: number;
   onWeekOffset: (offset: number) => void;
-  busy: boolean;
   note: string | null;
   error: string | null;
-  onGenerate: () => void;
   onAddTask: () => void;
 }
 
@@ -40,13 +39,12 @@ export function TimelinePlanner({
   verifications,
   weekOffset,
   onWeekOffset,
-  busy,
   note,
   error,
-  onGenerate,
   onAddTask,
 }: Props) {
   const [filter, setFilter] = useState<Category | "All">("All");
+  const categories = useAssignableCategories();
   const [hideCompleted, setHideCompleted] = useState(false);
 
   // One place decides what the chart draws. Finished plans are shown by default: the day
@@ -78,7 +76,7 @@ export function TimelinePlanner({
   return (
     <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-2xl font-semibold text-ink">Timeline Planner</h2>
+        <h2 className="text-2xl font-semibold text-ink">Planner</h2>
         <button
           type="button"
           onClick={onAddTask}
@@ -111,9 +109,9 @@ export function TimelinePlanner({
             className="cursor-pointer appearance-none bg-transparent pr-0 text-xs font-semibold text-rose-deep outline-none"
           >
             <option value="All">Filter</option>
-            {CATEGORIES.filter((entry) => entry !== "Idle").map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
+            {categories.map((entry) => (
+              <option key={entry.id} value={entry.name}>
+                {entry.name}
               </option>
             ))}
           </select>
@@ -133,15 +131,6 @@ export function TimelinePlanner({
           {hideCompleted ? "Completed hidden" : "Hide completed"}
         </button>
 
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={busy}
-          className="flex items-center gap-2 rounded-full bg-rose-wash px-4 py-2 text-xs font-semibold text-rose-deep transition hover:bg-edge-strong disabled:opacity-50"
-        >
-          <Sparkles size={13} />
-          {busy ? "Planning…" : "Generate plan"}
-        </button>
 
       </div>
 

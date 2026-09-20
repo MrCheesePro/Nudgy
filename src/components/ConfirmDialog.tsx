@@ -8,6 +8,9 @@ interface Props {
   body: string;
   confirmLabel: string;
   onConfirm: () => void;
+  /** A second way out, for when the real question is "which of these two". */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   onCancel: () => void;
 }
 
@@ -24,6 +27,8 @@ export function ConfirmDialog({
   body,
   confirmLabel,
   onConfirm,
+  secondaryLabel,
+  onSecondary,
   onCancel,
 }: Props) {
   useEffect(() => {
@@ -62,6 +67,17 @@ export function ConfirmDialog({
           >
             Keep it
           </button>
+          {/* The reversible option sits above the destructive one, and only the
+              destructive one turns red on hover. */}
+          {secondaryLabel && onSecondary && (
+            <button
+              type="button"
+              onClick={onSecondary}
+              className="w-full rounded-lg border border-edge py-2 text-xs font-medium text-ink-soft transition hover:border-edge-strong hover:text-ink"
+            >
+              {secondaryLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onConfirm}

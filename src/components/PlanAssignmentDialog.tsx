@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Timer, TriangleAlert, X } from "lucide-react";
 
+import { clearPref, readPref, writePref } from "../lib/prefs";
 import { formatClock, formatDuration, parseTimeOfDay } from "../lib/time";
-import { CATEGORY_COLORS, type Category } from "../lib/types";
+import { categoryColor } from "../lib/categories";
+import type { Category } from "../lib/types";
 import { findFreeSlots, fitsInSlots, type Commitment } from "../services/slotFinder";
 import {
   dayKey,
@@ -15,6 +17,17 @@ import {
 } from "../services/workPlanner";
 
 /** Anything that can be planned: a Canvas assignment or a goal the user typed. */
+/** A dialog left half-filled. Restored next time the same item is opened. */
+interface PlanDraft {
+  estimate: string;
+  mode: PlanMode;
+  style: PomodoroStyle;
+  session: string;
+  breakLength: string;
+  startDay: string | null;
+  startTime: string;
+}
+
 export interface Plannable {
   taskId: number | null;
   title: string;
@@ -83,16 +96,40 @@ export function PlanAssignmentDialog({
   const [startDay, setStartDay] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
 
+  /**
+   * Where a half-finished draft is kept, per item.
+   *
+   * Clicking the backdrop closes this dialog, and losing five fields to a stray click is
+   * worse than the tidiness of always starting fresh. Keyed by the item so opening a
+   * different task shows that task's numbers rather than the last one's.
+   */
+  const draftKey = item ? `plan.draft.${item.planId ?? item.taskId ?? item.title}` : null;
+
   useEffect(() => {
-    if (!item) return;
-    setEstimate(String(item.defaultMinutes));
-    setMode(item.defaultMode);
-    setStyle(item.defaultStyle);
-    setSession(String(item.defaultFocusMinutes));
-    setBreakLength(String(item.defaultBreakMinutes));
-    setStartDay(null);
-    setStartTime("");
-  }, [item]);
+    if (!item || !draftKey) return;
+    const saved = readPref<PlanDraft | null>(draftKey, null);
+    setEstimate(saved?.estimate ?? String(item.defaultMinutes));
+    setMode(saved?.mode ?? item.defaultMode);
+    setStyle(saved?.style ?? item.defaultStyle);
+    setSession(saved?.session ?? String(item.defaultFocusMinutes));
+    setBreakLength(saved?.breakLength ?? String(item.defaultBreakMinutes));
+    setStartDay(saved?.startDay ?? null);
+    setStartTime(saved?.startTime ?? "");
+  }, [item, draftKey]);
+
+  // Saved as you type, so the draft survives whatever closes the dialog.
+  useEffect(() => {
+    if (!draftKey) return;
+    writePref<PlanDraft>(draftKey, {
+      estimate,
+      mode,
+      style,
+      session,
+      breakLength,
+      startDay,
+      startTime,
+    });
+  }, [draftKey, estimate, mode, style, session, breakLength, startDay, startTime]);
 
   const estimateMinutes = clamp(estimate, 5, 600, 60);
   // The style has the final say: classic is fixed, flowmodoro derives its own break.
@@ -117,7 +154,6 @@ export function PlanAssignmentDialog({
   );
 
   const minutesOfDay = useMemo(() => parseTimeOfDay(startTime), [startTime]);
-  const timeIsBad = startTime.trim().length > 0 && minutesOfDay === null;
 
   const requestedStart = useMemo(() => {
     if (!startDay || minutesOfDay === null) return null;
@@ -125,6 +161,19 @@ export function PlanAssignmentDialog({
     const stamp = new Date(year, month - 1, day, 0, minutesOfDay, 0, 0);
     return Math.floor(stamp.getTime() / 1000);
   }, [startDay, minutesOfDay]);
+
+  /**
+   * The earliest the work may begin.
+   *
+   * A day with no time counts. Before this, picking Thursday and typing nothing left
+   * `requestedStart` null and the proposal unchanged — the chip lit up and the plan
+   * ignored it, which looked exactly like a broken button.
+   */
+  const startFloor = useMemo(() => {
+    if (requestedStart !== null) return requestedStart;
+    if (!startDay) return null;
+    return days.find((entry) => entry.key === startDay)?.startTs ?? null;
+  }, [requestedStart, startDay, days]);
 
   /**
    * True when the requested start runs into a class, a meeting, or work already placed.
@@ -171,13 +220,13 @@ export function PlanAssignmentDialog({
 
     // A requested start clips the window: the planner may not begin before it.
     const scoped =
-      requestedStart === null
+      startFloor === null
         ? days
         : days
-            .filter((day) => day.endTs > requestedStart)
+            .filter((day) => day.endTs > startFloor)
             .map((day, index) =>
               index === 0
-                ? { ...day, startTs: Math.max(day.startTs, requestedStart) }
+                ? { ...day, startTs: Math.max(day.startTs, startFloor) }
                 : day,
             );
 
@@ -210,7 +259,7 @@ export function PlanAssignmentDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/25 p-8 backdrop-blur-sm"
+      className="scroll-area fixed inset-0 z-50 flex items-start justify-center bg-ink/25 p-8 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -223,8 +272,8 @@ export function PlanAssignmentDialog({
               <span
                 className="rounded-full px-2 py-0.5 font-medium"
                 style={{
-                  background: `${CATEGORY_COLORS[item.category]}1f`,
-                  color: CATEGORY_COLORS[item.category],
+                  background: `${categoryColor(item.category)}1f`,
+                  color: categoryColor(item.category),
                 }}
               >
                 {item.subtitle ?? item.category}
@@ -442,27 +491,29 @@ export function PlanAssignmentDialog({
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            {/* A real time control rather than a text box: choosing 14:30 from a picker
+                cannot be mistyped, so there is no parse error to explain. */}
             <input
+              type="time"
               value={startTime}
+              step={300}
               onChange={(event) => setStartTime(event.target.value)}
-              placeholder="2pm"
               aria-label="Start time"
-              className={`w-28 rounded-lg border bg-canvas px-3 py-2 text-sm text-ink outline-none transition select-text placeholder:text-ink-mute ${
-                timeIsBad ? "border-warn" : "border-edge focus:border-edge-strong"
-              }`}
+              className="rounded-lg border border-edge bg-canvas px-3 py-2 text-sm text-ink outline-none transition focus:border-edge-strong"
             />
+            {startTime && (
+              <button
+                type="button"
+                onClick={() => setStartTime("")}
+                className="text-[11px] text-ink-mute transition hover:text-ink-soft"
+              >
+                Any time
+              </button>
+            )}
             <span className="text-xs text-ink-mute">
-              {requestedStart !== null
-                ? `starts ${new Date(requestedStart * 1000).toLocaleString([], {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}`
-                : timeIsBad
-                  ? "Try 2pm, 2:30pm or 14:30."
-                  : "Type a time like 2pm, and pick a day — or leave both and Nudgy finds a gap."}
+              {startTime
+                ? "Starts exactly here if it fits."
+                : "Pick a day or let Nudgy choose."}
             </span>
           </div>
         </div>
@@ -489,7 +540,7 @@ export function PlanAssignmentDialog({
             </p>
           ) : (
             <>
-              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+              <ul className="scroll-area mt-2 max-h-40 space-y-1">
                 {blocks.map((block) => (
                   <li
                     key={`${block.day}-${block.startTs}`}
@@ -529,7 +580,9 @@ export function PlanAssignmentDialog({
           <button
             type="button"
             disabled={!canConfirm}
-            onClick={() =>
+            onClick={() => {
+              // Confirmed, so the draft has served its purpose.
+              if (draftKey) clearPref(draftKey);
               onConfirm({
                 item,
                 estimateSeconds: estimateMinutes * 60,
@@ -538,8 +591,8 @@ export function PlanAssignmentDialog({
                 focusSeconds: sessionMinutes * 60,
                 breakSeconds: breakMinutes * 60,
                 blocks,
-              })
-            }
+              });
+            }}
             className="rounded-lg bg-rose px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-deep disabled:opacity-40"
           >
             {item.planId === null ? "Add to plan" : "Update plan"}
