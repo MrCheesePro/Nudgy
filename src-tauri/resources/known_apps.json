@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "apps": [
     {
       "matchType": "exe",
@@ -402,36 +402,6 @@
       "pattern": "com.apple.finder",
       "displayName": "Finder",
       "category": "Neutral"
-    },
-    {
-      "matchType": "title_regex",
-      "pattern": "(?i)(github\\.com|stack overflow|stackoverflow)",
-      "displayName": "Development (web)",
-      "category": "Development"
-    },
-    {
-      "matchType": "title_regex",
-      "pattern": "(?i)(docs\\.google\\.com|google docs|overleaf)",
-      "displayName": "Documents (web)",
-      "category": "Productivity"
-    },
-    {
-      "matchType": "title_regex",
-      "pattern": "(?i)(canvas|instructure|blackboard|moodle)",
-      "displayName": "Coursework (web)",
-      "category": "Productivity"
-    },
-    {
-      "matchType": "title_regex",
-      "pattern": "(?i)(youtube|twitch|netflix|hulu|disney\\+)",
-      "displayName": "Streaming (web)",
-      "category": "Social"
-    },
-    {
-      "matchType": "title_regex",
-      "pattern": "(?i)(reddit|twitter\\.com|x\\.com|instagram|tiktok)",
-      "displayName": "Social (web)",
-      "category": "Social"
     },
     {
       "matchType": "title_regex",

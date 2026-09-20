@@ -127,6 +127,28 @@ const MIGRATIONS: &[&str] = &[
      WHERE window_title IS NOT NULL
        AND window_title <> '[Private]';
     "#,
+    // 6 — the seeded title rules used to be broad buckets: one regex matching youtube,
+    //     twitch, netflix and hulu alike, labelled "Streaming (web)". Now that the label
+    //     is shown next to the app, it has to name the actual site, and the per-site
+    //     rules that replace these sort after them — so the bucket would always win.
+    //     Seeding is insert-or-ignore and cannot remove a row, so they go here. Rules the
+    //     user wrote are untouched.
+    r#"
+    DELETE FROM known_apps
+     WHERE match_type = 'title_regex'
+       AND is_user_defined = 0
+       AND display_name IN (
+           'Development (web)', 'Documents (web)', 'Coursework (web)',
+           'Streaming (web)', 'Social (web)'
+       );
+
+    -- An earlier pass shipped a pattern that tried to catch a bare "x" and matched far
+    -- too much. The replacement is seeded under its own pattern, so drop the original.
+    DELETE FROM known_apps
+     WHERE match_type = 'title_regex'
+       AND is_user_defined = 0
+       AND pattern = '(?i)(^|\s)(x|twitter)\s*[/(]|\bon x\b|\btwitter\b';
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
