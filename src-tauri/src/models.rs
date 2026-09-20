@@ -148,44 +148,6 @@ pub fn is_valid_target_direction(candidate: &str) -> bool {
     candidate == TARGET_AT_LEAST || candidate == TARGET_AT_MOST
 }
 
-/// Somewhere you go. The address is what the maps provider is asked about; the name is
-/// what everything else in the app shows.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Place {
-    #[serde(default)]
-    pub id: i64,
-    pub name: String,
-    pub address: String,
-    /// Where a day starts and ends. Travel to the first located thing is measured from
-    /// here, so exactly one place carries it.
-    #[serde(default)]
-    pub is_base: bool,
-    #[serde(default)]
-    pub created_at: i64,
-}
-
-/// How long it takes to get from one place to another, and where that number came from.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TravelEstimate {
-    pub origin_id: i64,
-    pub destination_id: i64,
-    pub seconds: i64,
-    pub mode: String,
-    /// True when this came out of `travel_cache` rather than off the network. An address
-    /// does not move, so a cached answer is the normal answer, not a stale one.
-    pub cached: bool,
-}
-
-/// Travel modes, as the Distance Matrix API spells them.
-pub const TRAVEL_MODES: &[&str] = &["driving", "transit", "walking", "bicycling"];
-pub const TRAVEL_MODE_DEFAULT: &str = "driving";
-
-pub fn is_valid_travel_mode(candidate: &str) -> bool {
-    TRAVEL_MODES.contains(&candidate)
-}
-
 /// A title/executable pattern whose window titles are stored as `[Private]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

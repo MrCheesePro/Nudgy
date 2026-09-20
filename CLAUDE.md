@@ -55,9 +55,6 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/checkin.rs` | Once-a-minute worker that fires the halfway check-in |
 | `src-tauri/src/nudge.rs` | Five-minute worker that announces a passed ceiling, once a day |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
-| `src-tauri/src/integrations/travel.rs` | `TravelProvider`: OpenRouteService (default) and Google, plus geocoding |
-| `src-tauri/src/location/` | Where the device is, per OS. The only `cfg(target_os)` for location |
-| `src/lib/geolocation.ts` | Asks the webview where it is, raced against a timeout |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
 | `src-tauri/src/tray.rs` | Tray menu, pause plumbing, ordered shutdown |
@@ -74,9 +71,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/GeneratePlanDialog.tsx` | Walks the unplanned queue, proposes one real gap at a time, writes only what is accepted |
 | `src/components/CanvasSyncSidebar.tsx` | Right panel: Canvas link, in-progress plans, coursework, user goals, focus-block picker |
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
-| `src/components/PlacesPanel.tsx` | Places and their travel times, inside Settings |
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
-| `src/services/travel.ts` | Matching a feed's LOCATION to a place, and padding commitments by travel |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,
@@ -175,71 +170,37 @@ wrong data.
     window — coursework (200) over media (100), and anything hand-written (300) over both.
     This is what makes "Chrome is Neutral *unless* it is school work" deterministic
     instead of a side effect of pattern ordering.
-27. **A number moving is not news until you know which way the target points.** `trend`
+22. **A number moving is not news until you know which way the target points.** `trend`
     in `services/progress.ts` is direction-aware: less Gaming is `better`, less Development
     is `worse`. It also **excludes today**, because a partial morning measured against
     whole-day averages reads as a collapse every day before lunch — the easiest way for a
-    progress page to lie. `streak` includes today, because a floor already cleared this
-    morning really is met.
-28. **Only a ceiling interrupts.** `nudge.rs` fires on `at_most` targets and never on
+    progress page to lie.
+23. **A streak is Duolingo-shaped.** It goes out at midnight and you relight it. A floor
+    counts the moment it is met; a ceiling can never bank today, because staying under a
+    limit is not finished until the day is, though going over ends the run there and then.
+    An unobserved day breaks it — a ceiling on something you never do is satisfied by
+    absence, so without that rule a new target would show a week-long streak instantly.
+24. **Only a ceiling interrupts.** `nudge.rs` fires on `at_most` targets and never on
     `at_least` ones: being told at 3pm that you are behind on reading helps nobody, while
     being told you have hit your limit is the whole point. Once per category per day,
-    recorded in `settings` as `nudged:<category>` so a restart does not re-announce it.
-29. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
+    recorded in `settings` as `nudged:<category>`.
+25. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
     set of categories short of a floor and uses it only to break ties among goals with no
-    due date. Something due tomorrow outranks being behind on a habit, and quietly
-    demoting it would be the planner deciding a deadline matters less than a preference.
-
-### Mothballed: places and travel (shelved — routing costs money)
-
-Everything below invariant 21 is **built, tested and deliberately unreachable**. The
-schema, the Rust commands, `integrations/travel.rs`, `location/`, `services/travel.ts`
-and the slot-finder arithmetic are all intact; only the UI and the network calls were
-removed, because timing a trip needs a paid routing service and that is a decision for
-later. Nothing here is dead code to be tidied away — deleting it throws away working
-work.
-
-To switch it back on: restore `<PlacesPanel />` and the routing-provider block in
-`SettingsDialog`, the Where picker in `AddTaskDialog` (its `placeId` is pinned to `null`),
-and the two `getPlaces()` / `getTravelTimes()` calls in `useCalendar`. Migrations 8 and 9
-have already run, so there is nothing to undo in the database.
-
-22. **Locating is a device capability; routing is a service.** Finding where you are
-    costs nothing and needs no key — CoreLocation on macOS, `Windows.Devices.Geolocation`
-    on Windows, behind a permission prompt like the watcher's. Only timing a trip needs a
-    provider. Conflating the two is what made an earlier version spend an API call
-    answering a question the OS already knew. `location/` is the only place
-    `cfg(target_os)` appears for this, and its blocking poll runs on a blocking thread so
-    an eight-second wait for a GPS fix cannot stall every other command.
-23. **The default provider costs an email, not a card.** OpenRouteService is the default;
-    Google is opt-in for anyone who wants traffic-aware times and already has billing.
-    ORS routes between coordinates, so a lookup is geocode-geocode-matrix — three
-    requests, which is why caching is aggressive and why a `Place` keeps its address.
-24. **Places accumulate, they are not curated.** Typing an address in `Add task` creates
-    the place, so the Settings list is a record of where you go rather than a form to fill
-    in first. The same address typed twice reuses its place, keeping the travel already
-    looked up. `Use where I am now` detects the base: the browser's own geolocation first
-    (a doorstep), falling back to the provider inferring from the network (a
-    neighbourhood) — and coordinates that cannot be reverse geocoded are kept as `lat,lng`,
-    because they route perfectly well and only read badly.
-25. **Travel minutes can always be typed.** A looked-up number and a hand-typed one land
-    in the same `travel_cache` row, so nothing downstream can tell them apart. Timing a
-    trip from an address needs the maps key — routing is not arithmetic — but a known
-    commute never does.
-26. **Travel is an edge on a commitment, never a block.** A class at 2pm twenty-five
-    minutes away ends the morning at 1:35, so `findFreeSlots` grows each commitment by its
-    travel. Travel is not schedulable, so it clips with the commitment at the day boundary
-    rather than surviving on its own. An unmeasured leg is zero, never a guess: silently
-    shrinking a day by an invented commute is worse than ignoring a real one. Back-to-back
-    commitments within `chainGapSeconds` are one outing, not two round trips.
+    due date. Something due tomorrow outranks being behind on a habit.
+26. **Nothing is booked flush against a commitment.** `placeWork` leaves
+    `DEFAULT_BUFFER_SECONDS` either side: a block ending the same second a class begins is
+    a schedule nobody can keep. Day boundaries are exempt — bedtime is not somewhere you
+    have to travel from.
+27. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
+    parsed and displayed verbatim. Routing between places was built and then removed:
+    timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
 
 ## Secrets
 
-The Canvas token, the secret iCal URL and the maps API key live in the OS keychain via
-the `keyring` crate, wrapped by `src-tauri/src/secrets.rs` (M3). Never in the `settings`
-table, never in a log line, never returned to the frontend — the frontend may ask
-*whether* a secret is set, not what it is. A travel log line names the *place*, never the
-address, since a log outlives the request that needed it.
+The Canvas token and the secret iCal URL live in the OS keychain via the `keyring` crate,
+wrapped by `src-tauri/src/secrets.rs` (M3). Never in the `settings` table, never in a log
+line, never returned to the frontend — the frontend may ask *whether* a secret is set, not
+what it is.
 
 ## Adding a command
 

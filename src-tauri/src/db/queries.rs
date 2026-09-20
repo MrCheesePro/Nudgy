@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use crate::models::{
     ActivitySample, AppRule, AppTotal, Category, CategoryTarget, CategoryTotal, DailyTotal,
-    LmsTask, Place, RedactionRule, UnmappedProcess, UsageBreakdown, CATEGORY_IDLE,
+    LmsTask, RedactionRule, UnmappedProcess, UsageBreakdown, CATEGORY_IDLE,
     CATEGORY_NEUTRAL,
 };
 use crate::watcher::registry::{MATCH_EXE, REDACTED_TITLE};
@@ -407,128 +407,6 @@ pub fn delete_target(conn: &Connection, category: &str) -> Result<usize> {
         "DELETE FROM category_targets WHERE category = ?1",
         params![category],
     )?)
-}
-
-pub fn load_places(conn: &Connection) -> Result<Vec<Place>> {
-    // Base first: it is the one everything else is measured from, so it leads the list.
-    let mut stmt = conn.prepare(
-        "SELECT id, name, address, is_base, created_at
-           FROM places ORDER BY is_base DESC, name",
-    )?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(Place {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                address: row.get(2)?,
-                is_base: row.get::<_, i64>(3)? != 0,
-                created_at: row.get(4)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
-}
-
-pub fn load_place(conn: &Connection, id: i64) -> Result<Option<Place>> {
-    Ok(load_places(conn)?.into_iter().find(|place| place.id == id))
-}
-
-pub fn insert_place(conn: &Connection, name: &str, address: &str, now: i64) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO places (name, address, is_base, created_at)
-         VALUES (?1, ?2, 0, ?3)",
-        params![name, address, now],
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
-/// Changing an address invalidates every cached time that involved this place — the
-/// numbers were about somewhere else.
-pub fn update_place(conn: &Connection, id: i64, name: &str, address: &str) -> Result<()> {
-    let moved: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM places WHERE id = ?1 AND address <> ?2",
-        params![id, address],
-        |row| row.get(0),
-    )?;
-    conn.execute(
-        "UPDATE places SET name = ?1, address = ?2 WHERE id = ?3",
-        params![name, address, id],
-    )?;
-    if moved > 0 {
-        conn.execute(
-            "DELETE FROM travel_cache WHERE origin_id = ?1 OR destination_id = ?1",
-            params![id],
-        )?;
-    }
-    Ok(())
-}
-
-pub fn delete_place(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute(
-        "DELETE FROM travel_cache WHERE origin_id = ?1 OR destination_id = ?1",
-        params![id],
-    )?;
-    conn.execute(
-        "UPDATE schedule_blocks SET place_id = NULL, travel_before_seconds = 0 WHERE place_id = ?1",
-        params![id],
-    )?;
-    conn.execute("DELETE FROM places WHERE id = ?1", params![id])?;
-    Ok(())
-}
-
-/// Exactly one base, always. Two would make "how far is it from home" ambiguous, and
-/// none would make it unanswerable.
-pub fn set_base_place(conn: &mut Connection, id: i64) -> Result<()> {
-    let tx = conn.transaction()?;
-    tx.execute("UPDATE places SET is_base = 0", [])?;
-    tx.execute("UPDATE places SET is_base = 1 WHERE id = ?1", params![id])?;
-    tx.commit()?;
-    Ok(())
-}
-
-pub fn cached_travel(
-    conn: &Connection,
-    origin_id: i64,
-    destination_id: i64,
-    mode: &str,
-) -> Result<Option<i64>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT seconds FROM travel_cache
-          WHERE origin_id = ?1 AND destination_id = ?2 AND mode = ?3",
-    )?;
-    let mut rows = stmt.query_map(params![origin_id, destination_id, mode], |row| row.get(0))?;
-    Ok(rows.next().transpose()?)
-}
-
-pub fn store_travel(
-    conn: &Connection,
-    origin_id: i64,
-    destination_id: i64,
-    mode: &str,
-    seconds: i64,
-    now: i64,
-) -> Result<()> {
-    conn.execute(
-        "INSERT INTO travel_cache (origin_id, destination_id, mode, seconds, fetched_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(origin_id, destination_id, mode) DO UPDATE SET
-            seconds = excluded.seconds,
-            fetched_at = excluded.fetched_at",
-        params![origin_id, destination_id, mode, seconds, now],
-    )?;
-    Ok(())
-}
-
-/// Every travel time already known, so the frontend can pad a whole week of commitments
-/// without a round trip per pair.
-pub fn all_travel(conn: &Connection) -> Result<Vec<(i64, i64, String, i64)>> {
-    let mut stmt = conn.prepare("SELECT origin_id, destination_id, mode, seconds FROM travel_cache")?;
-    let rows = stmt
-        .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
 }
 
 /// Wipes measured activity and nothing else. Plans, schedule, tasks and the registry are

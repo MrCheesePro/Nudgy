@@ -14,14 +14,9 @@ pub const CANVAS_TOKEN: &str = "canvas_token";
 /// Secret iCal feed URL. Read-only, but anyone holding it can read the calendar, so it
 /// is treated as a credential rather than a setting.
 pub const CALENDAR_ICS_URL: &str = "calendar_ics_url";
-/// Maps provider key, for travel times between places. A key is a credential even though
-/// the addresses it is used with are the user's own.
-pub const MAPS_API_KEY: &str = "maps_api_key";
-
 pub const KNOWN_KEYS: &[&str] = &[
     CANVAS_TOKEN,
     CALENDAR_ICS_URL,
-    MAPS_API_KEY,
 ];
 
 fn entry(key: &str) -> Result<Entry> {

@@ -40,9 +40,8 @@ pub struct CalendarEvent {
     /// Google's iCal export does not, so this is usually None and the UI derives a
     /// colour from the title instead.
     pub color: Option<String>,
-    /// The feed's own `LOCATION`, verbatim and trimmed. Matched against the places the
-    /// user has named, so a lecture in a room they call "Campus" gets travel time
-    /// without them tagging anything. Nothing is inferred from it beyond that match.
+    /// The feed's own `LOCATION`, verbatim and trimmed — a room, a building, an address,
+    /// whatever the organiser typed. Shown as-is; nothing is inferred from it.
     pub location: Option<String>,
 }
 

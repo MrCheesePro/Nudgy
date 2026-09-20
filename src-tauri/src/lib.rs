@@ -4,7 +4,6 @@ mod commands;
 mod db;
 mod error;
 mod integrations;
-mod location;
 mod models;
 mod nudge;
 mod plans;
@@ -139,16 +138,6 @@ pub fn run() {
             commands::get_category_targets,
             commands::set_category_target,
             commands::clear_category_target,
-            commands::get_places,
-            commands::add_place,
-            commands::update_place,
-            commands::delete_place,
-            commands::set_base_place,
-            commands::get_travel_times,
-            commands::lookup_travel,
-            commands::set_travel_time,
-            commands::detect_current_location,
-            commands::estimate_address,
             commands::resolve_app_for_text,
             commands::get_redaction_rules,
             commands::add_redaction_rule,

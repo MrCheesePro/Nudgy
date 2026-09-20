@@ -22,8 +22,6 @@ interface Props {
     title: string;
     category: Category;
     targetProcess: string | null;
-    /** Where it happens. Null is the normal case and means no travel is counted. */
-    placeId: number | null;
     /** Epoch seconds, or null when nothing is due. */
     dueAt: number | null;
   }) => void;
@@ -40,8 +38,6 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
   const [category, setCategory] = useState<Category>("Productivity");
   const [detected, setDetected] = useState<AppRule | null>(null);
   const categories = useAssignableCategories();
-  /** Mothballed with the rest of the travel feature — always null until it returns. */
-  const placeId: number | null = null;
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
 
@@ -114,7 +110,6 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
       title: title.trim(),
       category,
       targetProcess: detected?.pattern ?? null,
-      placeId,
       dueAt: parseDue(dueDate, dueTime),
     });
     onClose();

@@ -440,14 +440,12 @@ export default function App() {
         schedule.goals,
         tasks.tasks,
         plans.plans,
-        calendar.travelFromBase,
         behindCategories(progress.series, progress.targets),
       ),
     [
       schedule.goals,
       tasks.tasks,
       plans.plans,
-      calendar.travelFromBase,
       progress.series,
       progress.targets,
     ],
@@ -618,7 +616,6 @@ export default function App() {
               targetSeconds: 0,
               targetProcess: task.targetProcess,
               category: task.category,
-              placeId: task.placeId,
               dueAt: task.dueAt,
             },
           ])

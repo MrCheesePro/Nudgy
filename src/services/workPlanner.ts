@@ -91,14 +91,6 @@ export interface PlacementInput {
   dueAt?: number | null;
   /** Epoch seconds. Defaults to the start of the first day, which is already floored at now. */
   now?: number;
-  /**
-   * Seconds needed to reach where this work happens, measured from the base.
-   *
-   * It shortens every free slot from the front rather than becoming a block of its own:
-   * you cannot start a 45-minute gym session in a 45-minute gap if the gym is twenty
-   * minutes away, and a planner that says otherwise is writing a day you cannot keep.
-   */
-  travelBeforeSeconds?: number;
   /** Gap left either side of a commitment. Defaults to `DEFAULT_BUFFER_SECONDS`. */
   bufferSeconds?: number;
 }
@@ -152,8 +144,7 @@ export function placeWork(input: PlacementInput): Placement {
     ? (input.days[OVERDUE_HORIZON_DAYS - 1] ?? input.days[input.days.length - 1])?.endTs
     : input.dueAt;
 
-  // Free time per day, clipped to the deadline and to the time it takes to get there.
-  const travelBefore = Math.max(0, input.travelBeforeSeconds ?? 0);
+  // Free time per day, clipped to the deadline.
   const slotsByDay = input.days.map((day) => {
     const dayEnd = horizon ? Math.min(day.endTs, horizon) : day.endTs;
     const slots =
@@ -163,20 +154,13 @@ export function placeWork(input: PlacementInput): Placement {
             now: day.startTs,
             dayEnd,
             commitments: day.commitments,
-            minSlotSeconds: MIN_SESSION_SECONDS + travelBefore,
+            minSlotSeconds: MIN_SESSION_SECONDS,
             // Nothing is booked flush against a class. A block that ends the same second
             // the next thing starts is a schedule nobody can keep.
             bufferSeconds: input.bufferSeconds ?? DEFAULT_BUFFER_SECONDS,
           });
 
-    return {
-      key: day.key,
-      slots: travelBefore
-        ? slots
-            .map((slot) => ({ startTs: slot.startTs + travelBefore, endTs: slot.endTs }))
-            .filter((slot) => slot.endTs - slot.startTs >= MIN_SESSION_SECONDS)
-        : slots,
-    };
+    return { key: day.key, slots };
   });
 
   if (input.mode === "continuous") {

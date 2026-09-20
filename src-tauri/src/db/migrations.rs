@@ -247,6 +247,21 @@ const MIGRATIONS: &[&str] = &[
         created_at      INTEGER NOT NULL
     );
     "#,
+    // 10 — places and travel times are gone.
+    //
+    //     Timing a trip needs a paid routing service, which is a dependency this does not
+    //     want, so the whole feature was removed rather than left dormant. Nothing reads
+    //     these tables now and nothing can write them, so they are dropped rather than
+    //     left as two empty tables nobody can explain a year from now.
+    //
+    //     `schedule_blocks.place_id` and `travel_before_seconds` stay. A dropped column
+    //     means rewriting the table, and an unused nullable column costs nothing where a
+    //     half-applied rewrite could cost a schedule.
+    r#"
+    DROP TABLE IF EXISTS travel_cache;
+    DROP TABLE IF EXISTS places;
+    DELETE FROM settings WHERE key = 'travel_provider';
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

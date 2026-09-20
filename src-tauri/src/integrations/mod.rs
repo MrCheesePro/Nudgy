@@ -1,6 +1,5 @@
 pub mod calendar;
 pub mod canvas;
-pub mod travel;
 
 use anyhow::Result;
 use async_trait::async_trait;

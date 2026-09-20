@@ -332,6 +332,13 @@ export function PlanTimeline({
                       {formatClock(event.startTs)} – {formatClock(event.endTs)}
                       {height >= 52 && ` · ${spanLabel(event.startTs, event.endTs)}`}
                     </span>
+                    {/* Whatever the organiser typed — a room, a building, an address.
+                        Shown as-is; nothing is inferred from it. */}
+                    {event.location && height >= 62 && (
+                      <span className="block truncate text-[9px] text-ink-mute">
+                        {event.location}
+                      </span>
+                    )}
                   </article>
                 );
               })}

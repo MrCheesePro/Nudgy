@@ -153,7 +153,7 @@ export interface CalendarEvent {
   startTs: number;
   endTs: number;
   allDay: boolean;
-  /** The feed's own LOCATION, verbatim. Matched against named places to get travel time. */
+  /** The feed's own LOCATION, verbatim — a room, a building, whatever was typed. */
   location: string | null;
   /** Only when the feed carries one. Google's iCal export does not. */
   color: string | null;
@@ -195,52 +195,9 @@ export interface Goal {
   targetSeconds: number;
   targetProcess?: string | null;
   category?: string;
-  /** Where it happens. Undefined is the normal case and means no travel. */
-  placeId?: number | null;
   /** When it is due, in epoch seconds. Null means no deadline, which is the default. */
   dueAt?: number | null;
 }
-
-/** Somewhere you go. Exactly one place is the base — where a day starts and ends. */
-export interface Place {
-  id: number;
-  name: string;
-  address: string;
-  isBase: boolean;
-  createdAt: number;
-}
-
-export type TravelMode = "driving" | "transit" | "walking" | "bicycling";
-
-export interface TravelEstimate {
-  originId: number;
-  destinationId: number;
-  seconds: number;
-  mode: TravelMode;
-  /** True when it came from the local cache rather than the network. */
-  cached: boolean;
-}
-
-export interface DetectedLocation {
-  placeId: number;
-  address: string;
-  /** The address is really a lat,lng pair — it routes, it just reads badly. */
-  coarse: boolean;
-}
-
-/** A typed address, turned into a place, with how far away it is. */
-export interface AddressEstimate {
-  placeId: number;
-  name: string;
-  address: string;
-  /** Null when there is no base yet, or the route could not be found. */
-  seconds: number | null;
-  /** Why there is no number, in a sentence that can be shown as-is. */
-  note: string | null;
-}
-
-/** `[originId, destinationId, mode, seconds]`, as `get_travel_times` returns them. */
-export type TravelRow = [number, number, string, number];
 
 export interface Plan {
   id: number;
@@ -291,18 +248,12 @@ export const SETTING_COMPLETED_CLEARED_AT = "completed_cleared_at";
 
 /** Keys accepted by the keychain commands. The values never cross this boundary. */
 export const SECRET_CANVAS_TOKEN = "canvas_token";
-/** Maps provider key, for travel times between places. */
-export const SECRET_MAPS_API_KEY = "maps_api_key";
 
 export const SETTING_CANVAS_BASE_URL = "canvas_base_url";
 
 /** Set once the first launch has decided about starting at login. */
 export const SETTING_AUTOSTART_ASKED = "autostart_initialised";
 
-/** Which routing service times a trip. Default is the one that needs no credit card. */
-export const SETTING_TRAVEL_PROVIDER = "travel_provider";
-export const PROVIDER_ORS = "openrouteservice";
-export const PROVIDER_GOOGLE = "google";
 
 export interface PermissionStatus {
   accessibility: boolean;
