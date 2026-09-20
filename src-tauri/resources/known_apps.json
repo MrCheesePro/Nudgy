@@ -1,92 +1,641 @@
 {
-  "version": 1,
+  "version": 2,
   "apps": [
-    { "matchType": "exe", "pattern": "Code.exe", "displayName": "Visual Studio Code", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.microsoft.VSCode", "displayName": "Visual Studio Code", "category": "Development" },
-    { "matchType": "exe", "pattern": "Cursor.exe", "displayName": "Cursor", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.todesktop.230313mzl4w4u92", "displayName": "Cursor", "category": "Development" },
-    { "matchType": "exe", "pattern": "devenv.exe", "displayName": "Visual Studio", "category": "Development" },
-    { "matchType": "exe", "pattern": "idea64.exe", "displayName": "IntelliJ IDEA", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.jetbrains.intellij", "displayName": "IntelliJ IDEA", "category": "Development" },
-    { "matchType": "exe", "pattern": "pycharm64.exe", "displayName": "PyCharm", "category": "Development" },
-    { "matchType": "exe", "pattern": "javaw.exe", "displayName": "Java Application", "category": "Development" },
-    { "matchType": "exe", "pattern": "sublime_text.exe", "displayName": "Sublime Text", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.apple.dt.Xcode", "displayName": "Xcode", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.apple.Terminal", "displayName": "Terminal", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.googlecode.iterm2", "displayName": "iTerm", "category": "Development" },
-    { "matchType": "exe", "pattern": "com.mitchellh.ghostty", "displayName": "Ghostty", "category": "Development" },
-    { "matchType": "exe", "pattern": "WindowsTerminal.exe", "displayName": "Windows Terminal", "category": "Development" },
-
-    { "matchType": "exe", "pattern": "WINWORD.EXE", "displayName": "Microsoft Word", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "EXCEL.EXE", "displayName": "Microsoft Excel", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "POWERPNT.EXE", "displayName": "Microsoft PowerPoint", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "OUTLOOK.EXE", "displayName": "Microsoft Outlook", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.microsoft.Word", "displayName": "Microsoft Word", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.microsoft.Excel", "displayName": "Microsoft Excel", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.microsoft.Powerpoint", "displayName": "Microsoft PowerPoint", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "Notion.exe", "displayName": "Notion", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "notion.id", "displayName": "Notion", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "Obsidian.exe", "displayName": "Obsidian", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "md.obsidian", "displayName": "Obsidian", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.apple.Notes", "displayName": "Notes", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.apple.mail", "displayName": "Mail", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.apple.Preview", "displayName": "Preview", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "com.apple.iCal", "displayName": "Calendar", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "Acrobat.exe", "displayName": "Adobe Acrobat", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "Zoom.exe", "displayName": "Zoom", "category": "Productivity" },
-    { "matchType": "exe", "pattern": "us.zoom.xos", "displayName": "Zoom", "category": "Productivity" },
-
-    { "matchType": "exe", "pattern": "Overwatch.exe", "displayName": "Overwatch", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "steam.exe", "displayName": "Steam", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "steamwebhelper.exe", "displayName": "Steam", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "com.valvesoftware.steam", "displayName": "Steam", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "LeagueClient.exe", "displayName": "League of Legends", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "League of Legends.exe", "displayName": "League of Legends", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "VALORANT-Win64-Shipping.exe", "displayName": "Valorant", "category": "Gaming" },
-    { "matchType": "exe", "pattern": "Minecraft.Windows.exe", "displayName": "Minecraft", "category": "Gaming" },
-
-    { "matchType": "exe", "pattern": "photoshop.exe", "displayName": "Adobe Photoshop", "category": "Creative" },
-    { "matchType": "exe", "pattern": "com.adobe.Photoshop", "displayName": "Adobe Photoshop", "category": "Creative" },
-    { "matchType": "exe", "pattern": "Illustrator.exe", "displayName": "Adobe Illustrator", "category": "Creative" },
-    { "matchType": "exe", "pattern": "AfterFX.exe", "displayName": "After Effects", "category": "Creative" },
-    { "matchType": "exe", "pattern": "blender.exe", "displayName": "Blender", "category": "Creative" },
-    { "matchType": "exe", "pattern": "org.blenderfoundation.blender", "displayName": "Blender", "category": "Creative" },
-    { "matchType": "exe", "pattern": "ClipStudioPaint.exe", "displayName": "Clip Studio Paint", "category": "Creative" },
-    { "matchType": "exe", "pattern": "jp.co.celsys.ClipStudioPaint", "displayName": "Clip Studio Paint", "category": "Creative" },
-    { "matchType": "exe", "pattern": "Figma.exe", "displayName": "Figma", "category": "Creative" },
-    { "matchType": "exe", "pattern": "com.figma.Desktop", "displayName": "Figma", "category": "Creative" },
-    { "matchType": "exe", "pattern": "com.apple.FinalCut", "displayName": "Final Cut Pro", "category": "Creative" },
-
-    { "matchType": "exe", "pattern": "Discord.exe", "displayName": "Discord", "category": "Social" },
-    { "matchType": "exe", "pattern": "com.hnc.Discord", "displayName": "Discord", "category": "Social" },
-    { "matchType": "exe", "pattern": "Slack.exe", "displayName": "Slack", "category": "Social" },
-    { "matchType": "exe", "pattern": "com.tinyspeck.slackmacgap", "displayName": "Slack", "category": "Social" },
-    { "matchType": "exe", "pattern": "com.apple.MobileSMS", "displayName": "Messages", "category": "Social" },
-    { "matchType": "exe", "pattern": "Telegram.exe", "displayName": "Telegram", "category": "Social" },
-    { "matchType": "exe", "pattern": "WhatsApp.exe", "displayName": "WhatsApp", "category": "Social" },
-
-    { "matchType": "exe", "pattern": "chrome.exe", "displayName": "Google Chrome", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "com.google.Chrome", "displayName": "Google Chrome", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "firefox.exe", "displayName": "Firefox", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "org.mozilla.firefox", "displayName": "Firefox", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "msedge.exe", "displayName": "Microsoft Edge", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "com.apple.Safari", "displayName": "Safari", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "company.thebrowser.Browser", "displayName": "Arc", "category": "Neutral" },
-    { "matchType": "exe", "pattern": "com.apple.finder", "displayName": "Finder", "category": "Neutral" },
-
-    { "matchType": "title_regex", "pattern": "(?i)(github\\.com|stack overflow|stackoverflow)", "displayName": "Development (web)", "category": "Development" },
-    { "matchType": "title_regex", "pattern": "(?i)(docs\\.google\\.com|google docs|overleaf)", "displayName": "Documents (web)", "category": "Productivity" },
-    { "matchType": "title_regex", "pattern": "(?i)(canvas|instructure|blackboard|moodle)", "displayName": "Coursework (web)", "category": "Productivity" },
-    { "matchType": "title_regex", "pattern": "(?i)(youtube|twitch|netflix|hulu|disney\\+)", "displayName": "Streaming (web)", "category": "Social" },
-    { "matchType": "title_regex", "pattern": "(?i)(reddit|twitter\\.com|x\\.com|instagram|tiktok)", "displayName": "Social (web)", "category": "Social" }
+    {
+      "matchType": "exe",
+      "pattern": "Code.exe",
+      "displayName": "Visual Studio Code",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.microsoft.VSCode",
+      "displayName": "Visual Studio Code",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Cursor.exe",
+      "displayName": "Cursor",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.todesktop.230313mzl4w4u92",
+      "displayName": "Cursor",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "devenv.exe",
+      "displayName": "Visual Studio",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "idea64.exe",
+      "displayName": "IntelliJ IDEA",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.jetbrains.intellij",
+      "displayName": "IntelliJ IDEA",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "pycharm64.exe",
+      "displayName": "PyCharm",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "javaw.exe",
+      "displayName": "Java Application",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "sublime_text.exe",
+      "displayName": "Sublime Text",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.dt.Xcode",
+      "displayName": "Xcode",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.Terminal",
+      "displayName": "Terminal",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.googlecode.iterm2",
+      "displayName": "iTerm",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.mitchellh.ghostty",
+      "displayName": "Ghostty",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "WindowsTerminal.exe",
+      "displayName": "Windows Terminal",
+      "category": "Development"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "WINWORD.EXE",
+      "displayName": "Microsoft Word",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "EXCEL.EXE",
+      "displayName": "Microsoft Excel",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "POWERPNT.EXE",
+      "displayName": "Microsoft PowerPoint",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "OUTLOOK.EXE",
+      "displayName": "Microsoft Outlook",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.microsoft.Word",
+      "displayName": "Microsoft Word",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.microsoft.Excel",
+      "displayName": "Microsoft Excel",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.microsoft.Powerpoint",
+      "displayName": "Microsoft PowerPoint",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Notion.exe",
+      "displayName": "Notion",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "notion.id",
+      "displayName": "Notion",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Obsidian.exe",
+      "displayName": "Obsidian",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "md.obsidian",
+      "displayName": "Obsidian",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.Notes",
+      "displayName": "Notes",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.mail",
+      "displayName": "Mail",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.Preview",
+      "displayName": "Preview",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.iCal",
+      "displayName": "Calendar",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Acrobat.exe",
+      "displayName": "Adobe Acrobat",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Zoom.exe",
+      "displayName": "Zoom",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "us.zoom.xos",
+      "displayName": "Zoom",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Overwatch.exe",
+      "displayName": "Overwatch",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "steam.exe",
+      "displayName": "Steam",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "steamwebhelper.exe",
+      "displayName": "Steam",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.valvesoftware.steam",
+      "displayName": "Steam",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "LeagueClient.exe",
+      "displayName": "League of Legends",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "League of Legends.exe",
+      "displayName": "League of Legends",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "VALORANT-Win64-Shipping.exe",
+      "displayName": "Valorant",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Minecraft.Windows.exe",
+      "displayName": "Minecraft",
+      "category": "Gaming"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "photoshop.exe",
+      "displayName": "Adobe Photoshop",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.adobe.Photoshop",
+      "displayName": "Adobe Photoshop",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Illustrator.exe",
+      "displayName": "Adobe Illustrator",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "AfterFX.exe",
+      "displayName": "After Effects",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "blender.exe",
+      "displayName": "Blender",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "org.blenderfoundation.blender",
+      "displayName": "Blender",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "ClipStudioPaint.exe",
+      "displayName": "Clip Studio Paint",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "jp.co.celsys.ClipStudioPaint",
+      "displayName": "Clip Studio Paint",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Figma.exe",
+      "displayName": "Figma",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.figma.Desktop",
+      "displayName": "Figma",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.FinalCut",
+      "displayName": "Final Cut Pro",
+      "category": "Creative"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Discord.exe",
+      "displayName": "Discord",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.hnc.Discord",
+      "displayName": "Discord",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Slack.exe",
+      "displayName": "Slack",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.tinyspeck.slackmacgap",
+      "displayName": "Slack",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.MobileSMS",
+      "displayName": "Messages",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Telegram.exe",
+      "displayName": "Telegram",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "WhatsApp.exe",
+      "displayName": "WhatsApp",
+      "category": "Social"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "chrome.exe",
+      "displayName": "Google Chrome",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.google.Chrome",
+      "displayName": "Google Chrome",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "firefox.exe",
+      "displayName": "Firefox",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "org.mozilla.firefox",
+      "displayName": "Firefox",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "msedge.exe",
+      "displayName": "Microsoft Edge",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.Safari",
+      "displayName": "Safari",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "company.thebrowser.Browser",
+      "displayName": "Arc",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.finder",
+      "displayName": "Finder",
+      "category": "Neutral"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(github\\.com|stack overflow|stackoverflow)",
+      "displayName": "Development (web)",
+      "category": "Development"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(docs\\.google\\.com|google docs|overleaf)",
+      "displayName": "Documents (web)",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(canvas|instructure|blackboard|moodle)",
+      "displayName": "Coursework (web)",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(youtube|twitch|netflix|hulu|disney\\+)",
+      "displayName": "Streaming (web)",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(reddit|twitter\\.com|x\\.com|instagram|tiktok)",
+      "displayName": "Social (web)",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\byoutube\\b",
+      "displayName": "YouTube",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bnetflix\\b",
+      "displayName": "Netflix",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\btwitch\\b",
+      "displayName": "Twitch",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\btiktok\\b",
+      "displayName": "TikTok",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\binstagram\\b",
+      "displayName": "Instagram",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\breddit\\b",
+      "displayName": "Reddit",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\btwitter\\b|\\bx\\.com\\b",
+      "displayName": "X",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bfacebook\\b",
+      "displayName": "Facebook",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bdiscord\\b",
+      "displayName": "Discord",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bpinterest\\b",
+      "displayName": "Pinterest",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bspotify\\b",
+      "displayName": "Spotify",
+      "category": "Social"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bcanvas\\b",
+      "displayName": "Canvas",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bgmail\\b|\\binbox \\(\\d",
+      "displayName": "Gmail",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google docs|\\bdocs\\.google\\b",
+      "displayName": "Google Docs",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google drive|\\bdrive\\.google\\b",
+      "displayName": "Google Drive",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google slides",
+      "displayName": "Google Slides",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google sheets",
+      "displayName": "Google Sheets",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google calendar",
+      "displayName": "Google Calendar",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bnotion\\b",
+      "displayName": "Notion",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bhandshake\\b",
+      "displayName": "Handshake",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\blinkedin\\b",
+      "displayName": "LinkedIn",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bwikipedia\\b",
+      "displayName": "Wikipedia",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)google gemini|\\bgemini\\b",
+      "displayName": "Gemini",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bchatgpt\\b",
+      "displayName": "ChatGPT",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bclaude\\b",
+      "displayName": "Claude",
+      "category": "Productivity"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bgithub\\b",
+      "displayName": "GitHub",
+      "category": "Development"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)stack overflow|stackoverflow",
+      "displayName": "Stack Overflow",
+      "category": "Development"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bmdn web docs\\b",
+      "displayName": "MDN",
+      "category": "Development"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bfigma\\b",
+      "displayName": "Figma",
+      "category": "Creative"
+    }
   ],
   "redactions": [
-    { "matchType": "exe", "pattern": "com.1password.1password" },
-    { "matchType": "exe", "pattern": "1Password.exe" },
-    { "matchType": "exe", "pattern": "com.bitwarden.desktop" },
-    { "matchType": "exe", "pattern": "Bitwarden.exe" },
-    { "matchType": "exe", "pattern": "com.apple.keychainaccess" },
-    { "matchType": "title_regex", "pattern": "(?i)(1password|bitwarden|keepass|lastpass|dashlane|keychain access)" },
-    { "matchType": "title_regex", "pattern": "(?i)(incognito|private browsing|inprivate)" }
+    {
+      "matchType": "exe",
+      "pattern": "com.1password.1password"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "1Password.exe"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.bitwarden.desktop"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "Bitwarden.exe"
+    },
+    {
+      "matchType": "exe",
+      "pattern": "com.apple.keychainaccess"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(1password|bitwarden|keepass|lastpass|dashlane|keychain access)"
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)(incognito|private browsing|inprivate)"
+    }
   ]
 }

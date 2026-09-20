@@ -28,6 +28,24 @@ struct TitleRule {
     category: String,
 }
 
+/// What a foreground observation becomes once the rules have had their say.
+pub struct Resolved {
+    pub display_name: String,
+    pub category: String,
+    /// A short site label — "YouTube", "Canvas" — or None. Never the raw window title.
+    pub context: Option<String>,
+}
+
+/// Browsers show someone else's content, so the page decides the category. Matched on the
+/// stem so `chrome.exe`, `com.google.chrome` and `google chrome` all land here.
+fn is_browser(process: &str) -> bool {
+    const BROWSERS: &[&str] = &[
+        "chrome", "chromium", "safari", "firefox", "msedge", "edge", "arc", "brave", "opera",
+        "vivaldi", "zen", "orion",
+    ];
+    BROWSERS.iter().any(|name| process.contains(name))
+}
+
 impl Registry {
     pub fn load(conn: &Connection) -> Result<Self> {
         let mut registry = Registry::default();
@@ -72,30 +90,66 @@ impl Registry {
         Ok(registry)
     }
 
-    /// Resolve a foreground observation to (display name, category).
-    /// Order: exact executable/bundle id, then title regex, then Neutral.
-    pub fn categorize(&self, foreground: &Foreground) -> (String, String) {
-        if let Some((name, category)) = self.exact.get(&foreground.process_name.to_lowercase()) {
-            return (name.clone(), category.clone());
-        }
+    /// Resolve a foreground observation to what gets stored.
+    ///
+    /// Inside a browser the site is the answer, not the browser: an hour of Chrome on
+    /// YouTube and an hour of Chrome on Canvas are not the same hour, and calling both
+    /// "Productivity" makes the day's numbers a lie. So for a browser the title rules run
+    /// first and decide the category; everywhere else the executable wins, because a file
+    /// called `youtube.ts` open in an editor is still development work.
+    pub fn resolve(&self, foreground: &Foreground) -> Resolved {
+        let process = foreground.process_name.to_lowercase();
 
-        if let Some(title) = foreground.title.as_deref() {
-            for rule in &self.title_rules {
-                if rule.regex.is_match(title) {
-                    let name = foreground
-                        .app_name
-                        .clone()
-                        .unwrap_or_else(|| rule.display_name.clone());
-                    return (name, rule.category.clone());
-                }
+        if is_browser(&process) {
+            if let Some(rule) = self.matching_title_rule(foreground) {
+                return Resolved {
+                    display_name: self.display_name_for(&process, foreground),
+                    category: rule.category.clone(),
+                    // The only part of a title that is ever kept: a short label from a
+                    // rule someone wrote, never the page's own words.
+                    context: Some(rule.display_name.clone()),
+                };
             }
         }
 
-        let name = foreground
+        if let Some((name, category)) = self.exact.get(&process) {
+            return Resolved {
+                display_name: name.clone(),
+                category: category.clone(),
+                context: None,
+            };
+        }
+
+        if let Some(rule) = self.matching_title_rule(foreground) {
+            return Resolved {
+                display_name: self.display_name_for(&process, foreground),
+                category: rule.category.clone(),
+                context: Some(rule.display_name.clone()),
+            };
+        }
+
+        Resolved {
+            display_name: self.display_name_for(&process, foreground),
+            category: CATEGORY_NEUTRAL.to_string(),
+            context: None,
+        }
+    }
+
+    fn matching_title_rule(&self, foreground: &Foreground) -> Option<&TitleRule> {
+        let title = foreground.title.as_deref()?;
+        self.title_rules.iter().find(|rule| rule.regex.is_match(title))
+    }
+
+    /// The browser keeps its own name even when a site rule set the category — the header
+    /// reads "Google Chrome · YouTube", not "YouTube" with the app gone.
+    fn display_name_for(&self, process: &str, foreground: &Foreground) -> String {
+        if let Some((name, _)) = self.exact.get(process) {
+            return name.clone();
+        }
+        foreground
             .app_name
             .clone()
-            .unwrap_or_else(|| foreground.process_name.clone());
-        (name, CATEGORY_NEUTRAL.to_string())
+            .unwrap_or_else(|| foreground.process_name.clone())
     }
 
     /// Guesses which app a piece of free text is about — "draw in Clip Studio" →
@@ -232,7 +286,7 @@ mod tests {
             ]),
             title_rules: vec![TitleRule {
                 regex: Regex::new("(?i)youtube").unwrap(),
-                display_name: "Streaming (web)".to_string(),
+                display_name: "YouTube".to_string(),
                 category: "Social".to_string(),
             }],
             redact_exact: HashSet::from(["1password.exe".to_string()]),
@@ -240,24 +294,47 @@ mod tests {
         }
     }
 
+    // A source file named after a website is still development work. The title rules must
+    // not reach outside a browser, or every editor tab becomes whatever it is named after.
     #[test]
-    fn exact_match_wins_and_is_case_insensitive() {
-        let (name, category) = registry().categorize(&foreground("CODE.EXE", Some("youtube")));
-        assert_eq!(name, "Visual Studio Code");
-        assert_eq!(category, "Development");
+    fn exact_match_wins_outside_a_browser() {
+        let resolved = registry().resolve(&foreground("CODE.EXE", Some("youtube")));
+        assert_eq!(resolved.display_name, "Visual Studio Code");
+        assert_eq!(resolved.category, "Development");
+        assert_eq!(resolved.context, None);
     }
 
     #[test]
-    fn title_regex_applies_when_no_exact_match() {
-        let (_, category) = registry().categorize(&foreground("chrome.exe", Some("YouTube - x")));
-        assert_eq!(category, "Social");
+    fn a_site_decides_the_category_inside_a_browser() {
+        let resolved = registry().resolve(&foreground("chrome.exe", Some("YouTube - x")));
+        assert_eq!(resolved.category, "Social");
+        assert_eq!(resolved.context.as_deref(), Some("YouTube"));
+    }
+
+    // The browser keeps its own name; the site rides alongside it as context.
+    #[test]
+    fn a_matched_site_does_not_rename_the_browser() {
+        let mut registry = registry();
+        registry.exact.insert(
+            "chrome.exe".to_string(),
+            ("Google Chrome".to_string(), "Productivity".to_string()),
+        );
+        let resolved = registry.resolve(&foreground("chrome.exe", Some("YouTube - x")));
+        assert_eq!(resolved.display_name, "Google Chrome");
+        assert_eq!(resolved.category, "Social");
+    }
+
+    #[test]
+    fn an_unmatched_page_keeps_nothing_of_its_title() {
+        let resolved = registry().resolve(&foreground("chrome.exe", Some("Bank statement Q3")));
+        assert_eq!(resolved.context, None);
     }
 
     #[test]
     fn unknown_process_falls_back_to_neutral() {
-        let (name, category) = registry().categorize(&foreground("mystery.exe", None));
-        assert_eq!(name, "mystery.exe");
-        assert_eq!(category, CATEGORY_NEUTRAL);
+        let resolved = registry().resolve(&foreground("mystery.exe", None));
+        assert_eq!(resolved.display_name, "mystery.exe");
+        assert_eq!(resolved.category, CATEGORY_NEUTRAL);
     }
 
     #[test]

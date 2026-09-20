@@ -1,43 +1,48 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useMemo } from "react";
 
 import { formatDuration } from "../lib/time";
-import { CATEGORY_COLORS, type AppTotal, type WindowTotal } from "../lib/types";
+import { CATEGORY_COLORS, type AppTotal, type Category } from "../lib/types";
 
 interface Props {
   apps: AppTotal[];
-  /** Window titles behind the totals. Absent for apps tracked without a title. */
-  windows?: WindowTotal[];
 }
 
-/** Titles shown before the row has to be expanded. */
-const COLLAPSED_TITLES = 3;
+interface CategoryGroup {
+  category: Category;
+  seconds: number;
+  rows: AppTotal[];
+}
 
-export function TopApps({ apps, windows = [] }: Props) {
-  const max = apps.reduce((peak, entry) => Math.max(peak, entry.seconds), 0);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+/**
+ * Where the time went, by category first.
+ *
+ * An app is not an answer on its own — Chrome on Canvas and Chrome on YouTube are
+ * different kinds of hour, and the registry has already decided which is which. So the
+ * category leads and the things inside it explain the number.
+ */
+export function TopApps({ apps }: Props) {
+  const groups = useMemo<CategoryGroup[]>(() => {
+    const byCategory = new Map<Category, CategoryGroup>();
 
-  // "Google Chrome" is not an answer to where the time went — the page is. Titles are
-  // already recorded per sample; this only groups them under the app they belong to.
-  const titlesFor = useMemo(() => {
-    const grouped = new Map<string, WindowTotal[]>();
-    for (const entry of windows) {
-      const list = grouped.get(entry.processName) ?? [];
-      list.push(entry);
-      grouped.set(entry.processName, list);
+    for (const entry of apps) {
+      const group = byCategory.get(entry.category) ?? {
+        category: entry.category,
+        seconds: 0,
+        rows: [],
+      };
+      group.seconds += entry.seconds;
+      group.rows.push(entry);
+      byCategory.set(entry.category, group);
     }
-    for (const list of grouped.values()) {
-      list.sort((left, right) => right.seconds - left.seconds);
-    }
-    return grouped;
-  }, [windows]);
 
-  const toggle = (processName: string) =>
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (!next.delete(processName)) next.add(processName);
-      return next;
-    });
+    for (const group of byCategory.values()) {
+      group.rows.sort((left, right) => right.seconds - left.seconds);
+    }
+
+    return [...byCategory.values()].sort((left, right) => right.seconds - left.seconds);
+  }, [apps]);
+
+  const total = groups.reduce((sum, group) => sum + group.seconds, 0);
 
   return (
     <section className="rounded-2xl border border-edge bg-surface p-6">
@@ -45,62 +50,58 @@ export function TopApps({ apps, windows = [] }: Props) {
         Where the time went
       </h2>
 
-      {apps.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="py-10 text-center text-sm text-ink-mute">No active time recorded yet.</p>
       ) : (
-        <ul className="mt-4 space-y-3">
-          {apps.map((entry) => {
-            const titles = titlesFor.get(entry.processName) ?? [];
-            const isOpen = expanded.has(entry.processName);
-            const shown = isOpen ? titles : titles.slice(0, COLLAPSED_TITLES);
-            const hidden = titles.length - shown.length;
+        <ul className="mt-4 space-y-4">
+          {groups.map((group) => {
+            const color = CATEGORY_COLORS[group.category];
 
             return (
-              <li key={`${entry.processName}:${entry.category}`}>
-                <div className="flex items-baseline justify-between gap-4 text-sm">
-                  <span className="truncate text-ink-soft">{entry.appName}</span>
+              <li key={group.category}>
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: color }}
+                    />
+                    {group.category}
+                  </span>
                   <span className="shrink-0 font-mono tabular-nums text-ink">
-                    {formatDuration(entry.seconds)}
+                    {formatDuration(group.seconds)}
                   </span>
                 </div>
+
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: max > 0 ? `${Math.max(2, (entry.seconds / max) * 100)}%` : "0%",
-                      background: CATEGORY_COLORS[entry.category],
+                      width: total > 0 ? `${Math.max(2, (group.seconds / total) * 100)}%` : "0%",
+                      background: color,
                     }}
                   />
                 </div>
 
-                {shown.length > 0 && (
-                  <ul className="mt-1.5 space-y-0.5 pl-3">
-                    {shown.map((window) => (
-                      <li
-                        key={window.title}
-                        className="flex items-baseline justify-between gap-3 text-xs text-ink-mute"
-                      >
-                        <span className="truncate" title={window.title}>
-                          {window.title}
-                        </span>
-                        <span className="shrink-0 font-mono tabular-nums">
-                          {formatDuration(window.seconds)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {(hidden > 0 || isOpen) && (
-                  <button
-                    type="button"
-                    onClick={() => toggle(entry.processName)}
-                    className="mt-1 ml-3 flex items-center gap-1 text-[11px] text-ink-mute transition hover:text-ink-soft"
-                  >
-                    {isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                    {isOpen ? "Show less" : `${hidden} more`}
-                  </button>
-                )}
+                <ul className="mt-2 space-y-1 pl-4">
+                  {group.rows.map((row) => (
+                    <li
+                      key={`${row.processName}:${row.context ?? ""}`}
+                      className="flex items-baseline justify-between gap-3 text-xs text-ink-soft"
+                    >
+                      {/* "Google Chrome · YouTube" — the browser plus the site that put
+                          this row in this category. */}
+                      <span className="truncate">
+                        {row.appName}
+                        {row.context && (
+                          <span className="text-ink-mute"> · {row.context}</span>
+                        )}
+                      </span>
+                      <span className="shrink-0 font-mono tabular-nums text-ink-mute">
+                        {formatDuration(row.seconds)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </li>
             );
           })}

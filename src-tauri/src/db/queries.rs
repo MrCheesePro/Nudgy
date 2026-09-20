@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use crate::models::{
     ActivitySample, AppRule, AppTotal, CategoryTotal, LmsTask, RedactionRule, UnmappedProcess,
-    UsageBreakdown, WindowTotal, CATEGORY_IDLE,
+    UsageBreakdown, CATEGORY_IDLE,
 };
 use crate::watcher::registry::REDACTED_TITLE;
 
@@ -76,59 +76,29 @@ pub fn app_totals(
     end_ts: i64,
     limit: i64,
 ) -> Result<Vec<AppTotal>> {
+    // Grouped by the site label as well as the app, so Chrome on YouTube and Chrome on
+    // Canvas are two rows in two categories rather than one undifferentiated hour. The
+    // label is a short rule name, never a page title, so the row count stays bounded.
     let mut stmt = conn.prepare_cached(
         "SELECT process_name,
                 COALESCE(MAX(app_name), process_name) AS app_name,
+                CASE WHEN window_title = ?4 THEN NULL ELSE window_title END AS context,
                 category,
                 SUM(duration_seconds) AS seconds
            FROM activity_samples
           WHERE ts >= ?1 AND ts < ?2 AND is_idle = 0
-          GROUP BY process_name, category
+          GROUP BY process_name, category, context
           ORDER BY seconds DESC
           LIMIT ?3",
     )?;
     let rows = stmt
-        .query_map(params![start_ts, end_ts, limit], |row| {
+        .query_map(params![start_ts, end_ts, limit, REDACTED_TITLE], |row| {
             Ok(AppTotal {
                 process_name: row.get(0)?,
                 app_name: row.get(1)?,
-                category: row.get(2)?,
-                seconds: row.get(3)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
-}
-
-/// The window titles inside each app, longest first — what "Google Chrome" was actually
-/// showing. Titles the redaction pass replaced are excluded rather than shown as
-/// `[Private]`: a row that says nothing is worse than no row.
-pub fn window_totals(
-    conn: &Connection,
-    start_ts: i64,
-    end_ts: i64,
-    limit: i64,
-) -> Result<Vec<WindowTotal>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT process_name,
-                window_title,
-                SUM(duration_seconds) AS seconds
-           FROM activity_samples
-          WHERE ts >= ?1 AND ts < ?2
-            AND is_idle = 0
-            AND window_title IS NOT NULL
-            AND window_title <> ''
-            AND window_title <> ?3
-          GROUP BY process_name, window_title
-          ORDER BY seconds DESC
-          LIMIT ?4",
-    )?;
-    let rows = stmt
-        .query_map(params![start_ts, end_ts, REDACTED_TITLE, limit], |row| {
-            Ok(WindowTotal {
-                process_name: row.get(0)?,
-                title: row.get(1)?,
-                seconds: row.get(2)?,
+                context: row.get(2)?,
+                category: row.get(3)?,
+                seconds: row.get(4)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

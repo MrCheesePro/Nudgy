@@ -116,6 +116,17 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE plans ADD COLUMN pomodoro_style TEXT NOT NULL DEFAULT 'custom';
     ALTER TABLE plans ADD COLUMN break_seconds INTEGER NOT NULL DEFAULT 300;
     "#,
+    // 5 — `window_title` stopped meaning "the page's own words" and started meaning a
+    //     short site label from a registry rule. Rows written under the old meaning hold
+    //     raw titles that nothing should display any more, so they are dropped rather
+    //     than left to surface as site labels. The redaction sentinel stays: it records
+    //     that something private was deliberately withheld, which is worth keeping.
+    r#"
+    UPDATE activity_samples
+       SET window_title = NULL
+     WHERE window_title IS NOT NULL
+       AND window_title <> '[Private]';
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

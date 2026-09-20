@@ -183,23 +183,24 @@ fn build_passive_sample(
         .read()
         .map_err(|_| anyhow!("registry lock poisoned"))?;
 
-    let (app_name, category) = registry.categorize(&foreground);
+    let resolved = registry.resolve(&foreground);
 
-    // Redaction happens before the sample exists, so a private title is never held in
-    // memory, never flushed, and never recoverable from the database.
+    // What is stored is a short label from a rule — "YouTube" — never the page's own
+    // title. A title that matches no rule leaves nothing behind at all, so the raw text
+    // is never held in memory past this function, never flushed, never recoverable.
     let window_title = if registry.is_redacted(&foreground) {
         Some(REDACTED_TITLE.to_string())
     } else {
-        foreground.title.clone()
+        resolved.context
     };
 
     Ok(ActivitySample {
         ts: now,
         duration_seconds: TICK_SECONDS as i64,
         process_name: foreground.process_name,
-        app_name: Some(app_name),
+        app_name: Some(resolved.display_name),
         window_title,
-        category,
+        category: resolved.category,
         source: SOURCE_PASSIVE.to_string(),
         client_id: None,
         is_idle: false,

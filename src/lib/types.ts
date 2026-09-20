@@ -58,14 +58,9 @@ export interface UsageBreakdown {
 export interface AppTotal {
   processName: string;
   appName: string;
+  /** Short site label inside the app — "YouTube" under Google Chrome. */
+  context: string | null;
   category: Category;
-  seconds: number;
-}
-
-/** One window title inside an app — "YouTube" under Google Chrome. */
-export interface WindowTotal {
-  processName: string;
-  title: string;
   seconds: number;
 }
 

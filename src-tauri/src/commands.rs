@@ -7,7 +7,7 @@ use crate::integrations::canvas::CanvasClient;
 use crate::integrations::{calendar, LmsProvider};
 use crate::models::{
     is_valid_category, AppRule, AppTotal, LiveStatus, LmsTask, PermissionStatus, RedactionRule,
-    SyncResult, UnmappedProcess, UsageBreakdown, WindowTotal,
+    SyncResult, UnmappedProcess, UsageBreakdown,
 };
 use crate::llm::{self, LlmConfig};
 use crate::plans;
@@ -59,20 +59,6 @@ pub fn get_app_totals(
     let limit = limit.unwrap_or(12).clamp(1, 200);
     with_db(&state, |conn| {
         queries::app_totals(conn, start_ts, end_ts, limit)
-    })
-}
-
-/// The window titles behind the app totals — what Chrome was actually showing.
-#[tauri::command]
-pub fn get_window_totals(
-    state: State<'_, AppState>,
-    start_ts: i64,
-    end_ts: i64,
-    limit: Option<i64>,
-) -> CmdResult<Vec<WindowTotal>> {
-    let limit = limit.unwrap_or(60).clamp(1, 500);
-    with_db(&state, |conn| {
-        queries::window_totals(conn, start_ts, end_ts, limit)
     })
 }
 

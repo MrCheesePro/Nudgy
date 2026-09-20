@@ -114,7 +114,6 @@ pub fn run() {
             commands::get_live_status,
             commands::get_usage_breakdown,
             commands::get_app_totals,
-            commands::get_window_totals,
             commands::list_unmapped_processes,
             commands::get_app_rules,
             commands::register_app,
