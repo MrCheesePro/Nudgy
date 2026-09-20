@@ -614,7 +614,16 @@ pub fn respond_checkin(
 
 #[tauri::command]
 pub fn delete_plan(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
-    with_db(&state, |conn| plans::delete(conn, id))
+    with_db(&state, |conn| {
+        // The blocks are about to go, so their reminder keys should too — otherwise
+        // `settings` accretes a row for every block ever scheduled.
+        let block_ids: Vec<i64> = conn
+            .prepare("SELECT id FROM schedule_blocks WHERE plan_id = ?1")?
+            .query_map([id], |row| row.get(0))?
+            .collect::<Result<_, _>>()?;
+        crate::reminder::forget_blocks(conn, &block_ids)?;
+        plans::delete(conn, id)
+    })
 }
 
 #[tauri::command]

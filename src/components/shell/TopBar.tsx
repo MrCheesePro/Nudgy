@@ -1,4 +1,4 @@
-import { Bell, Pause, Play } from "lucide-react";
+import { Bell, BellOff, Pause, Play } from "lucide-react";
 
 import type { View } from "./IconRail";
 
@@ -14,7 +14,8 @@ interface Props {
   paused: boolean;
   onTogglePause: () => void;
   alerts: number;
-  onAlerts: () => void;
+  notifications: boolean;
+  onToggleNotifications: () => void;
   onOpenSettings: () => void;
   /** Course code of the block running right now, if any. */
   trackingLabel?: string | null;
@@ -25,7 +26,8 @@ export function TopBar({
   paused,
   onTogglePause,
   alerts,
-  onAlerts,
+  notifications,
+  onToggleNotifications,
   onOpenSettings,
   trackingLabel,
 }: Props) {
@@ -54,13 +56,27 @@ export function TopBar({
         {paused ? <Play size={11} /> : <Pause size={11} />}
       </button>
 
+      {/* A switch, not a tray. There is nothing to read in a notification list you have
+          already seen as a notification — the only question worth a button here is
+          whether you want them at all. */}
       <button
         type="button"
-        aria-label="Alerts"
-        onClick={onAlerts}
-        className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-edge text-ink-soft transition hover:border-edge-strong"
+        aria-label={notifications ? "Notifications on" : "Notifications off"}
+        aria-pressed={notifications}
+        title={
+          notifications
+            ? "Notifications on — click to silence"
+            : "Notifications off — click to turn on"
+        }
+        onClick={onToggleNotifications}
+        className={`relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${
+          notifications
+            ? "border-edge bg-rose-wash text-rose-deep hover:border-edge-strong"
+            : "border-edge text-ink-mute hover:border-edge-strong"
+        }`}
       >
-        <Bell size={13} />
+        {notifications ? <Bell size={13} /> : <BellOff size={13} />}
+        {/* A permission the app needs is worth a dot whether or not chimes are on. */}
         {alerts > 0 && (
           <span className="absolute top-1.5 right-2 h-1.5 w-1.5 rounded-full bg-bad" />
         )}

@@ -58,6 +58,10 @@ fn passed_ceilings(app: &AppHandle) -> anyhow::Result<Vec<(CategoryTarget, i64)>
         .lock()
         .map_err(|_| anyhow::anyhow!("database lock poisoned"))?;
 
+    if !crate::reminder::enabled(&conn) {
+        return Ok(Vec::new());
+    }
+
     let targets = queries::load_targets(&conn)?;
     if targets.is_empty() {
         return Ok(Vec::new());

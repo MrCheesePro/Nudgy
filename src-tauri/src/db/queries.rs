@@ -582,6 +582,10 @@ pub fn set_task_completed(conn: &Connection, id: i64, completed: bool) -> Result
 }
 
 
+pub fn delete_setting(conn: &Connection, key: &str) -> Result<usize> {
+    Ok(conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?)
+}
+
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)

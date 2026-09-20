@@ -42,6 +42,12 @@ fn due_checkins(app: &AppHandle) -> anyhow::Result<Vec<PlanProgress>> {
         .db
         .lock()
         .map_err(|_| anyhow::anyhow!("database lock poisoned"))?;
+
+    // One switch, honoured everywhere. A check-in that still fires with notifications
+    // off would make the toggle a lie.
+    if !crate::reminder::enabled(&conn) {
+        return Ok(Vec::new());
+    }
     plans::take_due_checkins(&conn)
 }
 

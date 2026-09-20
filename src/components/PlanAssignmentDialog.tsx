@@ -26,6 +26,7 @@ interface PlanDraft {
   breakLength: string;
   startDay: string | null;
   startTime: string;
+  reminderLead: string;
 }
 
 export interface Plannable {
@@ -61,6 +62,8 @@ interface Props {
     focusSeconds: number;
     breakSeconds: number;
     blocks: PlacedBlock[];
+    /** Seconds of warning before each block. Null uses the global default. */
+    reminderLeadSeconds: number | null;
   }) => void;
 }
 
@@ -95,6 +98,8 @@ export function PlanAssignmentDialog({
   /** Null day means "wherever the planner finds room". */
   const [startDay, setStartDay] = useState<string | null>(null);
   const [startTime, setStartTime] = useState("");
+  /** Empty means "use whatever Settings says", which is not the same as zero. */
+  const [reminderLead, setReminderLead] = useState("");
 
   /**
    * Where a half-finished draft is kept, per item.
@@ -115,6 +120,7 @@ export function PlanAssignmentDialog({
     setBreakLength(saved?.breakLength ?? String(item.defaultBreakMinutes));
     setStartDay(saved?.startDay ?? null);
     setStartTime(saved?.startTime ?? "");
+    setReminderLead(saved?.reminderLead ?? "");
   }, [item, draftKey]);
 
   // Saved as you type, so the draft survives whatever closes the dialog.
@@ -128,8 +134,9 @@ export function PlanAssignmentDialog({
       breakLength,
       startDay,
       startTime,
+      reminderLead,
     });
-  }, [draftKey, estimate, mode, style, session, breakLength, startDay, startTime]);
+  }, [draftKey, estimate, mode, style, session, breakLength, startDay, startTime, reminderLead]);
 
   const estimateMinutes = clamp(estimate, 5, 600, 60);
   // The style has the final say: classic is fixed, flowmodoro derives its own break.
@@ -523,6 +530,33 @@ export function PlanAssignmentDialog({
           </div>
         </div>
 
+        <div className="mt-5">
+          <span className="text-xs font-medium text-ink-soft">
+            Remind me before it starts{" "}
+            <span className="font-normal text-ink-mute">(optional)</span>
+          </span>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={120}
+              step={5}
+              value={reminderLead}
+              placeholder="default"
+              onChange={(event) => setReminderLead(event.target.value)}
+              aria-label="Minutes of warning for this task"
+              className="w-20 rounded-lg border border-edge bg-canvas px-2 py-2 text-right font-mono text-sm tabular-nums text-ink outline-none focus:border-edge-strong"
+            />
+            <span className="text-xs text-ink-mute">
+              {reminderLead.trim() === ""
+                ? "minutes — blank uses the default from Settings"
+                : Number(reminderLead) === 0
+                  ? "minutes — you will hear as it begins"
+                  : "minutes before each block"}
+            </span>
+          </div>
+        </div>
+
         {conflict && (
           <p className="mt-3 flex items-start gap-2 rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">
             <TriangleAlert size={13} className="mt-0.5 shrink-0" />
@@ -596,6 +630,10 @@ export function PlanAssignmentDialog({
                 focusSeconds: sessionMinutes * 60,
                 breakSeconds: breakMinutes * 60,
                 blocks,
+                reminderLeadSeconds:
+                  reminderLead.trim() === ""
+                    ? null
+                    : Math.max(0, Math.round(Number(reminderLead) || 0)) * 60,
               });
             }}
             className="rounded-lg bg-rose px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-deep disabled:opacity-40"

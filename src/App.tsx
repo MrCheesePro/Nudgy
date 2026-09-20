@@ -36,7 +36,10 @@ import {
   setPaused as setPausedCommand,
   setSetting,
 } from "./lib/ipc";
+import { listen } from "@tauri-apps/api/event";
 import { refreshCategories } from "./lib/categories";
+import { playChime, type ChimeId } from "./lib/chime";
+import { readPref } from "./lib/prefs";
 import { applyTheme, DEFAULT_THEME, SETTING_THEME } from "./lib/theme";
 import {
   enable as enableAutostart,
@@ -51,6 +54,7 @@ import {
   SECRET_LMS_FEED_URL,
   SETTING_AUTOSTART_ASKED,
   SETTING_COMPLETED_CLEARED_AT,
+  SETTING_NOTIFICATIONS,
   type Category,
   type Goal,
   type LmsTask,
@@ -107,6 +111,26 @@ export default function App() {
   /** Set by "Clear": everything finished before it stops showing, nothing is deleted. */
   const [clearedAt, setClearedAt] = useState(0);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  /** Absent in settings means on — a missing row must not silence the app. */
+  const [notifications, setNotifications] = useState(true);
+
+  useEffect(() => {
+    // The OS notification carries the words; this carries the sound, because the app
+    // knows which chime was chosen and the notification plugin does not.
+    const unlisten = Promise.all(
+      ["nudgy://reminder", "nudgy://target-passed"].map((name) =>
+        listen(name, () => {
+          if (!notifications) return;
+          playChime(readPref<ChimeId>("chime", "soft"));
+        }),
+      ),
+    );
+    return () => {
+      unlisten.then((disposers) => disposers.forEach((dispose) => dispose())).catch(
+        () => undefined,
+      );
+    };
+  }, [notifications]);
 
   useEffect(() => {
     // The category vocabulary is a table now, and half the app asks it for a colour while
@@ -136,6 +160,7 @@ export default function App() {
             await setSetting(SETTING_AUTOSTART_ASKED, "1").catch(() => undefined);
           })();
         }
+        setNotifications(settings.get(SETTING_NOTIFICATIONS) !== "0");
         const raw = settings.get(SETTING_COMPLETED_CLEARED_AT);
         const value = Number(raw);
         if (Number.isFinite(value) && value > 0) setClearedAt(value);
@@ -371,6 +396,7 @@ export default function App() {
       focusSeconds: number;
       breakSeconds: number;
       blocks: PlacedBlock[];
+      reminderLeadSeconds: number | null;
     }) => {
       const label = input.item.title;
 
@@ -404,6 +430,7 @@ export default function App() {
             targetSeconds: block.endTs - block.startTs,
             verifiedState: "pending" as const,
             source: "manual" as const,
+            reminderLeadSeconds: input.reminderLeadSeconds,
           })),
         );
         setPlanning(null);
@@ -472,6 +499,17 @@ export default function App() {
 
   const alerts = permissions?.applicable && !permissions.screenRecording ? 1 : 0;
 
+  /** Flipped optimistically so the bell responds at once; reverted if the write fails. */
+  const toggleNotifications = useCallback(async () => {
+    const next = !notifications;
+    setNotifications(next);
+    try {
+      await setSetting(SETTING_NOTIFICATIONS, next ? "1" : "0");
+    } catch {
+      setNotifications(!next);
+    }
+  }, [notifications]);
+
   return (
     <div className="flex h-full overflow-hidden">
       <IconRail view={view} onChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
@@ -482,7 +520,8 @@ export default function App() {
           paused={paused}
           onTogglePause={() => void togglePause()}
           alerts={alerts}
-          onAlerts={() => setView("overview")}
+          notifications={notifications}
+          onToggleNotifications={() => void toggleNotifications()}
           onOpenSettings={() => setSettingsOpen(true)}
           trackingLabel={currentWork?.courseCode ?? null}
         />

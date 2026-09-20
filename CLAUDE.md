@@ -54,6 +54,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/plans.rs` | Work plans: estimate, measured progress, the check-in loop |
 | `src-tauri/src/checkin.rs` | Once-a-minute worker that fires the halfway check-in |
 | `src-tauri/src/nudge.rs` | Five-minute worker that announces a passed ceiling, once a day |
+| `src-tauri/src/reminder.rs` | Minute worker that warns before a block; owns the notifications switch |
+| `src-tauri/src/integrations/lms.rs` | Coursework from any LMS's iCal feed — no API key |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
@@ -180,18 +182,32 @@ wrong data.
     limit is not finished until the day is, though going over ends the run there and then.
     An unobserved day breaks it — a ceiling on something you never do is satisfied by
     absence, so without that rule a new target would show a week-long streak instantly.
-24. **Only a ceiling interrupts.** `nudge.rs` fires on `at_most` targets and never on
+24. **Coursework needs no API key.** Every LMS publishes a per-user iCal feed, and
+    `calendar.rs` already parses iCal — so `lms.rs` is only the reading between a VEVENT
+    and an `LmsTask`. `external_id` is the feed's own UID, because `tasks` is
+    `UNIQUE(provider, external_id)` and anything generated would duplicate the whole list
+    on every sync. A Canvas token is the *upgrade*, not the way in: it is the only path
+    that knows what has been submitted, and the UI says so rather than pretending a feed
+    can.
+25. **A reminder matches a window, never an instant.** The worker ticks once a minute and
+    fires when `start - lead <= now < start - lead + 90`. Equality would miss every tick
+    that landed a second late and every moment slept through. Late is useful; never is
+    the failure worth designing against.
+26. **One switch silences everything.** `notifications_enabled` is checked by `checkin`,
+    `nudge` and `reminder` alike — a notification that still fired with the bell off
+    would make the toggle a lie. Absent means on: a missing row must not silence the app.
+27. **Only a ceiling interrupts.** `nudge.rs` fires on `at_most` targets and never on
     `at_least` ones: being told at 3pm that you are behind on reading helps nobody, while
     being told you have hit your limit is the whole point. Once per category per day,
     recorded in `settings` as `nudged:<category>`.
-25. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
+28. **A target may reorder the undated tail, never the deadlines.** `planQueue` takes the
     set of categories short of a floor and uses it only to break ties among goals with no
     due date. Something due tomorrow outranks being behind on a habit.
-26. **Pausing holds the session, it does not discard it.** `AppState.session_freeze`
+29. **Pausing holds the session, it does not discard it.** `AppState.session_freeze`
     keeps the seconds shown when pause was pressed; resuming shifts `session_started_at`
     back by that much so the counter carries on. Reporting zero made a pause look like a
     lost sitting.
-27. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
+30. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
 

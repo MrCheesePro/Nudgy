@@ -30,6 +30,10 @@ pub struct ScheduleBlock {
     pub verified_state: String,
     #[serde(default = "default_source")]
     pub source: String,
+    /// Seconds before the start to give a nudge. `None` defers to the global default;
+    /// `Some(0)` is a deliberate "tell me as it begins".
+    #[serde(default)]
+    pub reminder_lead_seconds: Option<i64>,
     /// Set when this block belongs to a work plan, so progress rolls up to the estimate.
     #[serde(default)]
     pub plan_id: Option<i64>,
@@ -59,8 +63,8 @@ pub struct VerificationResult {
 
 const INSERT_BLOCK: &str = "INSERT INTO schedule_blocks
      (day, start_ts, end_ts, label, category, target_process,
-      target_seconds, verified_state, source, plan_id)
-   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)";
+      target_seconds, verified_state, source, plan_id, reminder_lead_seconds)
+   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)";
 
 /// Replaces a day's schedule wholesale, except for blocks that belong to a plan —
 /// regenerating an agenda must not silently delete work the user committed to.
@@ -84,6 +88,7 @@ pub fn save_day(conn: &mut Connection, day: &str, blocks: &[ScheduleBlock]) -> R
                 block.verified_state,
                 block.source,
                 block.plan_id,
+                block.reminder_lead_seconds,
             ])?;
         }
     }
@@ -113,6 +118,7 @@ pub fn append_day(
             block.verified_state,
             block.source,
             plan_id.or(block.plan_id),
+            block.reminder_lead_seconds,
         ])?;
     }
     Ok(blocks.len())
@@ -123,7 +129,7 @@ pub fn append_day(
 pub fn load_range(conn: &Connection, start_day: &str, end_day: &str) -> Result<Vec<ScheduleBlock>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, day, start_ts, end_ts, label, category, target_process,
-                target_seconds, verified_state, source, plan_id
+                target_seconds, verified_state, source, plan_id, reminder_lead_seconds
            FROM schedule_blocks
           WHERE day >= ?1 AND day <= ?2
           ORDER BY start_ts ASC",
@@ -142,6 +148,7 @@ pub fn load_range(conn: &Connection, start_day: &str, end_day: &str) -> Result<V
                 verified_state: row.get(8)?,
                 source: row.get(9)?,
                 plan_id: row.get(10)?,
+                reminder_lead_seconds: row.get(11)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -151,7 +158,7 @@ pub fn load_range(conn: &Connection, start_day: &str, end_day: &str) -> Result<V
 pub fn load_day(conn: &Connection, day: &str) -> Result<Vec<ScheduleBlock>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, day, start_ts, end_ts, label, category, target_process,
-                target_seconds, verified_state, source, plan_id
+                target_seconds, verified_state, source, plan_id, reminder_lead_seconds
            FROM schedule_blocks
           WHERE day = ?1
           ORDER BY start_ts ASC",
@@ -170,6 +177,7 @@ pub fn load_day(conn: &Connection, day: &str) -> Result<Vec<ScheduleBlock>> {
                 verified_state: row.get(8)?,
                 source: row.get(9)?,
                 plan_id: row.get(10)?,
+                reminder_lead_seconds: row.get(11)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -269,6 +277,7 @@ mod tests {
             verified_state: STATE_PENDING.to_string(),
             source: "llm".to_string(),
             plan_id: None,
+            reminder_lead_seconds: None,
         }
     }
 

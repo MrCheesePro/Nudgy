@@ -146,6 +146,8 @@ export interface ScheduleBlock {
   verifiedState: "pending" | "met" | "missed";
   source: "llm" | "manual";
   planId: number | null;
+  /** Seconds of warning before this block. Null defers to the global default. */
+  reminderLeadSeconds?: number | null;
 }
 
 export interface CalendarEvent {
@@ -253,6 +255,12 @@ export const SETTING_CANVAS_BASE_URL = "canvas_base_url";
 
 /** Which LMS the coursework feed belongs to. */
 export const SETTING_LMS_PROVIDER = "lms_provider";
+
+/** Notifications master switch. Absent means on — a missing row must not silence it. */
+export const SETTING_NOTIFICATIONS = "notifications_enabled";
+/** Default minutes of warning before a block, when the block has no opinion. */
+export const SETTING_REMINDER_LEAD = "reminder_lead_seconds";
+export const SETTING_CHIME = "notification_chime";
 /** The coursework feed URL. A credential, so it lives in the keychain. */
 export const SECRET_LMS_FEED_URL = "lms_feed_url";
 

@@ -7,6 +7,7 @@ mod integrations;
 mod models;
 mod nudge;
 mod plans;
+mod reminder;
 mod rpc;
 mod scheduler;
 mod secrets;
@@ -80,6 +81,7 @@ fn setup(app: &AppHandle) -> Result<()> {
     rpc::spawn(app.clone());
     checkin::spawn(app.clone());
     nudge::spawn(app.clone());
+    reminder::spawn(app.clone());
     Ok(())
 }
 

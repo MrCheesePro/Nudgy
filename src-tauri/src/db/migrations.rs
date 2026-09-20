@@ -262,6 +262,15 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE IF EXISTS places;
     DELETE FROM settings WHERE key = 'travel_provider';
     "#,
+    // 11 — how long before a block to say something.
+    //
+    //     NULL means "use the global default", which is different from zero: zero is a
+    //     deliberate "tell me as it starts". Keeping the distinction means changing the
+    //     default later moves every block that never had an opinion, and leaves alone
+    //     every block that did.
+    r#"
+    ALTER TABLE schedule_blocks ADD COLUMN reminder_lead_seconds INTEGER;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

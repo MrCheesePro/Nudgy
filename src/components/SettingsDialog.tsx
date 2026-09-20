@@ -11,6 +11,8 @@ import {
   setSetting,
 } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
+import { CHIMES, playChime, type ChimeId } from "../lib/chime";
+import { readPref, writePref } from "../lib/prefs";
 import { chooseTheme, THEMES, useTheme } from "../lib/theme";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -20,6 +22,7 @@ import {
   SETTING_CANVAS_BASE_URL,
   SETTING_LMS_PROVIDER,
   LMS_LABELS,
+  SETTING_REMINDER_LEAD,
   type LmsProvider,
 } from "../lib/types";
 
@@ -45,10 +48,14 @@ export function SettingsDialog({ open, onClose }: Props) {
   const [canvasToken, setCanvasToken] = useState("");
   const [calendarUrl, setCalendarUrl] = useState("");
   const [lmsFeed, setLmsFeed] = useState("");
+  const [leadMinutes, setLeadMinutes] = useState("10");
+  const [chime, setChime] = useState<ChimeId>(() => readPref<ChimeId>("chime", "soft"));
 
   const [canvasTokenStored, setCanvasTokenStored] = useState(false);
   const [calendarStored, setCalendarStored] = useState(false);
   const [lmsFeedStored, setLmsFeedStored] = useState(false);
+  /** What the lead time was on load, so "unsaved" means actually changed. */
+  const [baselineLead, setBaselineLead] = useState(600);
 
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -68,6 +75,9 @@ export function SettingsDialog({ open, onClose }: Props) {
           };
       setForm(loaded);
       setBaseline(loaded);
+      const lead = Number(settings.get(SETTING_REMINDER_LEAD) ?? 600);
+      setLeadMinutes(String(Math.round(lead / 60)));
+      setBaselineLead(lead);
 
       setCanvasTokenStored(await hasSecret(SECRET_CANVAS_TOKEN).catch(() => false));
       setCalendarStored(await hasSecret(SECRET_CALENDAR_ICS_URL).catch(() => false));
@@ -90,8 +100,9 @@ export function SettingsDialog({ open, onClose }: Props) {
       form.lmsProvider !== baseline.lmsProvider ||
       canvasToken.trim() !== "" ||
       calendarUrl.trim() !== "" ||
-      lmsFeed.trim() !== "",
-    [form, baseline, canvasToken, calendarUrl, lmsFeed],
+      lmsFeed.trim() !== "" ||
+      Number(leadMinutes) * 60 !== baselineLead,
+    [form, baseline, canvasToken, calendarUrl, lmsFeed, leadMinutes, baselineLead],
   );
 
   const save = useCallback(async () => {
@@ -99,6 +110,10 @@ export function SettingsDialog({ open, onClose }: Props) {
     try {
       await setSetting(SETTING_CANVAS_BASE_URL, form.canvasUrl.trim());
       await setLmsProvider(form.lmsProvider);
+      await setSetting(
+        SETTING_REMINDER_LEAD,
+        String(Math.max(0, Math.round(Number(leadMinutes) || 0)) * 60),
+      );
 
       // A blank secret field means "leave the keychain alone", not "erase it" — blank is
       // the normal state, since the stored value is never echoed back into the form.
@@ -126,6 +141,7 @@ export function SettingsDialog({ open, onClose }: Props) {
         ...current,
         canvasUrl: current.canvasUrl.trim(),
       }));
+      setBaselineLead(Math.max(0, Math.round(Number(leadMinutes) || 0)) * 60);
       setStatus("Saved");
       return true;
     } catch (cause) {
@@ -134,7 +150,7 @@ export function SettingsDialog({ open, onClose }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [form, canvasToken, calendarUrl, lmsFeed]);
+  }, [form, canvasToken, calendarUrl, lmsFeed, leadMinutes]);
 
   /** Closing with unsaved edits asks first, instead of quietly throwing them away. */
   const requestClose = useCallback(() => {
@@ -338,6 +354,63 @@ export function SettingsDialog({ open, onClose }: Props) {
               Google Calendar → Settings and sharing → Integrate calendar → “Secret address
               in iCal format”. Anyone with that link can read the calendar, so it is kept
               in the keychain.
+            </p>
+          </div>
+
+          <div className="border-t border-edge pt-5">
+            <span className="text-xs font-medium tracking-wide text-ink-soft">
+              Notifications
+            </span>
+            <p className="mt-1 text-xs text-ink-mute">
+              The bell in the top bar turns all of these on and off. This is what they
+              sound like and how much warning you get.
+            </p>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-1.5">
+                <span className="text-xs text-ink-soft">Warn me</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  step={5}
+                  value={leadMinutes}
+                  onChange={(event) => setLeadMinutes(event.target.value)}
+                  aria-label="Minutes of warning before a block"
+                  className="w-14 rounded-lg border border-edge bg-canvas px-2 py-1.5 text-right font-mono text-xs tabular-nums text-ink-soft outline-none focus:border-edge-strong"
+                />
+                <span className="text-xs text-ink-mute">min before a block</span>
+              </label>
+
+              <select
+                value={chime}
+                onChange={(event) => {
+                  const next = event.target.value as ChimeId;
+                  setChime(next);
+                  writePref("chime", next);
+                  playChime(next);
+                }}
+                aria-label="Notification sound"
+                className="rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
+              >
+                {CHIMES.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => playChime(chime)}
+                className="rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
+              >
+                Play
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-ink-mute">
+              Zero minutes means "tell me as it starts". A task can override this with its
+              own warning when you plan it.
             </p>
           </div>
 
