@@ -17,6 +17,17 @@ use serde::{Deserialize, Serialize};
 pub const MODE_CONTINUOUS: &str = "continuous";
 pub const MODE_POMODORO: &str = "pomodoro";
 
+/// The frontend types `mode` as a union of these two. Storing anything else would hand
+/// back a value TypeScript has already promised cannot exist, so an unknown mode is
+/// normalised here rather than at the point it is read.
+fn normalize_mode(mode: &str) -> &str {
+    if mode == MODE_CONTINUOUS {
+        MODE_CONTINUOUS
+    } else {
+        MODE_POMODORO
+    }
+}
+
 pub const STATUS_ACTIVE: &str = "active";
 pub const STATUS_DONE: &str = "done";
 
@@ -84,7 +95,7 @@ pub fn create(conn: &Connection, plan: &Plan) -> Result<i64> {
             plan.task_id,
             plan.title,
             plan.estimate_seconds,
-            plan.mode,
+            normalize_mode(&plan.mode),
             plan.pomodoro_style,
             plan.focus_seconds,
             plan.break_seconds,
