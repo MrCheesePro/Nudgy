@@ -48,6 +48,7 @@ import { DAY_END_HOUR, DAY_START_HOUR } from "./lib/time";
 import {
   SECRET_CALENDAR_ICS_URL,
   SECRET_CANVAS_TOKEN,
+  SECRET_LMS_FEED_URL,
   SETTING_AUTOSTART_ASKED,
   SETTING_COMPLETED_CLEARED_AT,
   type Category,
@@ -145,9 +146,12 @@ export default function App() {
   // Re-checked when the dialog closes, since that is when credentials may have changed.
   useEffect(() => {
     if (settingsOpen) return;
-    hasSecret(SECRET_CANVAS_TOKEN)
-      .then(setCanvasLinked)
-      .catch(() => undefined);
+    // Linked means "there is a coursework source", which is now either a token or a
+    // feed — a feed-only user is fully set up and must not be told to connect.
+    void Promise.all([
+      hasSecret(SECRET_CANVAS_TOKEN).catch(() => false),
+      hasSecret(SECRET_LMS_FEED_URL).catch(() => false),
+    ]).then(([token, feed]) => setCanvasLinked(token || feed));
     hasSecret(SECRET_CALENDAR_ICS_URL)
       .then((linked) => {
         setCalendarLinked(linked);

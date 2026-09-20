@@ -251,6 +251,37 @@ export const SECRET_CANVAS_TOKEN = "canvas_token";
 
 export const SETTING_CANVAS_BASE_URL = "canvas_base_url";
 
+/** Which LMS the coursework feed belongs to. */
+export const SETTING_LMS_PROVIDER = "lms_provider";
+/** The coursework feed URL. A credential, so it lives in the keychain. */
+export const SECRET_LMS_FEED_URL = "lms_feed_url";
+
+export type LmsProvider = "canvas" | "moodle" | "brightspace" | "blackboard" | "classroom";
+
+/** Display name and where to find the feed, per LMS. */
+export const LMS_LABELS: Record<LmsProvider, { name: string; where: string }> = {
+  canvas: {
+    name: "Canvas",
+    where: "Calendar → Calendar Feed, at the bottom of the right-hand panel.",
+  },
+  moodle: {
+    name: "Moodle",
+    where: "Calendar → Export calendar → Get calendar URL.",
+  },
+  brightspace: {
+    name: "Brightspace",
+    where: "Calendar → Subscribe, then copy the link it offers.",
+  },
+  blackboard: {
+    name: "Blackboard",
+    where: "Calendar → Calendar Settings → Share Calendar.",
+  },
+  classroom: {
+    name: "Google Classroom",
+    where: "Classwork → the class calendar, then copy its secret iCal address.",
+  },
+};
+
 /** Set once the first launch has decided about starting at login. */
 export const SETTING_AUTOSTART_ASKED = "autostart_initialised";
 

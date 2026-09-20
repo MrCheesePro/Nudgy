@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getTasks, setTaskCompleted, syncCanvas } from "../lib/ipc";
+import { getTasks, setTaskCompleted, syncLms } from "../lib/ipc";
 import type { LmsTask } from "../lib/types";
 
 export function useTasks() {
@@ -27,7 +27,7 @@ export function useTasks() {
     setSyncing(true);
     setError(null);
     try {
-      const result = await syncCanvas();
+      const result = await syncLms();
       setLastSync(`${result.stored} assignments synced`);
       await refresh();
     } catch (cause) {

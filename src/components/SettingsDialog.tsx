@@ -7,6 +7,7 @@ import {
   getSettings,
   hasSecret,
   setSecret,
+  setLmsProvider,
   setSetting,
 } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
@@ -15,7 +16,11 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import {
   SECRET_CALENDAR_ICS_URL,
   SECRET_CANVAS_TOKEN,
+  SECRET_LMS_FEED_URL,
   SETTING_CANVAS_BASE_URL,
+  SETTING_LMS_PROVIDER,
+  LMS_LABELS,
+  type LmsProvider,
 } from "../lib/types";
 
 interface Props {
@@ -27,9 +32,10 @@ interface Props {
 /** The plain settings, as loaded. Secrets are not here — they are never read back. */
 interface SettingsForm {
   canvasUrl: string;
+  lmsProvider: LmsProvider;
 }
 
-const EMPTY_FORM: SettingsForm = { canvasUrl: "" };
+const EMPTY_FORM: SettingsForm = { canvasUrl: "", lmsProvider: "canvas" };
 
 export function SettingsDialog({ open, onClose }: Props) {
   const [form, setForm] = useState<SettingsForm>(EMPTY_FORM);
@@ -38,9 +44,11 @@ export function SettingsDialog({ open, onClose }: Props) {
 
   const [canvasToken, setCanvasToken] = useState("");
   const [calendarUrl, setCalendarUrl] = useState("");
+  const [lmsFeed, setLmsFeed] = useState("");
 
   const [canvasTokenStored, setCanvasTokenStored] = useState(false);
   const [calendarStored, setCalendarStored] = useState(false);
+  const [lmsFeedStored, setLmsFeedStored] = useState(false);
 
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,16 +64,19 @@ export function SettingsDialog({ open, onClose }: Props) {
       const settings = new Map(await getSettings().catch(() => []));
       const loaded: SettingsForm = {
         canvasUrl: settings.get(SETTING_CANVAS_BASE_URL) ?? "",
+        lmsProvider: (settings.get(SETTING_LMS_PROVIDER) as LmsProvider) ?? "canvas",
           };
       setForm(loaded);
       setBaseline(loaded);
 
       setCanvasTokenStored(await hasSecret(SECRET_CANVAS_TOKEN).catch(() => false));
       setCalendarStored(await hasSecret(SECRET_CALENDAR_ICS_URL).catch(() => false));
+      setLmsFeedStored(await hasSecret(SECRET_LMS_FEED_URL).catch(() => false));
       setAutostart(await autostartEnabled().catch(() => false));
 
       setCanvasToken("");
       setCalendarUrl("");
+      setLmsFeed("");
       setStatus(null);
       setConfirmingClose(false);
     })();
@@ -76,15 +87,18 @@ export function SettingsDialog({ open, onClose }: Props) {
   const dirty = useMemo(
     () =>
       form.canvasUrl !== baseline.canvasUrl ||
+      form.lmsProvider !== baseline.lmsProvider ||
       canvasToken.trim() !== "" ||
-      calendarUrl.trim() !== "",
-    [form, baseline, canvasToken, calendarUrl],
+      calendarUrl.trim() !== "" ||
+      lmsFeed.trim() !== "",
+    [form, baseline, canvasToken, calendarUrl, lmsFeed],
   );
 
   const save = useCallback(async () => {
     setSaving(true);
     try {
       await setSetting(SETTING_CANVAS_BASE_URL, form.canvasUrl.trim());
+      await setLmsProvider(form.lmsProvider);
 
       // A blank secret field means "leave the keychain alone", not "erase it" — blank is
       // the normal state, since the stored value is never echoed back into the form.
@@ -92,6 +106,11 @@ export function SettingsDialog({ open, onClose }: Props) {
         await setSecret(SECRET_CANVAS_TOKEN, canvasToken.trim());
         setCanvasTokenStored(true);
         setCanvasToken("");
+      }
+      if (lmsFeed.trim()) {
+        await setSecret(SECRET_LMS_FEED_URL, lmsFeed.trim());
+        setLmsFeedStored(true);
+        setLmsFeed("");
       }
       if (calendarUrl.trim()) {
         await setSecret(SECRET_CALENDAR_ICS_URL, calendarUrl.trim());
@@ -101,6 +120,7 @@ export function SettingsDialog({ open, onClose }: Props) {
 
       setBaseline({
         canvasUrl: form.canvasUrl.trim(),
+        lmsProvider: form.lmsProvider,
       });
       setForm((current) => ({
         ...current,
@@ -114,7 +134,7 @@ export function SettingsDialog({ open, onClose }: Props) {
     } finally {
       setSaving(false);
     }
-  }, [form, canvasToken, calendarUrl]);
+  }, [form, canvasToken, calendarUrl, lmsFeed]);
 
   /** Closing with unsaved edits asks first, instead of quietly throwing them away. */
   const requestClose = useCallback(() => {
@@ -134,6 +154,7 @@ export function SettingsDialog({ open, onClose }: Props) {
     setForm(baseline);
     setCanvasToken("");
     setCalendarUrl("");
+    setLmsFeed("");
     setConfirmingClose(false);
     onClose();
   }, [baseline, onClose]);
@@ -160,6 +181,7 @@ export function SettingsDialog({ open, onClose }: Props) {
   const forget = async (key: string) => {
     await clearSecret(key).catch(() => undefined);
     if (key === SECRET_CANVAS_TOKEN) setCanvasTokenStored(false);
+    else if (key === SECRET_LMS_FEED_URL) setLmsFeedStored(false);
     else setCalendarStored(false);
     setStatus("Removed from keychain");
   };
@@ -245,20 +267,64 @@ export function SettingsDialog({ open, onClose }: Props) {
             </ul>
           </div>
 
-          <Field
-            label="Canvas base URL"
-            hint="e.g. https://canvas.institution.edu"
-            value={form.canvasUrl}
-            onChange={(canvasUrl) => update({ canvasUrl })}
-          />
+          <label className="block">
+            <span className="text-xs font-medium tracking-wide text-ink-soft">
+              Where your coursework comes from
+            </span>
+            <select
+              value={form.lmsProvider}
+              onChange={(event) => update({ lmsProvider: event.target.value as LmsProvider })}
+              className="mt-1.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
+            >
+              {(Object.keys(LMS_LABELS) as LmsProvider[]).map((id) => (
+                <option key={id} value={id}>
+                  {LMS_LABELS[id].name}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <SecretField
-            label="Canvas API token"
-            stored={canvasTokenStored}
-            value={canvasToken}
-            onChange={setCanvasToken}
-            onForget={() => void forget(SECRET_CANVAS_TOKEN)}
+            label={`Your ${LMS_LABELS[form.lmsProvider].name} calendar URL`}
+            stored={lmsFeedStored}
+            value={lmsFeed}
+            onChange={setLmsFeed}
+            onForget={() => void forget(SECRET_LMS_FEED_URL)}
           />
+          <p className="-mt-3 text-xs text-ink-mute">
+            {LMS_LABELS[form.lmsProvider].where} No API key needed. A feed carries titles
+            and due dates but not what you have handed in, so ticking work off stays
+            manual.
+          </p>
+
+          {/* Canvas only, and framed as the upgrade it is rather than the way in. */}
+          {form.lmsProvider === "canvas" && (
+            <details className="rounded-xl border border-edge bg-canvas px-3 py-2">
+              <summary className="cursor-pointer text-xs font-medium text-ink-soft">
+                Have a Canvas API token? It adds submission status
+              </summary>
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-ink-mute">
+                  With a token Nudgy can see what you have already submitted and tick it
+                  off for you. Many institutions disable tokens — if yours has, the
+                  calendar URL above is the whole feature minus that.
+                </p>
+                <Field
+                  label="Canvas base URL"
+                  hint="e.g. https://canvas.institution.edu"
+                  value={form.canvasUrl}
+                  onChange={(canvasUrl) => update({ canvasUrl })}
+                />
+                <SecretField
+                  label="Canvas API token"
+                  stored={canvasTokenStored}
+                  value={canvasToken}
+                  onChange={setCanvasToken}
+                  onForget={() => void forget(SECRET_CANVAS_TOKEN)}
+                />
+              </div>
+            </details>
+          )}
 
           <div className="border-t border-edge pt-5">
             <SecretField

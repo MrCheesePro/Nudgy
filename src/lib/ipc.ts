@@ -118,7 +118,12 @@ export const getTasks = (includeCompleted = false) =>
 export const setTaskCompleted = (id: number, completed: boolean) =>
   invoke<void>("set_task_completed", { id, completed });
 
-export const syncCanvas = () => invoke<SyncResult>("sync_canvas");
+export const syncLms = () => invoke<SyncResult>("sync_lms");
+
+export const getLmsProviders = () => invoke<string[]>("get_lms_providers");
+
+export const setLmsProvider = (provider: string) =>
+  invoke<void>("set_lms_provider", { provider });
 
 export const getSchedule = (day: string) =>
   invoke<ScheduleBlock[]>("get_schedule", { day });

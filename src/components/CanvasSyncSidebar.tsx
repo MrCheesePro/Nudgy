@@ -132,12 +132,12 @@ export function CanvasSyncSidebar({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold text-ink">
-              {canvasLinked ? "Canvas LMS linked" : "Canvas not connected"}
+              {canvasLinked ? "Coursework linked" : "No coursework source"}
             </div>
             <div className="truncate text-[11px] text-ink-soft">
               {canvasLinked
                 ? (lastSync ?? `${tasks.length} assignments tracked`)
-                : "Add your Canvas URL and token"}
+                : "Add your LMS calendar URL — no API key needed"}
             </div>
           </div>
           <button
@@ -156,7 +156,7 @@ export function CanvasSyncSidebar({
         )}
 
         <Section
-          title="Canvas coursework"
+          title="Coursework"
           count={tasks.length}
           hint={tasks.length > 0 ? "upcoming" : undefined}
           open={open.coursework}
@@ -166,7 +166,7 @@ export function CanvasSyncSidebar({
             <p className="py-8 text-center text-xs text-ink-mute">
               {canvasLinked
                 ? "Nothing due. Sync to refresh."
-                : "Connect Canvas to pull your assignments in."}
+                : "Add your LMS calendar URL in Settings to pull assignments in."}
             </p>
           ) : (
             <ul className="mt-3 space-y-2.5">

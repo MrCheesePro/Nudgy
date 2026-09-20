@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::db::queries;
 use crate::error::{AppError, CmdResult};
 use crate::integrations::canvas::CanvasClient;
-use crate::integrations::{calendar, LmsProvider};
+use crate::integrations::{calendar, lms, LmsProvider};
 use crate::categorize;
 use crate::models::{
     self, AppRule, AppTotal, LiveStatus, LmsTask, PermissionStatus, RedactionRule, SyncResult,
@@ -74,6 +74,10 @@ pub fn list_unmapped_processes(
 }
 
 const UNMAPPED_LOOKBACK: i64 = 48 * 60 * 60;
+
+/// Which LMS the calendar feed belongs to. Drives the label in Settings and the
+/// `provider` stored on every task.
+pub const SETTING_LMS_PROVIDER: &str = "lms_provider";
 
 #[tauri::command]
 pub fn get_app_rules(state: State<'_, AppState>) -> CmdResult<Vec<AppRule>> {
@@ -307,24 +311,48 @@ pub fn set_task_completed(state: State<'_, AppState>, id: i64, completed: bool) 
 /// Pulls Canvas deadlines into the local database. Credentials are read here, used, and
 /// dropped — they are never stored alongside the data they fetched.
 #[tauri::command]
-pub async fn sync_canvas(app: AppHandle) -> CmdResult<SyncResult> {
-    let base_url = {
+pub async fn sync_lms(app: AppHandle) -> CmdResult<SyncResult> {
+    let (provider_name, base_url) = {
         let state = app.state::<AppState>();
-        with_db(&state, |conn| {
-            queries::get_setting(conn, SETTING_CANVAS_BASE_URL)
-        })?
-        .ok_or_else(|| AppError::msg("Canvas base URL is not set"))?
+        let settings: std::collections::HashMap<String, String> =
+            with_db(&state, queries::all_settings)?.into_iter().collect();
+        (
+            settings
+                .get(SETTING_LMS_PROVIDER)
+                .cloned()
+                .unwrap_or_else(|| "canvas".to_string()),
+            settings.get(SETTING_CANVAS_BASE_URL).cloned(),
+        )
     };
 
-    let token = secrets::get(secrets::CANVAS_TOKEN)
-        .map_err(AppError::from)?
-        .ok_or_else(|| AppError::msg("Canvas API token is not set"))?;
+    // The token path is the upgrade, not the default: it is the only one that knows what
+    // has been handed in, so it wins whenever it is available. Canvas only — the others
+    // have no REST client here.
+    let token = secrets::get(secrets::CANVAS_TOKEN).map_err(AppError::from)?;
+    let tasks = match (provider_name.as_str(), base_url.as_deref(), token.as_deref()) {
+        ("canvas", Some(url), Some(token)) if !url.trim().is_empty() => {
+            let client = CanvasClient::new(url, token).map_err(AppError::from)?;
+            log::info!("syncing via the {} API", client.provider_id());
+            client.fetch_tasks().await.map_err(AppError::from)?
+        }
+        _ => {
+            // The feed URL is a credential — anyone holding it reads your coursework —
+            // so it lives in the keychain beside the calendar one, never in `settings`.
+            let feed_url = secrets::get(secrets::LMS_FEED_URL)
+                .map_err(AppError::from)?
+                .ok_or_else(|| {
+                    AppError::msg(
+                        "No coursework source yet. Add your calendar feed URL in Settings.",
+                    )
+                })?;
+            log::info!("syncing {provider_name} from its calendar feed");
+            let feed = calendar::fetch_feed(&feed_url).await.map_err(AppError::from)?;
+            lms::feed_tasks(&feed, &provider_name).map_err(AppError::from)?
+        }
+    };
 
-    let client = CanvasClient::new(&base_url, &token).map_err(AppError::from)?;
-    let provider = client.provider_id();
-    let tasks = client.fetch_tasks().await.map_err(AppError::from)?;
     let fetched = tasks.len();
-    log::info!("{provider} sync fetched {fetched} tasks");
+    log::info!("{provider_name} sync fetched {fetched} tasks");
 
     let stored = {
         let state = app.state::<AppState>();
@@ -399,6 +427,24 @@ pub struct CategorySuggestion {
     pub category: Option<String>,
     /// `heuristic`, `llm` or `none`, so the UI can say where the guess came from.
     pub source: String,
+}
+
+/// The LMSes whose calendar feeds are known to work, for the Settings dropdown.
+#[tauri::command]
+pub fn get_lms_providers() -> Vec<&'static str> {
+    lms::PROVIDERS.to_vec()
+}
+
+/// Rejects an LMS the feed reader does not claim to handle, so a typo in the settings
+/// table cannot quietly become the `provider` stamped on every task.
+#[tauri::command]
+pub fn set_lms_provider(state: State<'_, AppState>, provider: String) -> CmdResult<()> {
+    if !lms::is_valid_provider(&provider) {
+        return Err(AppError::msg(format!("unknown LMS `{provider}`")));
+    }
+    with_db(&state, |conn| {
+        queries::set_setting(conn, SETTING_LMS_PROVIDER, &provider)
+    })
 }
 
 /* -------------------------------------------------------------- progress */

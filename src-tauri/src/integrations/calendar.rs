@@ -223,7 +223,7 @@ fn expand_rrule(
     Ok(result.dates.into_iter().map(|date| date.timestamp()).collect())
 }
 
-fn property(event: &IcalEvent, name: &str) -> Option<String> {
+pub(crate) fn property(event: &IcalEvent, name: &str) -> Option<String> {
     event
         .properties
         .iter()
@@ -233,7 +233,7 @@ fn property(event: &IcalEvent, name: &str) -> Option<String> {
 
 /// Reads a date-time property along with its TZID parameter, which is what makes a
 /// 9am class land at 9am rather than 9am UTC.
-fn property_time(event: &IcalEvent, name: &str) -> Option<(i64, bool)> {
+pub(crate) fn property_time(event: &IcalEvent, name: &str) -> Option<(i64, bool)> {
     let property = event
         .properties
         .iter()
@@ -291,7 +291,7 @@ fn parse_ical_datetime(raw: &str) -> Option<(i64, bool)> {
     Some((naive.and_utc().timestamp(), false))
 }
 
-fn sanitize(value: &str) -> String {
+pub(crate) fn sanitize(value: &str) -> String {
     value
         .replace("\\,", ",")
         .replace("\\;", ";")

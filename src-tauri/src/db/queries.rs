@@ -581,16 +581,6 @@ pub fn set_task_completed(conn: &Connection, id: i64, completed: bool) -> Result
     )?)
 }
 
-pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
-    let value = conn
-        .query_row(
-            "SELECT value FROM settings WHERE key = ?1",
-            params![key],
-            |row| row.get::<_, String>(0),
-        )
-        .ok();
-    Ok(value)
-}
 
 pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
     conn.execute(

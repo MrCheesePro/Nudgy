@@ -14,9 +14,13 @@ pub const CANVAS_TOKEN: &str = "canvas_token";
 /// Secret iCal feed URL. Read-only, but anyone holding it can read the calendar, so it
 /// is treated as a credential rather than a setting.
 pub const CALENDAR_ICS_URL: &str = "calendar_ics_url";
+/// The LMS coursework feed. Read-only like the calendar one, and a credential for the
+/// same reason: anyone holding it can read your coursework.
+pub const LMS_FEED_URL: &str = "lms_feed_url";
 pub const KNOWN_KEYS: &[&str] = &[
     CANVAS_TOKEN,
     CALENDAR_ICS_URL,
+    LMS_FEED_URL,
 ];
 
 fn entry(key: &str) -> Result<Entry> {
