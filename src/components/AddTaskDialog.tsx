@@ -175,13 +175,13 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
                     setDueDate("");
                     setDueTime("");
                   }}
-                  className="text-[11px] text-ink-mute transition hover:text-ink-soft"
+                  className="text-[0.6875rem] text-ink-mute transition hover:text-ink-soft"
                 >
                   Clear
                 </button>
               )}
             </div>
-            <span className="mt-1 block text-[11px] text-ink-mute">
+            <span className="mt-1 block text-[0.6875rem] text-ink-mute">
               {dueDate && !dueTime
                 ? "No time given, so it is due by the end of that day."
                 : "A deadline moves it ahead of undated work when planning."}
@@ -208,7 +208,7 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
 
           {detected && (
             <span
-              className="flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+              className="flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.6875rem] font-medium"
               style={{
                 background: `${categoryColor(detected.category)}1f`,
                 color: categoryColor(detected.category),

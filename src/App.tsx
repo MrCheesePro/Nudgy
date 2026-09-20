@@ -13,6 +13,8 @@ import {
 } from "./components/PlanAssignmentDialog";
 import { AppRegistry } from "./components/AppRegistry";
 import { ProgressPage } from "./components/ProgressPage";
+import { SessionTimer } from "./components/SessionTimer";
+import { TextScalePreview } from "./components/TextScalePreview";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TimelinePlanner } from "./components/TimelinePlanner";
 import { TopApps } from "./components/TopApps";
@@ -38,6 +40,7 @@ import {
 } from "./lib/ipc";
 import { listen } from "@tauri-apps/api/event";
 import { refreshCategories } from "./lib/categories";
+import { hydrateAppearance } from "./lib/appearance";
 import { playChime, type ChimeId } from "./lib/chime";
 import { readPref } from "./lib/prefs";
 import { applyTheme, DEFAULT_THEME, SETTING_THEME } from "./lib/theme";
@@ -113,6 +116,8 @@ export default function App() {
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   /** Absent in settings means on — a missing row must not silence the app. */
   const [notifications, setNotifications] = useState(true);
+  /** Settings steps aside so text size can be judged against the real page. */
+  const [scalingText, setScalingText] = useState(false);
 
   useEffect(() => {
     // The OS notification carries the words; this carries the sound, because the app
@@ -145,6 +150,7 @@ export default function App() {
       .then((entries) => {
         const settings = new Map(entries);
         applyTheme(settings.get(SETTING_THEME) ?? DEFAULT_THEME);
+        hydrateAppearance(settings);
 
         // Launch at login is on unless the user turns it off. A streak that dies because
         // the laptop rebooted and nobody reopened the app is a streak the app lost, not
@@ -544,12 +550,21 @@ export default function App() {
 
             {view === "overview" && (
               <>
-                <LiveStatusHeader
-                  status={status}
-                  sessionSeconds={sessionSeconds}
-                  paused={paused}
-                  work={currentWork}
-                />
+                {/* The header narrows to make room whenever a block is running; with
+                    nothing scheduled it takes the full width and no timer appears. */}
+                <div className="flex shrink-0 flex-wrap gap-5">
+                  <div className="min-w-0 flex-1">
+                    <LiveStatusHeader
+                      status={status}
+                      sessionSeconds={sessionSeconds}
+                      paused={paused}
+                      work={currentWork}
+                    />
+                  </div>
+                  {currentWork && (
+                    <SessionTimer work={currentWork} category={status?.category ?? "Neutral"} />
+                  )}
+                </div>
                 {/* Fills what is left of the viewport rather than growing past it, so
                     Today is a dashboard you read at a glance instead of a page you
                     scroll. `min-h-0` is what lets the children shrink inside it. */}
@@ -689,7 +704,16 @@ export default function App() {
         }
       />
 
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onPreviewTextSize={() => {
+          setSettingsOpen(false);
+          setScalingText(true);
+        }}
+      />
+
+      <TextScalePreview open={scalingText} onClose={() => setScalingText(false)} />
     </div>
   );
 }

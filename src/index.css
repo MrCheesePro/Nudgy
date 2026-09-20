@@ -31,6 +31,24 @@ body,
   height: 100%;
 }
 
+/* A chosen background sits behind everything, dimmed by the canvas colour so text keeps
+ * its contrast. `--app-background` is `none` until one is picked, which costs nothing. */
+:root {
+  --app-background: none;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--app-background);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 body {
   margin: 0;
   background: var(--color-canvas);

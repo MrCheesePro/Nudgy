@@ -16,6 +16,9 @@ export interface CurrentWork {
   planPercent: number | null;
   workedSeconds: number;
   estimateSeconds: number;
+  /** The plan's own session shape, so the timer counts its sittings and not a guess. */
+  focusSeconds: number;
+  breakSeconds: number;
   /** The app this block is verified against is in front. Styling only. */
   matchingProcess: boolean;
   idle: boolean;
@@ -64,6 +67,9 @@ export function useCurrentWork(
       planPercent: plan ? Math.min(100, plan.percent) : null,
       workedSeconds: plan?.workedSeconds ?? 0,
       estimateSeconds: plan?.plan.estimateSeconds ?? 0,
+      // A standalone block has no plan; the block itself is then the whole sitting.
+      focusSeconds: plan?.plan.focusSeconds ?? block.endTs - block.startTs,
+      breakSeconds: plan?.plan.breakSeconds ?? 0,
       matchingProcess:
         live !== null &&
         (block.targetProcess === null ||

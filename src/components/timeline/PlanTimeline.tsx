@@ -206,7 +206,7 @@ export function PlanTimeline({
             <button
               type="button"
               onClick={() => onWeekOffset(0)}
-              className="rounded-lg border border-edge px-2.5 py-1 text-[11px] text-ink-soft transition hover:border-edge-strong"
+              className="rounded-lg border border-edge px-2.5 py-1 text-[0.6875rem] text-ink-soft transition hover:border-edge-strong"
             >
               This week
             </button>
@@ -255,7 +255,7 @@ export function PlanTimeline({
         })}
       </div>
 
-      <div className="mt-3 flex gap-2 border-b border-edge pb-2 pl-14 text-[10px] font-semibold tracking-widest text-ink-mute uppercase">
+      <div className="mt-3 flex gap-2 border-b border-edge pb-2 pl-14 text-[0.625rem] font-semibold tracking-widest text-ink-mute uppercase">
         <span className="w-[38%]">Calendar</span>
         <span className="flex-1">Plan</span>
       </div>
@@ -268,7 +268,7 @@ export function PlanTimeline({
             {hours.slice(0, -1).map((ts) => (
               <span
                 key={ts}
-                className="absolute right-2 font-mono text-[10px] text-ink-mute"
+                className="absolute right-2 font-mono text-[0.625rem] text-ink-mute"
                 style={{ top: toY(ts) - 5 }}
               >
                 {new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric" })}
@@ -323,19 +323,19 @@ export function PlanTimeline({
                       style={{ background: color }}
                     />
                     <span
-                      className="block truncate text-[11px] leading-tight font-semibold"
+                      className="block truncate text-[0.6875rem] leading-tight font-semibold"
                       style={{ color }}
                     >
                       {event.summary}
                     </span>
-                    <span className="block truncate font-mono text-[9px] text-ink-mute">
+                    <span className="block truncate font-mono text-[0.5625rem] text-ink-mute">
                       {formatClock(event.startTs)} – {formatClock(event.endTs)}
                       {height >= 52 && ` · ${spanLabel(event.startTs, event.endTs)}`}
                     </span>
                     {/* Whatever the organiser typed — a room, a building, an address.
                         Shown as-is; nothing is inferred from it. */}
                     {event.location && height >= 62 && (
-                      <span className="block truncate text-[9px] text-ink-mute">
+                      <span className="block truncate text-[0.5625rem] text-ink-mute">
                         {event.location}
                       </span>
                     )}
@@ -377,7 +377,7 @@ export function PlanTimeline({
                     />
 
                     <span
-                      className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-tight font-semibold"
+                      className="flex min-w-0 items-center gap-1 truncate text-[0.6875rem] leading-tight font-semibold"
                       style={{ color: bar.done ? "var(--color-ink-mute)" : color }}
                     >
                       {running && (
@@ -394,13 +394,13 @@ export function PlanTimeline({
                     {/* Start to end, then how long that is — the two questions a block on
                         a calendar gets asked, in the order they get asked. A block too
                         short for the second line keeps the first. */}
-                    <span className="block truncate font-mono text-[9px] text-ink-mute">
+                    <span className="block truncate font-mono text-[0.5625rem] text-ink-mute">
                       {formatClock(bar.startTs)} – {formatClock(bar.endTs)}
                       {height >= 52 && ` · ${spanLabel(bar.startTs, bar.endTs)}`}
                     </span>
 
                     {bar.courseCode && height >= 68 && (
-                      <span className="mt-0.5 w-fit shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[9px] font-medium text-ink-soft">
+                      <span className="mt-0.5 w-fit shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[0.5625rem] font-medium text-ink-soft">
                         {bar.courseCode}
                       </span>
                     )}
@@ -416,7 +416,7 @@ export function PlanTimeline({
                             }}
                           />
                         </div>
-                        <span className="shrink-0 font-mono text-[10px] font-semibold text-ink-soft">
+                        <span className="shrink-0 font-mono text-[0.625rem] font-semibold text-ink-soft">
                           {bar.percent}%
                         </span>
                       </div>

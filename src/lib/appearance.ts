@@ -1,0 +1,167 @@
+import { useSyncExternalStore } from "react";
+
+import { setSetting } from "./ipc";
+
+/**
+ * Text size, typeface and background — the three things that make an app yours.
+ *
+ * All applied the way [theme.ts](./theme.ts) applies colour: properties written onto
+ * `:root`, so no component learns any of this exists. Text size is a root `font-size`,
+ * which is why the codebase uses `rem` throughout — a pixel size would sit still while
+ * everything around it grew, and half a scaled UI looks broken rather than scaled.
+ */
+
+export const SETTING_TEXT_SCALE = "text_scale";
+export const SETTING_FONT = "font_family";
+export const SETTING_BACKGROUND = "background_image";
+
+/** The browser default, and the number the slider reads as 100%. */
+const BASE_PX = 16;
+
+export const MIN_SCALE = 0.8;
+export const MAX_SCALE = 1.5;
+
+export interface FontChoice {
+  id: string;
+  name: string;
+  /** Empty means the app's own stack; otherwise a family to load from Google Fonts. */
+  google: string;
+  stack: string;
+}
+
+export const FONTS: FontChoice[] = [
+  { id: "default", name: "Inter (default)", google: "", stack: "" },
+  { id: "system", name: "System", google: "", stack: "ui-sans-serif, system-ui, sans-serif" },
+  { id: "serif", name: "Serif", google: "", stack: "ui-serif, Georgia, Cambria, serif" },
+  { id: "lora", name: "Lora", google: "Lora", stack: '"Lora", ui-serif, Georgia, serif' },
+  {
+    id: "nunito",
+    name: "Nunito",
+    google: "Nunito",
+    stack: '"Nunito", ui-sans-serif, system-ui, sans-serif',
+  },
+  {
+    id: "jetbrains",
+    name: "JetBrains Mono",
+    google: "JetBrains Mono",
+    stack: '"JetBrains Mono", ui-monospace, monospace',
+  },
+  {
+    id: "atkinson",
+    name: "Atkinson Hyperlegible",
+    google: "Atkinson Hyperlegible",
+    stack: '"Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif',
+  },
+];
+
+export interface Appearance {
+  scale: number;
+  /** A `FONTS` id, or a raw Google Fonts family name the user typed. */
+  font: string;
+  /** A URL or data URI drawn behind the app, or empty for none. */
+  background: string;
+}
+
+export const DEFAULT_APPEARANCE: Appearance = {
+  scale: 1,
+  font: "default",
+  background: "",
+};
+
+let current: Appearance = { ...DEFAULT_APPEARANCE };
+const listeners = new Set<() => void>();
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function useAppearance(): Appearance {
+  return useSyncExternalStore(subscribe, () => current);
+}
+
+const FONT_LINK_ID = "nudgy-google-font";
+
+/**
+ * Loads a Google Fonts family by name.
+ *
+ * A name rather than a file: no picker, no copying into app data, no format to sniff,
+ * and the same one word works on every machine the account is used from. The cost is
+ * that a custom family needs the network once — the built-in choices never do.
+ */
+function loadGoogleFont(family: string) {
+  const existing = document.getElementById(FONT_LINK_ID);
+  if (!family) {
+    existing?.remove();
+    return;
+  }
+
+  const href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(
+    family,
+  ).replace(/%20/g, "+")}:wght@400;500;600;700&display=swap`;
+
+  const link = (existing as HTMLLinkElement | null) ?? document.createElement("link");
+  link.id = FONT_LINK_ID;
+  link.rel = "stylesheet";
+  if (link.href !== href) link.href = href;
+  if (!existing) document.head.appendChild(link);
+}
+
+/** Writes the appearance onto `:root`. Everything follows from these three properties. */
+export function applyAppearance(next: Partial<Appearance>) {
+  current = { ...current, ...next };
+  const root = document.documentElement;
+
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.scale));
+  root.style.fontSize = `${BASE_PX * scale}px`;
+
+  const known = FONTS.find((entry) => entry.id === current.font);
+  if (known) {
+    loadGoogleFont(known.google);
+    // An empty stack means the app's own — clearing the property is how it goes back,
+    // rather than restating the default here and having two places to keep in step.
+    if (known.stack) root.style.setProperty("--font-sans", known.stack);
+    else root.style.removeProperty("--font-sans");
+  } else if (current.font.trim()) {
+    // Anything else is treated as a Google Fonts family the user typed.
+    const family = current.font.trim();
+    loadGoogleFont(family);
+    root.style.setProperty(
+      "--font-sans",
+      `"${family}", ui-sans-serif, system-ui, sans-serif`,
+    );
+  }
+
+  root.style.setProperty(
+    "--app-background",
+    current.background ? `url("${CSS.escape(current.background).replace(/\\"/g, '"')}")` : "none",
+  );
+
+  for (const listener of listeners) listener();
+}
+
+/** Applies and persists. Each key is written separately so a partial save is coherent. */
+export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
+  applyAppearance(next);
+  const writes: Promise<unknown>[] = [];
+  if (next.scale !== undefined) {
+    writes.push(setSetting(SETTING_TEXT_SCALE, String(current.scale)));
+  }
+  if (next.font !== undefined) writes.push(setSetting(SETTING_FONT, current.font));
+  if (next.background !== undefined) {
+    writes.push(setSetting(SETTING_BACKGROUND, current.background));
+  }
+  await Promise.all(writes);
+}
+
+/** Reads what was stored at startup, before anything renders against the defaults. */
+export function hydrateAppearance(settings: Map<string, string>) {
+  const scale = Number(settings.get(SETTING_TEXT_SCALE));
+  applyAppearance({
+    scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
+    font: settings.get(SETTING_FONT) ?? "default",
+    background: settings.get(SETTING_BACKGROUND) ?? "",
+  });
+}

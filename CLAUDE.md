@@ -74,6 +74,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/CanvasSyncSidebar.tsx` | Right panel: Canvas link, in-progress plans, coursework, user goals, focus-block picker |
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
+| `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
+| `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,
@@ -207,7 +209,17 @@ wrong data.
     keeps the seconds shown when pause was pressed; resuming shifts `session_started_at`
     back by that much so the counter carries on. Reporting zero made a pause look like a
     lost sitting.
-30. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
+30. **Type sizes are `rem`, never pixels.** Text size is a root `font-size`, which only
+    cascades through relative units — a hardcoded `text-[11px]` would sit still while
+    everything around it grew, and half a scaled UI reads as broken rather than scaled.
+    Fixed pixels are reserved for things that should *not* grow with body text: icon
+    boxes, rails, the width of a chip.
+31. **The timer is a view, not a source.** `SessionTimer` derives its phase from the
+    block's start and the plan's own lengths, so it is right whenever you look —
+    including after an hour with the app closed, which a counter would have to guess at.
+    It writes nothing: what counts as work done stays what the watcher measured, so a
+    countdown running against an app you are not using advances nothing.
+32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
 

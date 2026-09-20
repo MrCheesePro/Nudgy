@@ -62,7 +62,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
           y={y - 5}
           textAnchor={anchor}
           fill="var(--color-ink)"
-          fontSize={12}
+          fontSize="0.75rem"
           fontWeight={600}
         >
           {name}
@@ -72,7 +72,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
           y={y + 9}
           textAnchor={anchor}
           fill="var(--color-ink-mute)"
-          fontSize={11}
+          fontSize="0.6875rem"
           fontFamily="var(--font-mono)"
         >
           {`${formatDuration(value)} · ${Math.round(percent * 100)}%`}
@@ -86,7 +86,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
             textAnchor={anchor}
             fill="var(--color-rose-deep)"
             fillOpacity={streakHeat(run, lit)}
-            fontSize={10}
+            fontSize="0.625rem"
             fontWeight={600}
           >
             {lit
@@ -101,7 +101,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
       <div className="flex shrink-0 items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-widest text-ink-soft uppercase">
+        <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
           Tracked today
         </h2>
         <span className="text-xs text-ink-mute">
@@ -157,7 +157,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
               {tiny.map((entry) => (
                 <li
                   key={entry.category}
-                  className="flex items-center gap-1.5 text-[11px] text-ink-mute"
+                  className="flex items-center gap-1.5 text-[0.6875rem] text-ink-mute"
                 >
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"

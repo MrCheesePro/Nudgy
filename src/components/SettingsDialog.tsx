@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyRound, TriangleAlert, X } from "lucide-react";
+import { KeyRound, TriangleAlert, Type, X } from "lucide-react";
 
 import {
   clearActivityData,
@@ -11,6 +11,7 @@ import {
   setSetting,
 } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
+import { FONTS, saveAppearance, useAppearance } from "../lib/appearance";
 import { CHIMES, playChime, type ChimeId } from "../lib/chime";
 import { readPref, writePref } from "../lib/prefs";
 import { chooseTheme, THEMES, useTheme } from "../lib/theme";
@@ -29,6 +30,8 @@ import {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Closes Settings and hands the page over to the live text-size slider. */
+  onPreviewTextSize: () => void;
 }
 
 
@@ -40,7 +43,7 @@ interface SettingsForm {
 
 const EMPTY_FORM: SettingsForm = { canvasUrl: "", lmsProvider: "canvas" };
 
-export function SettingsDialog({ open, onClose }: Props) {
+export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
   const [form, setForm] = useState<SettingsForm>(EMPTY_FORM);
   /** What was loaded from disk — the yardstick for "has anything changed?". */
   const [baseline, setBaseline] = useState<SettingsForm>(EMPTY_FORM);
@@ -63,6 +66,9 @@ export function SettingsDialog({ open, onClose }: Props) {
   const [wiping, setWiping] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const theme = useTheme();
+  const appearance = useAppearance();
+  const [customFont, setCustomFont] = useState("");
+  const [background, setBackground] = useState(appearance.background);
   const [autostart, setAutostart] = useState(false);
 
   useEffect(() => {
@@ -87,6 +93,8 @@ export function SettingsDialog({ open, onClose }: Props) {
       setCanvasToken("");
       setCalendarUrl("");
       setLmsFeed("");
+      setBackground(appearance.background);
+      setCustomFont(FONTS.some((entry) => entry.id === appearance.font) ? "" : appearance.font);
       setStatus(null);
       setConfirmingClose(false);
     })();
@@ -231,7 +239,7 @@ export function SettingsDialog({ open, onClose }: Props) {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-ink">Settings</h2>
             {dirty && (
-              <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-medium text-warn">
+              <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[0.625rem] font-medium text-warn">
                 Unsaved
               </span>
             )}
@@ -248,6 +256,113 @@ export function SettingsDialog({ open, onClose }: Props) {
 
         <div className="mt-6 space-y-5">
           <div>
+            <span className="text-xs font-medium tracking-wide text-ink-soft">
+              Text size
+            </span>
+            <p className="mt-1 text-xs text-ink-mute">
+              Judged against the real page rather than a sample — Settings steps aside and
+              a slider appears over the app.
+            </p>
+            <button
+              type="button"
+              onClick={onPreviewTextSize}
+              className="mt-2 flex items-center gap-2 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
+            >
+              <Type size={13} />
+              Adjust — currently {Math.round(appearance.scale * 100)}%
+            </button>
+          </div>
+
+          <div className="border-t border-edge pt-5">
+            <label className="block">
+              <span className="text-xs font-medium tracking-wide text-ink-soft">
+                Typeface
+              </span>
+              <select
+                value={FONTS.some((f) => f.id === appearance.font) ? appearance.font : "custom"}
+                onChange={(event) => {
+                  const id = event.target.value;
+                  if (id === "custom") {
+                    setCustomFont("");
+                    void saveAppearance({ font: "" });
+                  } else {
+                    void saveAppearance({ font: id });
+                  }
+                }}
+                className="mt-1.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
+              >
+                {FONTS.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+                <option value="custom">Something from Google Fonts…</option>
+              </select>
+            </label>
+
+            {!FONTS.some((entry) => entry.id === appearance.font) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  value={customFont}
+                  onChange={(event) => setCustomFont(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && customFont.trim()) {
+                      void saveAppearance({ font: customFont.trim() });
+                    }
+                  }}
+                  placeholder="Source Serif 4"
+                  className="min-w-40 flex-1 rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
+                />
+                <button
+                  type="button"
+                  disabled={!customFont.trim()}
+                  onClick={() => void saveAppearance({ font: customFont.trim() })}
+                  className="rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong disabled:opacity-40"
+                >
+                  Use it
+                </button>
+                <p className="w-full text-[0.6875rem] text-ink-mute">
+                  Any family name from fonts.google.com, spelled as it is there. Fetched
+                  once, then cached — the built-in choices never touch the network.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-edge pt-5">
+            <label className="block">
+              <span className="text-xs font-medium tracking-wide text-ink-soft">
+                Background
+              </span>
+              <input
+                value={background}
+                onChange={(event) => setBackground(event.target.value)}
+                onBlur={() => void saveAppearance({ background: background.trim() })}
+                placeholder="https://… or leave empty"
+                className="mt-1.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
+              />
+            </label>
+            <p className="mt-1 text-xs text-ink-mute">
+              An image URL, drawn behind the app and dimmed so text keeps its contrast.
+              {background.trim() && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBackground("");
+                      void saveAppearance({ background: "" });
+                    }}
+                    className="text-ink-soft underline"
+                  >
+                    Remove it
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="border-t border-edge pt-5">
             <span className="text-xs font-medium tracking-wide text-ink-soft">Colours</span>
             <p className="mt-1 text-xs text-ink-mute">
               Applies straight away. Category colours are set on the App registry tab and
@@ -408,7 +523,7 @@ export function SettingsDialog({ open, onClose }: Props) {
                 Play
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-ink-mute">
+            <p className="mt-1 text-[0.6875rem] text-ink-mute">
               Zero minutes means "tell me as it starts". A task can override this with its
               own warning when you plan it.
             </p>
@@ -588,7 +703,7 @@ function SecretField({
         <span className="flex items-center gap-1.5">
           {label}
           {stored && (
-            <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-[9px] font-medium text-ok">
+            <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-[0.5625rem] font-medium text-ok">
               saved
             </span>
           )}

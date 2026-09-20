@@ -26,7 +26,7 @@ export function CheckinPrompt({ checkin, onAnswer }: Props) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/30 p-8 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl border border-edge bg-surface p-6 shadow-2xl">
-        <span className="text-[11px] font-semibold tracking-widest text-rose-deep uppercase">
+        <span className="text-[0.6875rem] font-semibold tracking-widest text-rose-deep uppercase">
           Checking in
         </span>
         <h2 className="mt-2 text-lg font-semibold text-ink">{plan.title}</h2>
