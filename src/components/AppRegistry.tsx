@@ -224,6 +224,21 @@ export function AppRegistry() {
     }
   };
 
+  /**
+   * Nothing until the first read lands.
+   *
+   * The page animates its panels as they mount, and these two are the only views that
+   * fetch when you arrive rather than reading state the app already holds. Rendering the
+   * empty shell first spent the whole animation on a blank card and then painted the real
+   * content, unanimated, once the query came back — which is why switching here looked
+   * like nothing happened. Mounting on the data instead means the panels animate when
+   * there is something to see.
+   *
+   * Safe because `loading` is one-way: it starts true and is only ever set false, so a
+   * later refresh updates in place rather than replaying the entrance.
+   */
+  if (loading) return null;
+
   return (
     <>
       {failure && (
