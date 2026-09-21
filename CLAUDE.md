@@ -72,6 +72,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/timeline/PlanTimeline.tsx` | The chart: day strip, vertical hour axis, Calendar and Plan columns for the selected day |
 | `src/components/AddTaskDialog.tsx` | The only way to add a task by hand: title, time, activity type |
 | `src/components/TimeField.tsx` | The clock you type straight through; rules in `lib/clockInput.ts` |
+| `src/components/DateField.tsx` | The same for a date; rules in `lib/dateInput.ts` |
 | `src/components/GeneratePlanDialog.tsx` | Walks the unplanned queue, proposes one real gap at a time, writes only what is accepted |
 | `src/components/CanvasSyncSidebar.tsx` | Right panel: Canvas link, in-progress plans, coursework, user goals, focus-block picker |
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
@@ -303,3 +304,8 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     in a test, not in a control. It reports 24-hour `HH:MM` so nothing downstream knows,
     and **"" until all three segments are set** — a half-typed hour that resolved to a real
     time would have the planner acting on 1:00 while somebody was still typing 1:45.
+    `DateField` is the same control for a date, and refuses a day its month does not have:
+    a `Date` rolls 31 February into March, and a deadline that silently moves a month is
+    worse than one that will not be typed. Both settle from a ref rather than from state —
+    advancing the caret fires the old segment's `onBlur` in the same turn as the
+    `onChange` that filled it, and reading the render before it empties what was typed.

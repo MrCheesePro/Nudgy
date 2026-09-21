@@ -69,6 +69,14 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
       }`}
       role="group"
       aria-label={label}
+      onMouseDown={(event) => {
+        // Clicking the frame — the colon, the padding — starts at the hour rather than
+        // doing nothing and leaving you to aim at a six-pixel box.
+        if (event.target === event.currentTarget) {
+          event.preventDefault();
+          hour.current?.focus();
+        }
+      }}
     >
       <input
         ref={hour}
@@ -77,7 +85,13 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
         inputMode="numeric"
         placeholder="--"
         aria-label={`${label}, hour`}
-        onFocus={(event) => event.target.select()}
+        // The caret starts at the front of an empty segment rather than behind the
+        // placeholder; a filled one is selected, so typing replaces it.
+        onFocus={(event) =>
+          event.target.value
+            ? event.target.select()
+            : event.target.setSelectionRange(0, 0)
+        }
         onChange={(event) => {
           const step = applyDigit(latest.current, "hour", event.target.value);
           commit(step.parts);
@@ -102,7 +116,13 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
         inputMode="numeric"
         placeholder="--"
         aria-label={`${label}, minute`}
-        onFocus={(event) => event.target.select()}
+        // The caret starts at the front of an empty segment rather than behind the
+        // placeholder; a filled one is selected, so typing replaces it.
+        onFocus={(event) =>
+          event.target.value
+            ? event.target.select()
+            : event.target.setSelectionRange(0, 0)
+        }
         onChange={(event) => {
           const step = applyDigit(latest.current, "minute", event.target.value);
           commit(step.parts);

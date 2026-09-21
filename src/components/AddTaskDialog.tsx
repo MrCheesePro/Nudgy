@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
+import { DateField } from "./DateField";
 import { TimeField } from "./TimeField";
 import { resolveAppForText } from "../lib/ipc";
 import { categoryColor, useAssignableCategories } from "../lib/categories";
@@ -163,23 +164,15 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
               Due <span className="text-ink-mute">(optional)</span>
             </span>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <input
-                type="date"
+              <DateField
                 value={dueDate}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setDueDate(next);
-                  // Only on the way from empty to filled, and only once the date is
-                  // whole. Jumping on every change would move the caret out of the
-                  // field while someone was correcting the month they already typed.
-                  if (!dueDate && next) {
-                    // After the paint that enables the time field — focusing a disabled
-                    // input does nothing, and it is disabled until this state lands.
-                    requestAnimationFrame(() => dueTimeRef.current?.focus());
-                  }
-                }}
-                aria-label="Due date"
-                className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
+                onChange={setDueDate}
+                label="Due date"
+                // After the paint that enables the time field — focusing a disabled input
+                // does nothing, and it stays disabled until the date lands in state.
+                onComplete={() =>
+                  requestAnimationFrame(() => dueTimeRef.current?.focus())
+                }
               />
               <TimeField
                 hourRef={dueTimeRef}

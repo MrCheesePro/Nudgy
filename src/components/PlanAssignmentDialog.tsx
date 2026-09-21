@@ -341,14 +341,14 @@ export function PlanAssignmentDialog({
             />
             <span className="text-xs text-ink-mute">min</span>
           </div>
-          <p className="mt-1.5 text-xs text-ink-mute">
-            {item.planId === null
-              ? "A guess is fine."
-              : "Saving replaces the existing blocks for this item, and restarts its progress."}
-            {item.targetAppName
-              ? ` Verified against ${item.targetAppName}.`
-              : " Verified against any active time in these blocks."}
-          </p>
+          {/* Only the consequence of re-planning is worth a line here. What the work is
+              verified against is not something the estimate box can change. */}
+          {item.planId !== null && (
+            <p className="mt-1.5 text-xs text-ink-mute">
+              Saving replaces the existing blocks for this item, and restarts its
+              progress.
+            </p>
+          )}
         </div>
 
         <div className="mt-5">
@@ -516,11 +516,9 @@ export function PlanAssignmentDialog({
                 Any time
               </button>
             )}
-            <span className="text-xs text-ink-mute">
-              {startTime
-                ? "Starts exactly here if it fits."
-                : "Pick a day or let Nudgy choose."}
-            </span>
+            {startTime && (
+              <span className="text-xs text-ink-mute">Starts exactly here if it fits.</span>
+            )}
           </div>
         </div>
 
