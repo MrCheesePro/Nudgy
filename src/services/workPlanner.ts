@@ -224,10 +224,15 @@ export function placeWork(input: PlacementInput): Placement {
       // fifth of the session, so 45 + 9 would walk every later block off the marks.
       let cursor = nextBoundary(slot.startTs);
 
-      while (remaining > 0 && slot.endTs - cursor >= MIN_SESSION_SECONDS) {
+      // The floor is the smaller of the minimum sitting and whatever is left to do, so
+      // a five-minute job is a five-minute session and the last five minutes of a long
+      // plan are placed rather than reported as a shortfall. Recomputed each pass because
+      // `remaining` shrinks: the floor only relaxes once the work itself is the short
+      // thing, never to justify chopping a big plan into slivers.
+      while (remaining > 0 && slot.endTs - cursor >= Math.min(MIN_SESSION_SECONDS, remaining)) {
         const available = slot.endTs - cursor;
         const session = Math.min(input.focusSeconds, remaining, available);
-        if (session < MIN_SESSION_SECONDS) break;
+        if (session < Math.min(MIN_SESSION_SECONDS, remaining)) break;
 
         blocks.push({
           day: day.key,

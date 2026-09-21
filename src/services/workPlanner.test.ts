@@ -342,6 +342,56 @@ describe("short work", () => {
     expect(placement.reason).toBeNull();
   });
 
+  /**
+   * Pomodoro is the default mode, and it had the same floor in two more places — so the
+   * first fix, which only touched the continuous branch, left the case anybody would
+   * actually hit still broken.
+   */
+  it("places an estimate shorter than a session in pomodoro mode", () => {
+    const start = 1_600_000_000;
+    const placement = placeWork({
+      estimateSeconds: 5 * 60,
+      focusSeconds: 25 * 60,
+      breakSeconds: 5 * 60,
+      mode: "pomodoro",
+      now: start,
+      dueAt: start + 3 * 3600,
+      days: [{ key: "2020-09-13", startTs: start, endTs: start + 8 * 3600, commitments: [] }],
+    });
+
+    expect(placement.blocks).toHaveLength(1);
+    expect(placement.placedSeconds).toBe(5 * 60);
+    expect(placement.reason).toBeNull();
+  });
+
+  // The floor relaxes for the tail of a plan, not for the whole of one.
+  it("still refuses to chop a long plan into slivers", () => {
+    const start = 1_600_000_000;
+    const placement = placeWork({
+      estimateSeconds: 2 * 3600,
+      focusSeconds: 25 * 60,
+      breakSeconds: 5 * 60,
+      mode: "pomodoro",
+      now: start,
+      dueAt: start + 20 * 1_020,
+      days: [
+        {
+          key: "2020-09-13",
+          startTs: start,
+          // The day is exactly the commitments, so seven-minute gaps are all there is.
+          endTs: start + 20 * 1_020,
+          commitments: Array.from({ length: 20 }, (_, index) => ({
+            startTs: start + index * 1_020 + 420,
+            endTs: start + (index + 1) * 1_020,
+            label: "busy",
+          })),
+        },
+      ],
+    });
+
+    expect(placement.blocks).toHaveLength(0);
+  });
+
   it("still refuses when the gap is shorter than the work", () => {
     const start = 1_600_000_000;
     const placement = placeWork({
