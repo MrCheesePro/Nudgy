@@ -322,3 +322,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     time listens for `nudgy://flushed` — a poll alone leaves the number a minute behind the
     work it describes. Shortening the flush costs transactions, not rows; shortening the
     tick costs rows, which is why the two are tuned separately.
+38. **The window has one shape.** The layout is locked to 59:40 — the proportions it was
+    drawn at — and every bound in `tauri.conf.json` sits on that ratio, from 1062x720 to
+    2124x1440. Stretched wide the Today panels become letterboxes with a field of empty
+    card inside them; squeezed tall the timeline and the sync column fight over a strip.
+    Locking it means every size is the same design at a different scale. AppKit enforces
+    it natively via `setContentAspectRatio`, so a drag on any edge scales both and there is
+    never a frame at the wrong shape — no resize handler correcting a size after the fact.
+    Windows keeps the bounds but not yet the ratio: it has no equivalent flag, only
+    `WM_SIZING` and the arithmetic by hand.

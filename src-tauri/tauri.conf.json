@@ -14,15 +14,16 @@
       {
         "label": "main",
         "title": "Nudgy",
-        "width": 1180,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 620,
-        "resizable": false,
+        "width": 1416,
+        "height": 960,
+        "minWidth": 1062,
+        "minHeight": 720,
+        "resizable": true,
         "visible": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "maximized": true
+        "maxWidth": 2124,
+        "maxHeight": 1440
       }
     ],
     "security": {

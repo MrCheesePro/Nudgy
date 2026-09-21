@@ -58,6 +58,42 @@ fn seed_file_path(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
+/// The proportions the layout was drawn at, and the only shape the window takes.
+///
+/// A dashboard has a shape. Stretched wide the Today panels become letterboxes with a
+/// field of empty card between their content and their edges; squeezed tall the timeline
+/// and the sync column fight over a strip. Locking the ratio means every size is the same
+/// design at a different scale, and the bounds in `tauri.conf.json` sit on this ratio too.
+#[cfg(target_os = "macos")]
+const ASPECT: (f64, f64) = (59.0, 40.0);
+
+/// Constrains live resizing to `ASPECT`, so dragging any edge scales both.
+///
+/// AppKit does this natively once told the ratio — it applies to a drag on any edge and
+/// to the zoom button, so there is no resize handler correcting a size after the fact and
+/// no frame where the window is the wrong shape. `setContentAspectRatio` rather than
+/// `setAspectRatio` because the page is what has to keep its proportions.
+///
+/// There is no equivalent flag on Windows: it means handling `WM_SIZING` and doing the
+/// arithmetic per drag. The bounds still apply there; the ratio does not, yet.
+#[cfg(target_os = "macos")]
+fn lock_aspect_ratio(window: &tauri::WebviewWindow) {
+    use objc2::rc::Retained;
+    use objc2_app_kit::NSWindow;
+    use objc2_foundation::NSSize;
+
+    let Ok(handle) = window.ns_window() else {
+        log::warn!("no native window handle; window can be resized to any shape");
+        return;
+    };
+
+    // Tauri hands back the NSWindow it owns; borrowing it for one setter does not take
+    // ownership, so it is retained and released around the call rather than dropped.
+    let ns: Retained<NSWindow> = unsafe { Retained::retain(handle.cast::<NSWindow>()) }
+        .expect("ns_window returned a live window");
+    ns.setContentAspectRatio(NSSize::new(ASPECT.0, ASPECT.1));
+}
+
 fn setup(app: &AppHandle) -> Result<()> {
     let path = database_path(app)?;
     let connection = db::open(&path)?;
@@ -82,6 +118,12 @@ fn setup(app: &AppHandle) -> Result<()> {
     checkin::spawn(app.clone());
     nudge::spawn(app.clone());
     reminder::spawn(app.clone());
+
+    #[cfg(target_os = "macos")]
+    if let Some(window) = app.get_webview_window("main") {
+        lock_aspect_ratio(&window);
+    }
+
     Ok(())
 }
 
