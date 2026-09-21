@@ -13,6 +13,7 @@ import {
 } from "./components/PlanAssignmentDialog";
 import { AppRegistry } from "./components/AppRegistry";
 import { ProgressPage } from "./components/ProgressPage";
+import { PanelLayout } from "./components/PanelLayout";
 import { SessionTimer } from "./components/SessionTimer";
 import { TextScalePreview } from "./components/TextScalePreview";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -118,6 +119,8 @@ export default function App() {
   const [notifications, setNotifications] = useState(true);
   /** Settings steps aside so text size can be judged against the real page. */
   const [scalingText, setScalingText] = useState(false);
+  /** Puts handles on the Today panels so they can be resized and reordered in place. */
+  const [editingLayout, setEditingLayout] = useState(false);
 
   useEffect(() => {
     // The OS notification carries the words; this carries the sound, because the app
@@ -526,6 +529,8 @@ export default function App() {
           paused={paused}
           onTogglePause={() => void togglePause()}
           alerts={alerts}
+          editingLayout={editingLayout}
+          onToggleLayout={view === "overview" ? () => setEditingLayout((on) => !on) : undefined}
           notifications={notifications}
           onToggleNotifications={() => void toggleNotifications()}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -571,10 +576,14 @@ export default function App() {
                 {/* The grid takes whatever the header and the targets leave, and
                     "Where the time went" is the only thing inside it allowed to scroll —
                     it is the one panel whose length depends on how many apps you used. */}
-                <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[1.25fr_1fr]">
-                  <UsageBreakdown breakdown={breakdown} streaks={streaks} />
-                  <TopApps apps={apps} streaks={streaks} />
-                </div>
+                <PanelLayout
+                  editing={editingLayout}
+                  onDone={() => setEditingLayout(false)}
+                  panels={{
+                    breakdown: <UsageBreakdown breakdown={breakdown} streaks={streaks} />,
+                    apps: <TopApps apps={apps} streaks={streaks} />,
+                  }}
+                />
                 <div className="shrink-0">
   
                 </div>

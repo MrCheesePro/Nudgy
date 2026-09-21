@@ -76,6 +76,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
+| `src/lib/layout.ts` | Today's panel order, split and hidden list, repaired on every read |
+| `src/components/PanelLayout.tsx` | Renders those panels; in edit mode, the handles and the divider |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,
@@ -209,11 +211,14 @@ wrong data.
     keeps the seconds shown when pause was pressed; resuming shifts `session_started_at`
     back by that much so the counter carries on. Reporting zero made a pause look like a
     lost sitting.
-30. **Type sizes are `rem`, never pixels.** Text size is a root `font-size`, which only
-    cascades through relative units — a hardcoded `text-[11px]` would sit still while
-    everything around it grew, and half a scaled UI reads as broken rather than scaled.
-    Fixed pixels are reserved for things that should *not* grow with body text: icon
-    boxes, rails, the width of a chip.
+30. **Type sizes are `rem`, never pixels, and the two size sliders are different
+    mechanisms.** Every size in the `@theme` block multiplies `--text-scale`, so **Text**
+    moves the words and leaves the layout alone; a hardcoded `text-[11px]` would sit still
+    while everything around it grew. **Everything** is `zoom` on `#root`, which takes
+    icons, rings and fixed pixel widths with it. A root `font-size` would have been
+    neither — Tailwind's spacing is `rem` too, so it moved padding with type and left the
+    second slider with nothing of its own to do. A control that *sets* either one is
+    written in pixels and portalled out of `#root`, or it scales itself as you drag it.
 31. **The timer is a view, not a source.** `SessionTimer` derives its phase from the
     block's start and the plan's own lengths, so it is right whenever you look —
     including after an hour with the app closed, which a counter would have to guess at.
@@ -222,6 +227,15 @@ wrong data.
 32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
+33. **The layout is furniture, and it is repaired on read.** Today's panel order, split and
+    hidden list live in `localStorage` (`src/lib/layout.ts`) — per-viewer, never in SQLite,
+    never in Rust. The split is a *ratio*, so it survives a resized window and a different
+    monitor, which a stored pixel width gets wrong the moment you unplug. A stored layout
+    outlives the code that wrote it, so `normalise()` runs on every read and every write:
+    unknown panel ids are dropped, missing ones appended, a nonsense ratio falls back, and
+    hiding the last panel is refused — a blank page with no way back is not a layout
+    anybody chose. Edit mode is Today only and adds handles to the panels that are already
+    there; it never becomes a grid system that can be dragged into a state nothing renders.
 
 ## Secrets
 

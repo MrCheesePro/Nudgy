@@ -9,7 +9,8 @@
       "Bash(grep -qE 'Running `target/debug/nudgy`|error\\\\[|^error|could not compile' /private/tmp/claude-501/-Users-joshuayamamoto-kim-Developer-Nudge/44202893-b85b-4760-bfdc-89f9b9016cd2/scratchpad/dev.log)",
       "Bash(lsof -ti:1420)",
       "Bash(xargs kill -9)",
-      "Bash(grep -qE 'Running `target/debug/nudgy`|^error|could not compile|already in use' /private/tmp/claude-501/-Users-joshuayamamoto-kim-Developer-Nudge/44202893-b85b-4760-bfdc-89f9b9016cd2/scratchpad/dev.log)"
+      "Bash(grep -qE 'Running `target/debug/nudgy`|^error|could not compile|already in use' /private/tmp/claude-501/-Users-joshuayamamoto-kim-Developer-Nudge/44202893-b85b-4760-bfdc-89f9b9016cd2/scratchpad/dev.log)",
+      "Bash(rtk git *)"
     ]
   }
 }
