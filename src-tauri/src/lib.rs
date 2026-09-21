@@ -88,6 +88,22 @@ fn setup(app: &AppHandle) -> Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // First, before anything opens the database.
+        //
+        // A second copy of Nudgy is not a harmless duplicate window: both tick, both write
+        // a sample for every second they are awake, and the totals add up to more hours
+        // than the day holds. It happens by accident — the app launches at login, then you
+        // open it again, or run a development build beside the installed one — and the
+        // damage is silent, because inflated numbers still look like numbers.
+        //
+        // The second launch raises the window that is already tracking and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)

@@ -5,6 +5,7 @@ import {
   Circle,
   CircleCheckBig,
   Link2,
+  PanelRightClose,
   RefreshCw,
   X,
 } from "lucide-react";
@@ -49,6 +50,8 @@ interface Props {
   onDeletePlan: (id: number) => void;
   onRemoveGoal: (index: number) => void;
   onClearCompleted: () => void;
+  /** Folds the column away; the caller renders the tab that brings it back. */
+  onCollapse: () => void;
 }
 
 /**
@@ -78,6 +81,7 @@ export function CanvasSyncSidebar({
   onDeletePlan,
   onRemoveGoal,
   onClearCompleted,
+  onCollapse,
 }: Props) {
   // Every section collapses. In-progress work, coursework and goals start open because
   // they are the reason the panel exists; Completed starts closed because it is a record,
@@ -121,8 +125,20 @@ export function CanvasSyncSidebar({
 
   return (
     <aside className="flex w-90 shrink-0 flex-col border-l border-edge bg-surface">
-      <div className="px-5 pt-5">
-        <h2 className="text-sm font-semibold text-ink">Academic &amp; Project Sync</h2>
+      <div className="flex items-center gap-2 px-5 pt-5">
+        <h2 className="min-w-0 flex-1 text-sm font-semibold text-ink">
+          Academic &amp; Project Sync
+        </h2>
+        {/* Folds the column away when the day itself is what you want to look at. The
+            tab it leaves behind is the only way back, so it is never hidden. */}
+        <button
+          type="button"
+          onClick={onCollapse}
+          title="Hide this column"
+          className="shrink-0 rounded-lg p-1 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
+        >
+          <PanelRightClose size={15} />
+        </button>
       </div>
 
       <div className="scroll-area min-h-0 flex-1 space-y-5 px-5 py-4">

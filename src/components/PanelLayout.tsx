@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { Check, Eye, EyeOff, GripVertical, RotateCcw } from "lucide-react";
 
 import {
@@ -7,7 +7,6 @@ import {
   MAX_RATIO,
   MIN_RATIO,
   PANEL_NAMES,
-  reorder,
   useLayout,
   visiblePanels,
   type PanelId,
@@ -24,16 +23,18 @@ interface Props {
  * The two Today panels, arranged.
  *
  * Out of edit mode this is a grid and nothing more — no handles, no borders, no cost.
- * Edit mode adds a drag handle and a hide toggle to each panel and a draggable divider
- * between them, because "this one needs more room" is a layout question and answering it
- * anywhere but on the layout itself means guessing.
+ * Edit mode adds a hide toggle to each panel and a draggable divider between them,
+ * because "this one needs more room" is a layout question and answering it anywhere but
+ * on the layout itself means guessing.
+ *
+ * The order is fixed. Panels can be resized and hidden, not moved: reading left to right
+ * is the one thing about this page that should be the same on every machine.
  *
  * The split is a ratio rather than a pixel width, so it survives a resized window and a
  * different monitor — the thing a stored pixel width gets wrong the moment you unplug.
  */
 export function PanelLayout({ editing, onDone, panels }: Props) {
   const [layout, setLayout] = useLayout();
-  const [dragging, setDragging] = useState<PanelId | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const resizing = useRef(false);
 
@@ -77,29 +78,9 @@ export function PanelLayout({ editing, onDone, panels }: Props) {
         style={{ gridTemplateColumns: gridColumns(layout) }}
       >
         {visible.map((id, index) => (
-          <div
-            key={id}
-            className={`relative flex min-h-0 min-w-0 flex-col ${
-              dragging === id ? "opacity-40" : ""
-            }`}
-            onDragOver={(event) => editing && event.preventDefault()}
-            onDrop={() => {
-              if (!editing || !dragging) return;
-              setLayout({ ...layout, order: reorder(layout.order, dragging, id) });
-              setDragging(null);
-            }}
-          >
+          <div key={id} className="relative flex min-h-0 min-w-0 flex-col">
             {editing && (
-              <div className="absolute -top-3 left-3 z-10 flex items-center gap-1 rounded-full border border-edge bg-surface px-2 py-1 shadow-md">
-                <span
-                  draggable
-                  onDragStart={() => setDragging(id)}
-                  onDragEnd={() => setDragging(null)}
-                  className="cursor-grab text-ink-mute active:cursor-grabbing"
-                  title="Drag to reorder"
-                >
-                  <GripVertical size={12} />
-                </span>
+              <div className="absolute -top-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-edge bg-surface px-2.5 py-1 shadow-md">
                 <span className="text-micro font-medium text-ink-soft">
                   {PANEL_NAMES[id]}
                 </span>
@@ -144,7 +125,8 @@ export function PanelLayout({ editing, onDone, panels }: Props) {
       {editing && (
         <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-xl border border-edge bg-surface px-4 py-2.5">
           <span className="text-mini text-ink-mute">
-            Drag a panel's handle to reorder, or the divider between them to resize.
+            Drag the divider between the panels to resize them, or hide one you do not
+            want.
           </span>
 
           <span className="ml-auto flex items-center gap-2">

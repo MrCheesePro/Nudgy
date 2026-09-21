@@ -271,6 +271,24 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE schedule_blocks ADD COLUMN reminder_lead_seconds INTEGER;
     "#,
+    // 12 — one second of one app is one row.
+    //
+    //     Two copies of Nudgy running at once each recorded a sample every tick, and the
+    //     totals added up past twenty-four hours in a day. The duplicates are deleted
+    //     lowest-rowid-wins and a unique index makes the state unreachable from here on;
+    //     `insert_samples` uses OR IGNORE against it, so a replayed flush is dropped
+    //     rather than counted twice.
+    //
+    //     This does not repair a day two apps spent tracking in step — samples a second
+    //     apart are distinct rows and distinct seconds, and nothing here can tell which
+    //     copy wrote them. It stops the arithmetic being double-counted from now on.
+    r#"
+    DELETE FROM activity_samples WHERE rowid NOT IN (
+        SELECT MIN(rowid) FROM activity_samples GROUP BY ts, process_name
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_samples_tick
+        ON activity_samples(ts, process_name);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

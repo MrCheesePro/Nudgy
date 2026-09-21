@@ -6,7 +6,6 @@ import {
   MAX_RATIO,
   MIN_RATIO,
   normalise,
-  reorder,
   visiblePanels,
   type PanelId,
 } from "./layout";
@@ -17,12 +16,11 @@ describe("normalise", () => {
   });
 
   /**
-   * A stored layout outlives the code that wrote it. A panel renamed or removed since
-   * must not leave the page with something it cannot render.
+   * A stored layout outlives the code that wrote it. A panel removed since must not
+   * leave the page with something it cannot render.
    */
-  it("drops panels it no longer knows and appends ones it gained", () => {
-    const layout = normalise({ order: ["apps", "ghost"] as PanelId[] });
-    expect(layout.order).toEqual(["apps", "breakdown"]);
+  it("drops hidden ids it no longer knows", () => {
+    expect(normalise({ hidden: ["ghost"] as unknown as PanelId[] }).hidden).toEqual([]);
   });
 
   it("clamps a ratio dragged past either end", () => {
@@ -45,19 +43,12 @@ describe("normalise", () => {
   });
 });
 
-describe("reorder", () => {
-  const order: PanelId[] = ["breakdown", "apps"];
-
-  it("moves a panel to where the target was", () => {
-    expect(reorder(order, "apps", "breakdown")).toEqual(["apps", "breakdown"]);
-  });
-
-  it("does nothing when dropped on itself", () => {
-    expect(reorder(order, "apps", "apps")).toEqual(order);
-  });
-
-  it("does nothing when the target is not in the order", () => {
-    expect(reorder(["breakdown"], "breakdown", "apps")).toEqual(["breakdown"]);
+describe("visiblePanels", () => {
+  // Fixed left to right: the panels cannot be reordered, so nothing stored can change
+  // which one comes first.
+  it("keeps the order whatever is hidden", () => {
+    expect(visiblePanels(DEFAULT_LAYOUT)).toEqual(["breakdown", "apps"]);
+    expect(visiblePanels({ ...DEFAULT_LAYOUT, hidden: ["breakdown"] })).toEqual(["apps"]);
   });
 });
 

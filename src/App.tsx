@@ -43,7 +43,9 @@ import { listen } from "@tauri-apps/api/event";
 import { refreshCategories } from "./lib/categories";
 import { hydrateAppearance } from "./lib/appearance";
 import { playChime, type ChimeId } from "./lib/chime";
-import { readPref } from "./lib/prefs";
+import { PanelRightOpen } from "lucide-react";
+
+import { readPref, usePref } from "./lib/prefs";
 import { applyTheme, DEFAULT_THEME, SETTING_THEME } from "./lib/theme";
 import {
   enable as enableAutostart,
@@ -119,8 +121,10 @@ export default function App() {
   const [notifications, setNotifications] = useState(true);
   /** Settings steps aside so text size can be judged against the real page. */
   const [scalingText, setScalingText] = useState(false);
-  /** Puts handles on the Today panels so they can be resized and reordered in place. */
+  /** Puts a divider and hide buttons on the Today panels. The order is fixed. */
   const [editingLayout, setEditingLayout] = useState(false);
+  // Remembered, because a column you fold away should stay folded away.
+  const [sidebarHidden, setSidebarHidden] = usePref("sidebar.hidden", false);
 
   useEffect(() => {
     // The OS notification carries the words; this carries the sound, because the app
@@ -542,7 +546,12 @@ export default function App() {
               second scrollbar behind it. */}
           <main
             className={`flex min-w-0 flex-1 flex-col gap-5 px-7 py-6 ${
-              view === "timeline" || view === "overview" ? "overflow-hidden" : "scroll-area"
+              // Today fits the viewport at any normal size and does not scroll. It is
+              // `scroll-area` rather than `overflow-hidden` only so that a window too
+              // short to hold the panels at their minimum gives you a way to reach the
+              // bottom of them, instead of silently clipping. The timeline manages its
+              // own scrolling and must not get a second scrollbar behind it.
+              view === "timeline" ? "overflow-hidden" : "scroll-area"
             }`}
           >
             <PermissionBanner status={permissions} onRefresh={refreshPermissions} />
@@ -584,9 +593,6 @@ export default function App() {
                     apps: <TopApps apps={apps} streaks={streaks} />,
                   }}
                 />
-                <div className="shrink-0">
-  
-                </div>
               </>
             )}
 
@@ -624,8 +630,23 @@ export default function App() {
 
           </main>
 
-          {(view === "overview" || view === "timeline") && (
+          {/* Folded away, it leaves a tab against the right edge. A collapse with no
+              visible way back is a feature people press once and then look for a
+              setting. */}
+          {(view === "overview" || view === "timeline") && sidebarHidden && (
+            <button
+              type="button"
+              onClick={() => setSidebarHidden(false)}
+              title="Show Academic & Project Sync"
+              className="flex shrink-0 items-center border-l border-edge bg-surface px-1.5 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
+            >
+              <PanelRightOpen size={15} />
+            </button>
+          )}
+
+          {(view === "overview" || view === "timeline") && !sidebarHidden && (
             <CanvasSyncSidebar
+              onCollapse={() => setSidebarHidden(true)}
               tasks={tasks.tasks}
               completedTasks={tasks.completedTasks}
               clearedAt={clearedAt}

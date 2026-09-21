@@ -9,20 +9,28 @@ use crate::models::{
 use crate::watcher::registry::{MATCH_EXE, REDACTED_TITLE};
 
 /// Writes a batch in one transaction. Returns the number of rows written.
+///
+/// `OR IGNORE` against the unique index on `(ts, process_name)`: one second of one app is
+/// one row, and a second already recorded is dropped rather than added to. A tick is the
+/// only thing that writes here, so a collision means the same moment reached the table
+/// twice — a flush replayed after a crash, or a second copy of Nudgy running. Either way
+/// the honest total is one, and summing both is how a day grows past twenty-four hours.
 pub fn insert_samples(conn: &mut Connection, samples: &[ActivitySample]) -> Result<usize> {
     if samples.is_empty() {
         return Ok(0);
     }
+    let mut written = 0usize;
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare_cached(
-            "INSERT INTO activity_samples
+            "INSERT OR IGNORE INTO activity_samples
                 (ts, duration_seconds, process_name, app_name, window_title,
                  category, source, client_id, is_idle)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         )?;
         for sample in samples {
-            stmt.execute(params![
+            // What landed, not what was offered — an ignored duplicate is not a write.
+            written += stmt.execute(params![
                 sample.ts,
                 sample.duration_seconds,
                 sample.process_name,
@@ -36,7 +44,7 @@ pub fn insert_samples(conn: &mut Connection, samples: &[ActivitySample]) -> Resu
         }
     }
     tx.commit()?;
-    Ok(samples.len())
+    Ok(written)
 }
 
 pub fn usage_breakdown(conn: &Connection, start_ts: i64, end_ts: i64) -> Result<UsageBreakdown> {
@@ -639,6 +647,41 @@ mod tests {
         .unwrap()
     }
 
+    // Two copies of Nudgy each wrote a sample for the same second, and the day added up
+    // past twenty-four hours. One second of one app is one row — the second offer is
+    // dropped, and the count says so rather than reporting what it was handed.
+    #[test]
+    fn the_same_second_is_only_counted_once() {
+        let mut conn = memory_db();
+        let ts = local_midnight(&conn, 0) + 3_600;
+
+        assert_eq!(insert_samples(&mut conn, &[sample(ts, "Development", 5)]).unwrap(), 1);
+        assert_eq!(insert_samples(&mut conn, &[sample(ts, "Development", 5)]).unwrap(), 0);
+
+        let total: i64 = conn
+            .query_row(
+                "SELECT SUM(duration_seconds) FROM activity_samples",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(total, 5, "a replayed flush must not double the day");
+    }
+
+    // A different app in the same second is a different row — the guard is against the
+    // same moment arriving twice, not against two names sharing a timestamp.
+    #[test]
+    fn a_different_app_in_the_same_second_still_lands() {
+        let mut conn = memory_db();
+        let ts = local_midnight(&conn, 0) + 3_600;
+
+        let mut other = sample(ts, "Neutral", 5);
+        other.process_name = "something-else".to_string();
+
+        assert_eq!(insert_samples(&mut conn, &[sample(ts, "Development", 5)]).unwrap(), 1);
+        assert_eq!(insert_samples(&mut conn, &[other]).unwrap(), 1);
+    }
+
     // The whole reason `localtime` is in that query. Two samples an hour either side of
     // local midnight are two different days to a person, and a UTC grouping would file
     // them together for anyone west of Greenwich.
@@ -672,7 +715,9 @@ mod tests {
             &[
                 sample(midnight + 3600, "Development", 600),
                 sample(midnight + 7200, "Development", 300),
-                sample(midnight + 7200, "Free Time", 1200),
+                // A second of its own: one app cannot be in two categories at one
+                // instant, and since migration 12 the table will not pretend it can.
+                sample(midnight + 7205, "Free Time", 1200),
             ],
         )
         .unwrap();

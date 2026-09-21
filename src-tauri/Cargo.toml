@@ -39,6 +39,9 @@ ical = { version = "0.11.0", default-features = false, features = ["ical"] }
 rrule = "0.14.0"
 chrono-tz = "0.10.4"
 tauri-plugin-autostart = "2.5.1"
+# Two copies of Nudgy tracking the same person both write a sample every tick, and the
+# day adds up to more hours than a day has. See `run()`.
+tauri-plugin-single-instance = "2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

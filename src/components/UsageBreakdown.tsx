@@ -99,7 +99,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
   };
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
+    <section className="flex min-h-96 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
       <div className="flex shrink-0 items-baseline justify-between">
         <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
           Tracked today
@@ -120,7 +120,12 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
               than a chart sat beside a list saying the same thing twice. The radii are
               percentages so the ring shrinks to leave room for its own labels instead of
               pushing them past the edge of the card. */}
-          <div className="relative min-h-0 flex-1">
+          {/* A floor under the chart, and it has to be this tall. Recharts sizes a pie
+              off `min(width, height)`, so in a wide, short box the ring collapses to a
+              bracelet while the card sits half empty — and the total printed in the
+              middle spills over the wedges. Height is the only dimension that makes the
+              ring bigger here. */}
+          <div className="relative min-h-70 flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -129,8 +134,11 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
                   nameKey="category"
                   cx="50%"
                   cy="50%"
-                  innerRadius="30%"
-                  outerRadius="45%"
+                  // Of `min(width, height) / 2`. The outer edge stops at 64% to leave
+                  // the labels the ~50px they need beyond it, and the hole is wide
+                  // enough to hold the total without it touching the ring.
+                  innerRadius="46%"
+                  outerRadius="64%"
                   paddingAngle={2}
                   stroke="none"
                   isAnimationActive={false}
@@ -145,7 +153,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
             </ResponsiveContainer>
 
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-mono text-2xl tabular-nums text-ink">
+              <span className="font-mono text-xl tabular-nums text-ink">
                 {formatDuration(total)}
               </span>
               <span className="text-xs text-ink-mute">tracked</span>

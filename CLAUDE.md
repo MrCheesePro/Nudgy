@@ -227,15 +227,26 @@ wrong data.
 32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
-33. **The layout is furniture, and it is repaired on read.** Today's panel order, split and
-    hidden list live in `localStorage` (`src/lib/layout.ts`) — per-viewer, never in SQLite,
-    never in Rust. The split is a *ratio*, so it survives a resized window and a different
-    monitor, which a stored pixel width gets wrong the moment you unplug. A stored layout
+33. **The layout is furniture, and it is repaired on read.** Today's split and hidden list
+    live in `localStorage` (`src/lib/layout.ts`) — per-viewer, never in SQLite, never in
+    Rust. The split is a *ratio*, so it survives a resized window and a different monitor,
+    which a stored pixel width gets wrong the moment you unplug. **The order is fixed**:
+    panels resize and hide, they do not move, because reading left to right is the one
+    thing about this page that should be the same on every machine. A stored layout
     outlives the code that wrote it, so `normalise()` runs on every read and every write:
-    unknown panel ids are dropped, missing ones appended, a nonsense ratio falls back, and
-    hiding the last panel is refused — a blank page with no way back is not a layout
-    anybody chose. Edit mode is Today only and adds handles to the panels that are already
-    there; it never becomes a grid system that can be dragged into a state nothing renders.
+    ids nothing knows about are dropped, a nonsense ratio falls back, and hiding the last
+    panel is refused — a blank page with no way back is not a layout anybody chose. Edit
+    mode is Today only. Anything foldable leaves a visible way back: the sync column's
+    collapse leaves a tab against the right edge.
+34. **One Nudgy, and one row per second per app.** A second copy is not a duplicate
+    window: both tick, both write a sample for every second they are awake, and the day
+    adds up past twenty-four hours while still looking like data.
+    `tauri-plugin-single-instance` is registered *first*, before anything opens the
+    database, and raises the window that is already tracking. Behind it, a unique index on
+    `activity_samples(ts, process_name)` and `INSERT OR IGNORE` make the double count
+    unreachable from SQL — a replayed flush after a crash is dropped rather than added,
+    and `insert_samples` returns what landed, not what it was handed. Two *different* apps
+    may share a timestamp; the same app twice in one second is the bug.
 
 ## Secrets
 

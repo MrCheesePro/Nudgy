@@ -7,16 +7,15 @@ import { readPref, usePref } from "./prefs";
  * than in the settings table — this is furniture, not data, and it never needs to reach
  * Rust or survive a reinstall.
  *
- * Deliberately small. Two panels, an order, a split and a hidden list is enough to fix
- * "this one needs more room" without inventing a grid system that can be dragged into a
- * state nothing renders from.
+ * Deliberately small. A split and a hidden list is enough to fix "this one needs more
+ * room" without inventing a grid system that can be dragged into a state nothing renders
+ * from. The order is fixed: the panels read left to right for a reason, and swapping them
+ * buys nothing that resizing does not.
  */
 
 export type PanelId = "breakdown" | "apps";
 
 export interface Layout {
-  /** Left to right. Unknown ids are ignored, missing ones appended, so this cannot rot. */
-  order: PanelId[];
   /** Width of the first panel relative to the second. */
   ratio: number;
   hidden: PanelId[];
@@ -27,9 +26,10 @@ export const PANEL_NAMES: Record<PanelId, string> = {
   apps: "Where the time went",
 };
 
-const ALL: PanelId[] = ["breakdown", "apps"];
+/** The fixed order, left to right. */
+export const ALL: PanelId[] = ["breakdown", "apps"];
 
-export const DEFAULT_LAYOUT: Layout = { order: ALL, ratio: 1.25, hidden: [] };
+export const DEFAULT_LAYOUT: Layout = { ratio: 1.25, hidden: [] };
 
 /** Past these the narrower panel stops being able to show anything useful. */
 export const MIN_RATIO = 0.45;
@@ -41,18 +41,14 @@ const KEY = "layout.today";
  * Repairs whatever came out of storage.
  *
  * A stored layout outlives the code that wrote it: a panel may have been renamed or
- * removed since, and a half-valid order must not leave a panel unrenderable. Unknown ids
- * are dropped, missing ones appended, and a nonsense ratio falls back to the default.
+ * removed since. Ids nothing knows about are dropped, and a nonsense ratio falls back to
+ * the default.
  */
 export function normalise(stored: Partial<Layout> | null): Layout {
-  const order = (stored?.order ?? []).filter((id): id is PanelId => ALL.includes(id));
-  for (const id of ALL) if (!order.includes(id)) order.push(id);
-
   const ratio = Number(stored?.ratio);
   const hidden = (stored?.hidden ?? []).filter((id): id is PanelId => ALL.includes(id));
 
   return {
-    order,
     ratio:
       Number.isFinite(ratio) && ratio > 0
         ? Math.min(MAX_RATIO, Math.max(MIN_RATIO, ratio))
@@ -71,18 +67,9 @@ export function readLayout(): Layout {
   return normalise(readPref<Layout>(KEY, DEFAULT_LAYOUT));
 }
 
-/** The visible panels, in order. */
+/** The visible panels, in their fixed order. */
 export function visiblePanels(layout: Layout): PanelId[] {
-  return layout.order.filter((id) => !layout.hidden.includes(id));
-}
-
-/** Moves `id` to where `target` currently is, keeping everything else in sequence. */
-export function reorder(order: PanelId[], id: PanelId, target: PanelId): PanelId[] {
-  if (id === target) return order;
-  const without = order.filter((entry) => entry !== id);
-  const at = without.indexOf(target);
-  if (at < 0) return order;
-  return [...without.slice(0, at), id, ...without.slice(at)];
+  return ALL.filter((id) => !layout.hidden.includes(id));
 }
 
 /**
