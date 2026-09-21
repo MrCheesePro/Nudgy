@@ -22,7 +22,7 @@ import { UsageBreakdown } from "./components/UsageBreakdown";
 import { IconRail, type View } from "./components/shell/IconRail";
 import { TopBar } from "./components/shell/TopBar";
 import { useCalendar } from "./hooks/useCalendar";
-import { useCurrentWork } from "./hooks/useCurrentWork";
+import { useCurrentWork, useNextWork } from "./hooks/useCurrentWork";
 import { useLiveActivity } from "./hooks/useLiveActivity";
 import { usePermissions } from "./hooks/usePermissions";
 import { usePlans } from "./hooks/usePlans";
@@ -91,6 +91,8 @@ export default function App() {
   const schedule = useSchedule(calendar.commitmentsIn);
   const plans = usePlans();
   const currentWork = useCurrentWork(schedule.horizonBlocks, plans.plans, tasks.tasks, status);
+  /** The block after this one, when the gap before it is the break the plan asked for. */
+  const nextWork = useNextWork(schedule.horizonBlocks, plans.plans, tasks.tasks);
   // Targets steer which goal gets offered first when planning. The Progress page owns
   // this data; the planner only reads which floors are short today.
   const progress = useProgress(7);
@@ -584,7 +586,7 @@ export default function App() {
                 {/* The timer is always here. Driven by the block when one is running,
                     and a plain pomodoro you start by hand when none is — wanting to work
                     in twenty-five minute stretches does not depend on having planned. */}
-                <div className="flex shrink-0 flex-wrap items-stretch gap-5">
+                <div className="flex shrink-0 items-stretch gap-5">
                   <div className="min-w-0 flex-1">
                     <LiveStatusHeader
                       status={status}
@@ -595,6 +597,7 @@ export default function App() {
                   </div>
                   <SessionTimer
                     work={currentWork}
+                    next={nextWork}
                     category={status?.category ?? "Neutral"}
                   />
                 </div>

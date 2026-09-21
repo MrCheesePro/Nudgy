@@ -228,11 +228,15 @@ wrong data.
     time and a pair of lengths, so it is right whenever you look — including after an hour
     with the app closed, which a counter would have to guess at. It writes nothing: what
     counts as work done stays what the watcher measured, so a countdown running against an
-    app you are not using advances nothing. It is **always on Today**: driven by the block
-    when one is running, and a plain 25/5 pomodoro you start by hand when none is, whose
-    start time lives in `localStorage` so it survives navigating away. Both halves of the
-    cycle are shown at once — finding out the break is five minutes rather than fifteen
-    should not require arriving at it.
+    app you are not using advances nothing. It is **always on Today** and it has **no
+    start button**: a block is a focus session, the gap before the next block of the same
+    plan is the break that plan asked for, and both are countdowns to a time the schedule
+    already decided. `useNextWork` is what finds the second one, and it refuses a gap
+    longer than the plan's own break — beyond that the gap is the rest of the day, not a
+    break. With nothing scheduled the card says so rather than offering a timer of its
+    own, which would be a second opinion about the same hour. Both halves of the cycle
+    are shown at once: finding out the break is five minutes rather than fifteen should
+    not require arriving at it.
 32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
@@ -322,9 +326,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     time listens for `nudgy://flushed` — a poll alone leaves the number a minute behind the
     work it describes. Shortening the flush costs transactions, not rows; shortening the
     tick costs rows, which is why the two are tuned separately.
-38. **The window fills the screen, and stops at 1120x720.** No maximum and no locked
+38. **The window fills the screen, and stops at 1280x800.** No maximum and no locked
     aspect ratio: a cap is what stopped a 27" display reaching its corners, and a fixed
     ratio is what stopped any display reaching them — a screen is 16:10 or 16:9 and the
     layout is not. Both were tried and both failed the same test. What is left is a
     minimum, low enough that a 13" display can be filled and high enough that the rail,
-    the two Today panels and the sync column all still have room to be themselves.
+    the two Today panels and the sync column all still have room to be themselves. The
+    layout does not rearrange inside that range — no `flex-wrap` on the Today row or in
+    the status card, because a card that reflows when the window loses ten pixels makes a
+    drag feel like a redesign. Things truncate; they do not move.

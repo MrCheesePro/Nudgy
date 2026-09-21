@@ -1,38 +1,17 @@
 import { useEffect, useState } from "react";
-import { Coffee, Pause, Play, RotateCcw, Zap } from "lucide-react";
+import { CalendarOff, Coffee, Zap } from "lucide-react";
 
 import { categoryColor } from "../lib/categories";
-import { usePref } from "../lib/prefs";
-import type { CurrentWork } from "../hooks/useCurrentWork";
+import type { CurrentWork, UpcomingWork } from "../hooks/useCurrentWork";
 
 interface Props {
-  /** The block running now, or null when nothing is scheduled. */
+  /** The block running now, or null between blocks. */
   work: CurrentWork | null;
+  /** The block after this one, when the gap before it is a planned break. */
+  next: UpcomingWork | null;
   /** Category of the block, for the ring colour. */
   category: string;
 }
-
-/** The classic cycle, used when there is no block to take the lengths from. */
-export const MANUAL_FOCUS = 25 * 60;
-export const MANUAL_BREAK = 5 * 60;
-
-const PREF_KEY = "pomodoro";
-
-/**
- * A timer that is not counting is not a state worth storing — but where it started is.
- *
- * `startedAt` is the moment the current run began, shifted back by whatever had already
- * elapsed when it was last paused, so the phase is always derived from the clock rather
- * than counted. It survives navigating away, and survives the app being closed, which a
- * counter in component state cannot.
- */
-interface Pomodoro {
-  startedAt: number | null;
-  /** Seconds elapsed when it was paused. Meaningless while it runs. */
-  frozen: number;
-}
-
-const STOPPED: Pomodoro = { startedAt: null, frozen: 0 };
 
 /**
  * The countdown, for the sitting you are in or the one you started yourself.
@@ -49,26 +28,31 @@ const STOPPED: Pomodoro = { startedAt: null, frozen: 0 };
  * you are not using advances nothing. The countdown answers "how long is left in this
  * sitting", which is a different question from "how much of this is done".
  */
-export function SessionTimer({ work, category }: Props) {
+export function SessionTimer({ work, next, category }: Props) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-  const [manual, setManual] = usePref<Pomodoro>(PREF_KEY, STOPPED);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const focus = work ? Math.max(60, work.focusSeconds) : MANUAL_FOCUS;
-  const rest = work ? Math.max(0, work.breakSeconds) : MANUAL_BREAK;
+  const session = work ?? next;
+  const running = session !== null;
+  const focus = session ? Math.max(60, session.focusSeconds) : 0;
+  const rest = session ? Math.max(0, session.breakSeconds) : 0;
 
-  const running = work !== null || manual.startedAt !== null;
-  const elapsed = work
-    ? Math.max(0, now - work.blockStartTs)
-    : manual.startedAt !== null
-      ? Math.max(0, now - manual.startedAt)
-      : manual.frozen;
-
-  const phase = work ? phaseAt(work, now) : cyclePhase(elapsed, focus, rest);
+  // A block is a focus session; the gap before the next one is the break the plan asked
+  // for. Both are a countdown to a time the schedule already decided, which is why
+  // neither needs starting and neither can drift.
+  const phase: Phase = work
+    ? phaseAt(work, now)
+    : next
+      ? {
+          kind: "break",
+          remaining: Math.max(0, next.startTs - now),
+          length: Math.max(1, next.breakSeconds),
+        }
+      : { kind: "focus", remaining: 0, length: 1 };
 
   const color = categoryColor(category);
   const ring = !running
@@ -125,12 +109,13 @@ export function SessionTimer({ work, category }: Props) {
       <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
         <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
           {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
-          {!running ? "Pomodoro" : phase.kind === "break" ? "Break" : "Focus"}
+          {!running ? "No session" : phase.kind === "break" ? "Break" : "Focus"}
         </span>
 
         {/* Both halves of the cycle, always — knowing the break is five minutes and not
             fifteen is most of what makes the next twenty-five bearable, and it should not
             take arriving at the break to find out. The one you are in is the lit one. */}
+        {running && (
         <div className="flex flex-col items-start gap-1 text-mini">
           <span
             className={`rounded-full px-2 py-0.5 font-mono tabular-nums ${
@@ -151,44 +136,27 @@ export function SessionTimer({ work, category }: Props) {
             {rest > 0 ? `${clock(rest)} break` : "no break"}
           </span>
         </div>
+        )}
 
         {work ? (
           <div className="min-w-0">
             <div className="truncate text-xs font-medium text-ink-soft">{work.title}</div>
             {/* Named as a countdown, never as progress — that number is measured
                 elsewhere. */}
-            <div className="text-mini text-ink-mute">
-              {phase.kind === "break" ? "until back to it" : "left in this session"}
-            </div>
+            <div className="text-mini text-ink-mute">left in this session</div>
+          </div>
+        ) : next ? (
+          <div className="min-w-0">
+            <div className="truncate text-xs font-medium text-ink-soft">{next.title}</div>
+            <div className="text-mini text-ink-mute">until the next session</div>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setManual(
-                  manual.startedAt !== null
-                    ? { startedAt: null, frozen: Math.max(0, now - manual.startedAt) }
-                    : // Start where it was paused, by moving the start back that far.
-                      { startedAt: now - manual.frozen, frozen: 0 },
-                )
-              }
-              className="flex items-center gap-1.5 rounded-full bg-rose px-4 py-1.5 text-mini font-semibold text-white transition hover:bg-rose-deep"
-            >
-              {manual.startedAt !== null ? <Pause size={12} /> : <Play size={12} />}
-              {manual.startedAt !== null ? "Pause" : manual.frozen > 0 ? "Resume" : "Start"}
-            </button>
-            {(manual.startedAt !== null || manual.frozen > 0) && (
-              <button
-                type="button"
-                onClick={() => setManual(STOPPED)}
-                title="Reset"
-                aria-label="Reset the timer"
-                className="rounded-full p-1.5 text-ink-mute transition hover:text-ink"
-              >
-                <RotateCcw size={13} />
-              </button>
-            )}
+          // Nothing scheduled is a real answer, and a Start button here would have been a
+          // second timer with a second opinion about the same hour. Plan something and
+          // this fills itself in.
+          <div className="flex items-center gap-1.5 text-mini text-ink-mute">
+            <CalendarOff size={12} />
+            Nothing scheduled
           </div>
         )}
       </div>

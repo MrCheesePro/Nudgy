@@ -31,7 +31,11 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
     // `h-full` fills the stretched row rather than sitting at its own height inside it,
     // which is what left this card ending above the timer beside it.
     <header className="h-full shrink-0 rounded-2xl border border-edge bg-surface p-6">
-      <div className="flex flex-wrap items-start justify-between gap-6">
+      {/* Deliberately not `flex-wrap`. Wrapping put the session counter under the title
+          the moment the card lost a few pixels, so a small drag rearranged the card
+          rather than resizing it. The title truncates instead: the same layout at every
+          width, which is what makes resizing feel like resizing. */}
+      <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-mini font-semibold tracking-widest text-ink-mute uppercase">
             <span

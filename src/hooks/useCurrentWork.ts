@@ -96,3 +96,69 @@ export function stripCourseCode(label: string, courseCode: string | null): strin
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+/** The next block, and the gap before it. */
+export interface UpcomingWork {
+  title: string;
+  courseCode: string | null;
+  startTs: number;
+  /** The plan's own lengths, so the gap is measured against the break it was planned as. */
+  focusSeconds: number;
+  breakSeconds: number;
+}
+
+/**
+ * The next block to start, when the gap before it is short enough to be a break.
+ *
+ * A plan split into sittings leaves gaps between them, and those gaps are the breaks — so
+ * between two blocks of the same plan there is nothing to invent: the schedule already
+ * says how long the break is and what comes after it. Beyond a plan's own break length
+ * the gap is not a break, it is the rest of the day, and the timer says nothing.
+ *
+ * The slack is one tick: a block ending at 01:25 and the next starting at 01:30 is a
+ * five-minute break, and the arithmetic should not decide otherwise because the clock
+ * read a second late.
+ */
+export function useNextWork(
+  blocks: ScheduleBlock[],
+  plans: PlanProgress[],
+  tasks: LmsTask[],
+): UpcomingWork | null {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 5_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return useMemo(() => {
+    const upcoming = blocks
+      .filter((entry) => entry.startTs > now)
+      .sort((left, right) => left.startTs - right.startTs)[0];
+    if (!upcoming) return null;
+
+    const plan = upcoming.planId === null
+      ? null
+      : (plans.find((entry) => entry.plan.id === upcoming.planId) ?? null);
+
+    const breakSeconds = plan?.plan.breakSeconds ?? 0;
+    if (breakSeconds <= 0) return null;
+    if (upcoming.startTs - now > breakSeconds + SLACK_SECONDS) return null;
+
+    const task =
+      plan?.plan.taskId == null
+        ? null
+        : (tasks.find((entry) => entry.id === plan.plan.taskId) ?? null);
+    const courseCode = task?.courseCode ?? null;
+
+    return {
+      title: stripCourseCode(upcoming.label, courseCode),
+      courseCode,
+      startTs: upcoming.startTs,
+      focusSeconds: plan?.plan.focusSeconds ?? upcoming.endTs - upcoming.startTs,
+      breakSeconds,
+    };
+  }, [blocks, plans, tasks, now]);
+}
+
+const SLACK_SECONDS = 5;
