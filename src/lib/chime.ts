@@ -3,14 +3,26 @@
  *
  * Synthesised rather than bundled. Three short tones from an oscillator weigh nothing,
  * ship nothing, and cannot go missing — where three audio files would add a megabyte to
- * every installer for something most people hear twice a day. Importing your own file
- * is a separate feature and needs a file picker; this is the part that works today.
+ * every installer for something most people hear twice a day.
+ *
+ * A sound of your own is a fourth option: a URL or a `data:` URI played through an
+ * `Audio` element. A URL rather than a file picker because a picked file has to be copied
+ * into the app data directory, tracked, and cleaned up when it is replaced — three moving
+ * parts for a sound most people set once. A `data:` URI covers the offline case without
+ * any of them.
  *
  * Every call is wrapped: a browser may refuse to start audio before the page has been
  * interacted with, and a notification that cannot make a noise must still arrive.
  */
 
-export type ChimeId = "soft" | "bright" | "low" | "none";
+export type ChimeId = "soft" | "bright" | "low" | "none" | "custom";
+
+export const PREF_CHIME = "chime";
+export const PREF_CHIME_URL = "chime.url";
+export const PREF_VOLUME = "chime.volume";
+
+/** Loud enough to notice across a room, quiet enough not to be the reason you flinch. */
+export const DEFAULT_VOLUME = 0.6;
 
 export interface Chime {
   id: ChimeId;
@@ -24,6 +36,7 @@ export const CHIMES: Chime[] = [
   { id: "bright", name: "Bright", notes: [880, 1175, 1568] },
   { id: "low", name: "Low", notes: [330, 262] },
   { id: "none", name: "Silent", notes: [] },
+  { id: "custom", name: "Your own", notes: [] },
 ];
 
 const NOTE_SECONDS = 0.12;
@@ -41,8 +54,28 @@ function audio(): AudioContext | null {
   }
 }
 
-/** Plays a chime. Silent ones, unknown ids and unavailable audio all do nothing. */
-export function playChime(id: ChimeId): void {
+/**
+ * Plays a chime at `volume`, 0–1.
+ *
+ * Silent ones, unknown ids, a custom sound with no URL set, and unavailable audio all do
+ * nothing — a notification that cannot make a noise must still arrive.
+ */
+export function playChime(id: ChimeId, volume = DEFAULT_VOLUME, url?: string): void {
+  const level = Math.min(1, Math.max(0, volume));
+  if (level === 0) return;
+
+  if (id === "custom") {
+    if (!url) return;
+    try {
+      const sound = new Audio(url);
+      sound.volume = level;
+      void sound.play().catch(() => undefined);
+    } catch {
+      // A bad URL, a format the webview will not decode, or autoplay refused.
+    }
+    return;
+  }
+
   const chime = CHIMES.find((entry) => entry.id === id);
   if (!chime || chime.notes.length === 0) return;
 
@@ -62,7 +95,9 @@ export function playChime(id: ChimeId): void {
       // A tone that stops dead clicks; the ramp is what makes it a chime rather than a
       // beep, and keeps it quiet enough to sit behind a notification.
       gain.gain.setValueAtTime(0.0001, startsAt);
-      gain.gain.exponentialRampToValueAtTime(0.18, startsAt + 0.01);
+      // Never zero: an exponential ramp to zero is undefined, and the peak is scaled by
+      // the volume setting rather than the setting muting a fixed peak afterwards.
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.3 * level), startsAt + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, startsAt + NOTE_SECONDS);
 
       oscillator.connect(gain).connect(ctx.destination);

@@ -18,9 +18,17 @@ import {
   saveAppearance,
   useAppearance,
 } from "../lib/appearance";
-import { CHIMES, playChime, type ChimeId } from "../lib/chime";
+import {
+  CHIMES,
+  DEFAULT_VOLUME,
+  playChime,
+  PREF_CHIME,
+  PREF_CHIME_URL,
+  PREF_VOLUME,
+  type ChimeId,
+} from "../lib/chime";
 import { readPref, writePref } from "../lib/prefs";
-import { chooseTheme, THEMES, useTheme } from "../lib/theme";
+import { THEMES, chooseAccent, chooseTheme, useAccent, useTheme } from "../lib/theme";
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
   SECRET_CALENDAR_ICS_URL,
@@ -58,7 +66,9 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
   const [calendarUrl, setCalendarUrl] = useState("");
   const [lmsFeed, setLmsFeed] = useState("");
   const [leadMinutes, setLeadMinutes] = useState("10");
-  const [chime, setChime] = useState<ChimeId>(() => readPref<ChimeId>("chime", "soft"));
+  const [chime, setChime] = useState<ChimeId>(() => readPref<ChimeId>(PREF_CHIME, "soft"));
+  const [chimeUrl, setChimeUrl] = useState(() => readPref<string>(PREF_CHIME_URL, ""));
+  const [volume, setVolume] = useState(() => readPref<number>(PREF_VOLUME, DEFAULT_VOLUME));
 
   const [canvasTokenStored, setCanvasTokenStored] = useState(false);
   const [calendarStored, setCalendarStored] = useState(false);
@@ -72,6 +82,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
   const [wiping, setWiping] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
   const theme = useTheme();
+  const accent = useAccent();
   const appearance = useAppearance();
   const [customFont, setCustomFont] = useState("");
   const [background, setBackground] = useState(appearance.background);
@@ -265,14 +276,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
         <div className="mt-6 space-y-5">
           <div>
             <span className="text-xs font-medium tracking-wide text-ink-soft">Size</span>
-            <p className="mt-1 text-xs text-ink-mute">
-              Two sliders, judged against the real page rather than a sample.{" "}
-              <strong className="font-medium text-ink-soft">Text</strong> grows the words
-              and the room around them;{" "}
-              <strong className="font-medium text-ink-soft">Everything</strong> zooms the
-              whole interface — icons, charts and all — to fit more on a large display or
-              make the lot legible on a small one.
-            </p>
             <button
               type="button"
               onClick={onPreviewTextSize}
@@ -332,10 +335,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 >
                   Use it
                 </button>
-                <p className="w-full text-mini text-ink-mute">
-                  Any family name from fonts.google.com, spelled as it is there. Fetched
-                  once, then cached — the built-in choices never touch the network.
-                </p>
               </div>
             )}
           </div>
@@ -354,10 +353,8 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
               />
             </label>
             <p className="mt-1 text-xs text-ink-mute">
-              An image URL, drawn behind the app and dimmed so text keeps its contrast.
               {background.trim() && (
                 <>
-                  {" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -401,21 +398,12 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                   className="mt-2 w-full cursor-pointer appearance-none rounded-full bg-surface-sunken accent-rose"
                   style={{ height: "4px" }}
                 />
-                <p className="mt-1.5 text-xs text-ink-mute">
-                  How much of the background shows through the panels. The top bar and the
-                  rail stay solid.
-                </p>
               </label>
             )}
           </div>
 
           <div className="border-t border-edge pt-5">
             <span className="text-xs font-medium tracking-wide text-ink-soft">Colours</span>
-            <p className="mt-1 text-xs text-ink-mute">
-              Applies straight away. Category colours are set on the App registry tab and
-              are left alone — they mean something specific, so a theme does not repaint
-              them.
-            </p>
             <ul className="mt-2.5 flex flex-wrap gap-2">
               {THEMES.map((entry) => (
                 <li key={entry.id}>
@@ -443,6 +431,29 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 </li>
               ))}
             </ul>
+
+            {/* One colour, not four. The interface uses an accent at four strengths and
+                the other three are derived from this one, because picking four shades
+                that agree with each other is the part that is actually hard. */}
+            <div className="mt-3 flex items-center gap-2.5">
+              <input
+                type="color"
+                value={accent || "#e0919c"}
+                onChange={(event) => void chooseAccent(event.target.value)}
+                aria-label="Accent colour"
+                className="h-7 w-10 cursor-pointer rounded-lg border border-edge bg-canvas"
+              />
+              <span className="text-xs text-ink-soft">Accent colour</span>
+              {accent && (
+                <button
+                  type="button"
+                  onClick={() => void chooseAccent("")}
+                  className="ml-auto text-mini text-ink-mute transition hover:text-ink-soft"
+                >
+                  Use the theme's
+                </button>
+              )}
+            </div>
           </div>
 
           <label className="block">
@@ -549,8 +560,8 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 onChange={(event) => {
                   const next = event.target.value as ChimeId;
                   setChime(next);
-                  writePref("chime", next);
-                  playChime(next);
+                  writePref(PREF_CHIME, next);
+                  playChime(next, volume, chimeUrl);
                 }}
                 aria-label="Notification sound"
                 className="rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
@@ -564,7 +575,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
 
               <button
                 type="button"
-                onClick={() => playChime(chime)}
+                onClick={() => playChime(chime, volume, chimeUrl)}
                 className="rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
               >
                 Play
@@ -574,6 +585,49 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
               Zero minutes means "tell me as it starts". A task can override this with its
               own warning when you plan it.
             </p>
+
+            {/* Only for the option that needs it. A URL field sitting under "Soft" is a
+                field that does nothing, which reads as a field that is broken. */}
+            {chime === "custom" && (
+              <input
+                value={chimeUrl}
+                onChange={(event) => setChimeUrl(event.target.value)}
+                onBlur={() => writePref(PREF_CHIME_URL, chimeUrl.trim())}
+                placeholder="https://… or a data: URI"
+                aria-label="Custom sound"
+                className="mt-2.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-xs text-ink-soft outline-none transition select-text focus:border-edge-strong"
+              />
+            )}
+
+            <label className="mt-3 block">
+              <span className="flex items-baseline justify-between text-xs font-medium tracking-wide text-ink-soft">
+                Volume
+                <span className="font-mono text-mini tabular-nums text-ink-mute">
+                  {Math.round(volume * 100)}%
+                </span>
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={Math.round(volume * 100)}
+                aria-label="Notification volume"
+                onChange={(event) => setVolume(Number(event.target.value) / 100)}
+                // Written and heard when the drag ends. Playing on every step of a drag
+                // would be a hundred overlapping chimes.
+                onPointerUp={() => {
+                  writePref(PREF_VOLUME, volume);
+                  playChime(chime, volume, chimeUrl);
+                }}
+                onKeyUp={() => {
+                  writePref(PREF_VOLUME, volume);
+                  playChime(chime, volume, chimeUrl);
+                }}
+                className="mt-2 w-full cursor-pointer appearance-none rounded-full bg-surface-sunken accent-rose"
+                style={{ height: "4px" }}
+              />
+            </label>
           </div>
 
           <div className="border-t border-edge pt-5">

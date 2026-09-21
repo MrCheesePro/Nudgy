@@ -13,6 +13,7 @@ import { setSetting } from "./ipc";
  */
 
 export const SETTING_THEME = "theme";
+export const SETTING_ACCENT = "accent_color";
 
 export interface Theme {
   id: string;
@@ -125,6 +126,8 @@ export const THEMES: Theme[] = [
 export const DEFAULT_THEME = THEMES[0].id;
 
 let current = DEFAULT_THEME;
+/** A hex the user picked, or "" for whatever the theme says. */
+let accent = "";
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -146,7 +149,66 @@ export function applyTheme(id: string) {
   root.style.colorScheme = theme.id === "dusk" ? "dark" : "light";
 
   current = theme.id;
+  // After the theme, never before: the accent overrides four of the tokens it just wrote,
+  // and applying them the other way round would leave the theme's own accent in place.
+  paintAccent();
   for (const listener of listeners) listener();
+}
+
+/**
+ * One colour of your own, and the three shades the app derives from it.
+ *
+ * A single hex rather than a palette. The interface uses an accent at four strengths —
+ * the colour itself, a darker one for text and hover, a wash behind chips, and a mid tone
+ * for bars — and asking somebody to pick four colours that agree with each other is
+ * asking them to do the part that is actually hard. `color-mix` derives the other three,
+ * so any colour picked produces a set that holds together.
+ *
+ * Empty means the theme's own accent, which is why this is stored separately from the
+ * theme rather than as a fifth entry in `THEMES`: it is a modifier, and clearing it has
+ * to put back whatever the theme said.
+ */
+export function applyAccent(hex: string) {
+  accent = hex.trim();
+  paintAccent();
+  for (const listener of listeners) listener();
+}
+
+function paintAccent() {
+  const root = document.documentElement;
+  if (!accent) {
+    // Cleared, not overwritten — the theme's own values are already on `:root`, so
+    // removing these inline properties is what puts them back.
+    for (const token of ACCENT_TOKENS) root.style.removeProperty(token);
+    const theme = THEMES.find((entry) => entry.id === current) ?? THEMES[0];
+    for (const token of ACCENT_TOKENS) {
+      const value = theme.tokens[token];
+      if (value) root.style.setProperty(token, value);
+    }
+    return;
+  }
+
+  root.style.setProperty("--color-rose", accent);
+  root.style.setProperty("--color-rose-deep", `color-mix(in srgb, ${accent} 74%, black)`);
+  root.style.setProperty("--color-rose-wash", `color-mix(in srgb, ${accent} 18%, white)`);
+  root.style.setProperty("--color-rose-bar", `color-mix(in srgb, ${accent} 55%, white)`);
+}
+
+const ACCENT_TOKENS = [
+  "--color-rose",
+  "--color-rose-deep",
+  "--color-rose-wash",
+  "--color-rose-bar",
+];
+
+export function useAccent(): string {
+  return useSyncExternalStore(subscribe, () => accent);
+}
+
+/** Applies and persists. Empty puts the theme's own accent back. */
+export async function chooseAccent(hex: string): Promise<void> {
+  applyAccent(hex);
+  await setSetting(SETTING_ACCENT, accent);
 }
 
 export function useTheme(): string {

@@ -41,11 +41,18 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { refreshCategories } from "./lib/categories";
 import { hydrateAppearance } from "./lib/appearance";
-import { playChime, type ChimeId } from "./lib/chime";
+import {
+  DEFAULT_VOLUME,
+  playChime,
+  PREF_CHIME,
+  PREF_CHIME_URL,
+  PREF_VOLUME,
+  type ChimeId,
+} from "./lib/chime";
 import { PanelRightOpen } from "lucide-react";
 
 import { readPref, usePref } from "./lib/prefs";
-import { applyTheme, DEFAULT_THEME, SETTING_THEME } from "./lib/theme";
+import { DEFAULT_THEME, SETTING_ACCENT, SETTING_THEME, applyAccent, applyTheme } from "./lib/theme";
 import {
   enable as enableAutostart,
   isEnabled as autostartEnabled,
@@ -132,7 +139,13 @@ export default function App() {
       ["nudgy://reminder", "nudgy://target-passed"].map((name) =>
         listen(name, () => {
           if (!notifications) return;
-          playChime(readPref<ChimeId>("chime", "soft"));
+          // Read at fire time, not at subscribe time: changing the sound in Settings
+          // should change the next notification, not the one after a restart.
+          playChime(
+            readPref<ChimeId>(PREF_CHIME, "soft"),
+            readPref<number>(PREF_VOLUME, DEFAULT_VOLUME),
+            readPref<string>(PREF_CHIME_URL, ""),
+          );
         }),
       ),
     );
@@ -155,6 +168,9 @@ export default function App() {
     getSettings()
       .then((entries) => {
         const settings = new Map(entries);
+        // The accent before the theme would be overwritten by it; `applyTheme` repaints
+        // the accent itself, so this order is the one that survives.
+        applyAccent(settings.get(SETTING_ACCENT) ?? "");
         applyTheme(settings.get(SETTING_THEME) ?? DEFAULT_THEME);
         hydrateAppearance(settings);
 

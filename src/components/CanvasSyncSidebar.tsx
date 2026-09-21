@@ -97,9 +97,14 @@ export function CanvasSyncSidebar({
 
   const activePlans = plans.filter((entry) => entry.plan.status === "active");
 
+  // Not active and not finished. A goal whose plan is done is already in Completed
+  // below, and listing it here too made "inactive" mean both "not started" and "over".
   const inactiveGoals = goals
     .map((goal, index) => ({ goal, index }))
-    .filter(({ goal }) => stateForGoal(plans, goal) !== "Active");
+    .filter(({ goal }) => {
+      const state = stateForGoal(plans, goal);
+      return state !== "Active" && state !== "Done";
+    });
 
   // Both sources of "finished", in one list, newest first — so done means one thing.
   const completed: CompletedEntry[] = [
@@ -370,8 +375,18 @@ export function CanvasSyncSidebar({
                     >
                       <CircleCheckBig size={13} />
                     </button>
-                    <span className="min-w-0 flex-1 truncate text-mini text-ink-mute line-through">
-                      {entry.title}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-mini text-ink-mute line-through">
+                        {entry.title}
+                      </span>
+                      {/* When it was finished, not just that it was. A completed list
+                          without dates answers "did I do this" but never "when", which is
+                          the question you actually come back to it with. */}
+                      {entry.finishedAt !== null && (
+                        <span className="block truncate text-tiny text-ink-mute">
+                          {formatFinished(entry.finishedAt)}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-tiny text-ink-mute">
                       {entry.subtitle}
@@ -539,4 +554,30 @@ function dueLine(dueAt: number | null): string {
     month: "short",
     day: "numeric",
   })} · ${Math.round(hours / 24)}d`;
+}
+
+/**
+ * When something was finished, in as few words as carry the meaning.
+ *
+ * Today and yesterday are named rather than dated, because "3:42 PM" answers the question
+ * on its own when the day is the one you are in. Anything older gets its date, and a
+ * different year gets that too.
+ */
+function formatFinished(ts: number): string {
+  const when = new Date(ts * 1000);
+  const time = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  const midnight = new Date();
+  midnight.setHours(0, 0, 0, 0);
+  const days = Math.floor((midnight.getTime() / 1000 - ts) / 86_400) + 1;
+
+  if (days <= 0) return time;
+  if (days === 1) return `Yesterday, ${time}`;
+
+  const date = when.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: when.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
+  });
+  return `${date}, ${time}`;
 }

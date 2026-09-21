@@ -250,11 +250,37 @@ pub fn respond(conn: &Connection, response: &CheckinResponse) -> Result<PlanProg
     };
 
     if response.action == "done" {
+        let now = chrono::Utc::now().timestamp();
         conn.execute(
             "UPDATE plans SET status = 'done', completed_at = ?2, next_checkin_seconds = NULL
               WHERE id = ?1",
-            params![plan.id, chrono::Utc::now().timestamp()],
+            params![plan.id, now],
         )?;
+
+        // Sittings it never reached are work that is not going to happen, so they stop
+        // being time the day is holding open. Blocks already behind us stay — they are
+        // the record of the work that *did* happen, which is what invariant 12 protects.
+        //
+        // The sitting you are in is cut short at the moment you said you were done rather
+        // than kept whole. Everything worked inside it is still inside it, because worked
+        // time is measured from samples in the window and the window still covers them;
+        // what ends is the block, which is what the countdown on Today is counting. A
+        // plan you have finished should not still be showing four minutes left.
+        conn.execute(
+            "UPDATE schedule_blocks SET end_ts = ?2
+              WHERE plan_id = ?1 AND start_ts <= ?2 AND end_ts > ?2",
+            params![plan.id, now],
+        )?;
+
+        // Including one that started this second and now has no duration at all.
+        let dropped = conn.execute(
+            "DELETE FROM schedule_blocks WHERE plan_id = ?1 AND start_ts >= ?2",
+            params![plan.id, now],
+        )?;
+        if dropped > 0 {
+            log::info!("plan {} finished early; dropped {dropped} unstarted blocks", plan.id);
+        }
+
         plan.status = STATUS_DONE.to_string();
         return progress(conn, &plan);
     }
@@ -435,6 +461,46 @@ mod tests {
 
         assert!(load_active(&conn).unwrap().is_empty());
         assert!(take_due_checkins(&conn).unwrap().is_empty());
+    }
+
+    // Sittings that never happened are not a record of anything. Saying "done" at the
+    // second of six takes the other four off the day — the time is free now, and a block
+    // nothing will ever work on is a lie the calendar keeps telling.
+    #[test]
+    fn finishing_early_clears_the_sittings_it_never_reached() {
+        let mut conn = memory_db();
+        let id = create(&conn, &plan(4)).unwrap();
+        let now = chrono::Utc::now().timestamp();
+
+        // One behind us, one we are sitting in, two still to come.
+        work(&mut conn, id, now - 7_200, 3_600, false);
+        work(&mut conn, id, now - 600, 1_200, false);
+        work(&mut conn, id, now + 3_600, 3_600, false);
+        work(&mut conn, id, now + 9_000, 3_600, false);
+
+        respond(
+            &conn,
+            &CheckinResponse {
+                plan_id: id,
+                action: "done".to_string(),
+                extra_seconds: 0,
+            },
+        )
+        .unwrap();
+
+        let blocks: Vec<(i64, i64)> = conn
+            .prepare("SELECT start_ts, end_ts FROM schedule_blocks ORDER BY start_ts")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect();
+
+        assert_eq!(blocks.len(), 2, "the two future sittings are gone");
+        assert_eq!(blocks[0], (now - 7_200, now - 3_600), "a finished block is untouched");
+        // The one underway ends at the click, so nothing on Today is still counting down
+        // a plan that is over — and every sample inside it is still inside it.
+        assert_eq!(blocks[1], (now - 600, now));
     }
 
     // Done means finished, not erased. The UI has to be able to tell a plan that is over

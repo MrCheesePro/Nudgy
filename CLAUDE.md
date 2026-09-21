@@ -134,7 +134,11 @@ wrong data.
 12. **Deleting a plan deletes its blocks**, and deleting a goal deletes its plan. Blocks
     that outlive their plan are work nothing owns and nothing can verify. Deleting is the
     only thing that removes anything: **finishing hides, and clearing hides — neither
-    deletes.** A done plan keeps its blocks and is still returned by `all_progress`, so
+    deletes.** The one exception is a plan finished early: sittings that have not started
+    are dropped and the one underway is cut to the moment you said you were done. Those
+    are not a record of anything — the time is free now, a block nothing will work on is a
+    lie the calendar keeps telling, and a plan you have finished should not still be
+    counting down on Today. Everything worked stays inside a window that still covers it. A done plan keeps its blocks and is still returned by `all_progress`, so
     the timeline can draw it as finished rather than as never-started; `load_active` stays
     narrow because the check-in loop must not ask about it again. Clearing the Completed
     list writes a timestamp and filters against it.
