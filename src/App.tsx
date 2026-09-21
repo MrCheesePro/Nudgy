@@ -563,12 +563,11 @@ export default function App() {
                 should not flicker when you move between views. */}
             <div
               key={view}
-              className={`page-enter flex flex-col gap-5 ${
-                // The two views that fit the viewport are held to it; the two that
-                // scroll must be free to grow past it, or the wrapper caps their
-                // height and the scrollbar it lives in never learns there is more.
-                view === "timeline" || view === "overview" ? "min-h-0 flex-1" : ""
-              }`}
+              // `min-h-0 flex-1` for every view, because this stands where the views
+              // used to sit as direct children of `main`. A view whose panels claim the
+              // viewport with `flex-1` — the progress graph does — collapses to its
+              // minimum height if anything between it and `main` is content-sized.
+              className="page-enter flex min-h-0 flex-1 flex-col gap-5"
             >
             {view === "overview" && (
               <>
@@ -642,13 +641,26 @@ export default function App() {
               type="button"
               onClick={() => setSidebarHidden(false)}
               title="Show Academic & Project Sync"
-              className="flex shrink-0 items-center border-l border-edge bg-surface px-1.5 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
+              className="page-enter flex shrink-0 items-center border-l border-edge bg-surface px-1.5 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
             >
               <PanelRightOpen size={15} />
             </button>
           )}
 
-          {(view === "overview" || view === "timeline") && !sidebarHidden && (
+          {/* The column stays mounted and the width is what moves, so the panel slides
+              out of view instead of blinking out of existence. `overflow-hidden` on the
+              track with a fixed-width child is what keeps the contents from reflowing on
+              the way: they keep their real width and are clipped, rather than being
+              squeezed through every intermediate size at 60fps. */}
+          {(view === "overview" || view === "timeline") && (
+            <div
+              // Still in the tree while folded, so `inert` is what stops the keyboard
+              // tabbing into a column nobody can see.
+              inert={sidebarHidden}
+              className={`flex shrink-0 overflow-hidden transition-[width] duration-200 ease-out ${
+                sidebarHidden ? "w-0" : "w-90"
+              }`}
+            >
             <CanvasSyncSidebar
               onCollapse={() => setSidebarHidden(true)}
               tasks={tasks.tasks}
@@ -669,6 +681,7 @@ export default function App() {
               onRemoveGoal={askRemoveGoal}
               onClearCompleted={askClearCompleted}
             />
+            </div>
           )}
         </div>
       </div>
