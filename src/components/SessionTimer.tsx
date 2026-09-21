@@ -82,13 +82,17 @@ export function SessionTimer({ work, category }: Props) {
   const circumference = 2 * Math.PI * 46;
 
   return (
-    <section className="flex h-full w-72 shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-8 py-7">
-      <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
-        {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
-        {!running ? "Pomodoro" : phase.kind === "break" ? "Break" : "Focus"}
-      </span>
-
-      <div className="relative mt-4 h-40 w-40">
+    /*
+     * Laid out along its width, not down its height.
+     *
+     * The ring is a fixed square and everything that describes it — the phase, the two
+     * halves of the cycle, what is running — is a column beside it rather than a stack
+     * underneath. Stacked, the card had to be tall to fit its own captions and ended up
+     * a narrow tower next to a wide panel; side by side it reads as the other half of
+     * the row.
+     */
+    <section className="flex h-full w-[27rem] max-w-full shrink-0 items-center gap-7 rounded-2xl border border-edge bg-surface px-8 py-7">
+      <div className="relative h-40 w-40 shrink-0">
         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
           <circle
             cx="50"
@@ -118,71 +122,76 @@ export function SessionTimer({ work, category }: Props) {
         </div>
       </div>
 
-      {/* Both halves of the cycle, always — knowing the break is five minutes and not
-          fifteen is most of what makes the next twenty-five bearable, and it should not
-          take arriving at the break to find out. The one you are in is the lit one. */}
-      <div className="mt-4 flex items-center gap-2 text-mini">
-        <span
-          className={`rounded-full px-2 py-0.5 font-mono tabular-nums ${
-            phase.kind === "focus" && running
-              ? "bg-rose-wash font-semibold text-rose-deep"
-              : "text-ink-mute"
-          }`}
-        >
-          {clock(focus)} focus
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
+        <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
+          {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
+          {!running ? "Pomodoro" : phase.kind === "break" ? "Break" : "Focus"}
         </span>
-        <span className="text-ink-mute">·</span>
-        <span
-          className={`rounded-full px-2 py-0.5 font-mono tabular-nums ${
-            phase.kind === "break" && running
-              ? "bg-surface-sunken font-semibold text-ink-soft"
-              : "text-ink-mute"
-          }`}
-        >
-          {rest > 0 ? `${clock(rest)} break` : "no break"}
-        </span>
-      </div>
 
-      {work ? (
-        <>
-          <span className="mt-3.5 max-w-44 truncate text-center text-xs text-ink-soft">
-            {work.title}
-          </span>
-          {/* Named as a countdown, never as progress — that number is measured elsewhere. */}
-          <span className="text-mini text-ink-mute">
-            {phase.kind === "break" ? "until back to it" : "left in this session"}
-          </span>
-        </>
-      ) : (
-        <div className="mt-3.5 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              setManual(
-                manual.startedAt !== null
-                  ? { startedAt: null, frozen: Math.max(0, now - manual.startedAt) }
-                  : // Start where it was paused, by moving the start back that far.
-                    { startedAt: now - manual.frozen, frozen: 0 },
-              )
-            }
-            className="flex items-center gap-1.5 rounded-full bg-rose px-3.5 py-1.5 text-mini font-semibold text-white transition hover:bg-rose-deep"
+        {/* Both halves of the cycle, always — knowing the break is five minutes and not
+            fifteen is most of what makes the next twenty-five bearable, and it should not
+            take arriving at the break to find out. The one you are in is the lit one. */}
+        <div className="flex flex-col items-start gap-1 text-mini">
+          <span
+            className={`rounded-full px-2 py-0.5 font-mono tabular-nums ${
+              phase.kind === "focus" && running
+                ? "bg-rose-wash font-semibold text-rose-deep"
+                : "text-ink-mute"
+            }`}
           >
-            {manual.startedAt !== null ? <Pause size={12} /> : <Play size={12} />}
-            {manual.startedAt !== null ? "Pause" : manual.frozen > 0 ? "Resume" : "Start"}
-          </button>
-          {(manual.startedAt !== null || manual.frozen > 0) && (
+            {clock(focus)} focus
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 font-mono tabular-nums ${
+              phase.kind === "break" && running
+                ? "bg-surface-sunken font-semibold text-ink-soft"
+                : "text-ink-mute"
+            }`}
+          >
+            {rest > 0 ? `${clock(rest)} break` : "no break"}
+          </span>
+        </div>
+
+        {work ? (
+          <div className="min-w-0">
+            <div className="truncate text-xs font-medium text-ink-soft">{work.title}</div>
+            {/* Named as a countdown, never as progress — that number is measured
+                elsewhere. */}
+            <div className="text-mini text-ink-mute">
+              {phase.kind === "break" ? "until back to it" : "left in this session"}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setManual(STOPPED)}
-              title="Reset"
-              aria-label="Reset the timer"
-              className="rounded-full p-1.5 text-ink-mute transition hover:text-ink"
+              onClick={() =>
+                setManual(
+                  manual.startedAt !== null
+                    ? { startedAt: null, frozen: Math.max(0, now - manual.startedAt) }
+                    : // Start where it was paused, by moving the start back that far.
+                      { startedAt: now - manual.frozen, frozen: 0 },
+                )
+              }
+              className="flex items-center gap-1.5 rounded-full bg-rose px-4 py-1.5 text-mini font-semibold text-white transition hover:bg-rose-deep"
             >
-              <RotateCcw size={13} />
+              {manual.startedAt !== null ? <Pause size={12} /> : <Play size={12} />}
+              {manual.startedAt !== null ? "Pause" : manual.frozen > 0 ? "Resume" : "Start"}
             </button>
-          )}
-        </div>
-      )}
+            {(manual.startedAt !== null || manual.frozen > 0) && (
+              <button
+                type="button"
+                onClick={() => setManual(STOPPED)}
+                title="Reset"
+                aria-label="Reset the timer"
+                className="rounded-full p-1.5 text-ink-mute transition hover:text-ink"
+              >
+                <RotateCcw size={13} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

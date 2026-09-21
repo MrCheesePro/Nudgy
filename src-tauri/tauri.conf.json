@@ -16,14 +16,13 @@
         "title": "Nudgy",
         "width": 1416,
         "height": 960,
-        "minWidth": 1062,
+        "minWidth": 1120,
         "minHeight": 720,
         "resizable": true,
         "visible": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "maxWidth": 2124,
-        "maxHeight": 1440
+        "maximized": true
       }
     ],
     "security": {
