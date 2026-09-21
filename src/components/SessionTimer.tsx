@@ -41,13 +41,15 @@ export function SessionTimer({ work, category }: Props) {
   return (
     // `h-full` so it ends level with the status card beside it. Stretch alone left it a
     // few pixels short, which reads as a misalignment rather than a smaller card.
-    <section className="flex h-full shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-9 py-7">
+    // Wide enough to be a panel rather than a badge, and `h-full` so it ends level with
+    // the status card beside it.
+    <section className="flex h-full w-72 shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-8 py-7">
       <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
         {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
         {phase.kind === "break" ? "Break" : "Focus"}
       </span>
 
-      <div className="relative mt-3 h-36 w-36">
+      <div className="relative mt-4 h-40 w-40">
         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
           <circle
             cx="50"
