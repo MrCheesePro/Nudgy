@@ -309,3 +309,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     worse than one that will not be typed. Both settle from a ref rather than from state —
     advancing the caret fires the old segment's `onBlur` in the same turn as the
     `onChange` that filled it, and reading the render before it empties what was typed.
+37. **Freshness is `FLUSH_SECONDS`, granularity is `TICK_SECONDS`.** Everything measured —
+    plan progress, the day's totals, goal verification — is read back out of
+    `activity_samples`, so nothing can be newer than the last flush (5s) and nothing moves
+    in steps smaller than a tick (3s). The live session counter is the exception: it is
+    derived from the wall clock in `useLiveActivity` and updates every second, because it
+    is arithmetic on a start time rather than a measurement. Anything that reads worked
+    time listens for `nudgy://flushed` — a poll alone leaves the number a minute behind the
+    work it describes. Shortening the flush costs transactions, not rows; shortening the
+    tick costs rows, which is why the two are tuned separately.

@@ -24,7 +24,14 @@ pub const IDLE_THRESHOLD_SECONDS: u64 = 180;
 pub const TICK_SECONDS: u64 = 3;
 
 /// How often the in-memory buffer is drained into SQLite.
-pub const FLUSH_SECONDS: u64 = 45;
+///
+/// This is the floor on how stale anything measured can be. Plan progress, the day's
+/// totals and goal verification are all read back out of the table, so at 45 seconds a
+/// block could be a minute underway before it admitted to a single second of work.
+///
+/// The row count does not depend on this — that is `TICK_SECONDS` — so a shorter interval
+/// buys freshness for the cost of more, smaller transactions, which is what a WAL is for.
+pub const FLUSH_SECONDS: u64 = 5;
 
 /// One bucket in the category vocabulary. The vocabulary lives in the `categories` table
 /// rather than in this file, so a person can add one without a rebuild — which means

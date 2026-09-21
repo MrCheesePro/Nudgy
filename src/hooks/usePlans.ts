@@ -31,6 +31,10 @@ export function usePlans() {
 
   useEffect(() => {
     void refresh();
+    // The minute timer is the backstop. A flush is the actual signal: worked time is
+    // measured from the table, so it cannot change between one flush and the next, and
+    // waiting out a poll after it did left the bar a minute behind the work.
+    const flushed = listen("nudgy://flushed", () => void refresh());
     const timer = window.setInterval(() => void refresh(), REFRESH_MS);
     const unlisten = listen<PlanProgress>("nudgy://checkin", (event) => {
       setCheckin(event.payload);
@@ -40,6 +44,7 @@ export function usePlans() {
     return () => {
       window.clearInterval(timer);
       unlisten.then((dispose) => dispose()).catch(() => undefined);
+      flushed.then((dispose) => dispose()).catch(() => undefined);
     };
   }, [refresh]);
 

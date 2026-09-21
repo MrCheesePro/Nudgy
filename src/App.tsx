@@ -583,7 +583,7 @@ export default function App() {
               <>
                 {/* The header narrows to make room whenever a block is running; with
                     nothing scheduled it takes the full width and no timer appears. */}
-                <div className="flex shrink-0 flex-wrap gap-5">
+                <div className="flex shrink-0 flex-wrap items-stretch gap-5">
                   <div className="min-w-0 flex-1">
                     <LiveStatusHeader
                       status={status}

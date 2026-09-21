@@ -39,13 +39,15 @@ export function SessionTimer({ work, category }: Props) {
   const circumference = 2 * Math.PI * 46;
 
   return (
-    <section className="flex shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-7 py-6">
+    // `h-full` so it ends level with the status card beside it. Stretch alone left it a
+    // few pixels short, which reads as a misalignment rather than a smaller card.
+    <section className="flex h-full shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-9 py-7">
       <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
         {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
         {phase.kind === "break" ? "Break" : "Focus"}
       </span>
 
-      <div className="relative mt-3 h-28 w-28">
+      <div className="relative mt-3 h-36 w-36">
         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
           <circle
             cx="50"
@@ -69,13 +71,13 @@ export function SessionTimer({ work, category }: Props) {
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="font-mono text-2xl tabular-nums text-ink">
+          <span className="font-mono text-3xl tabular-nums text-ink">
             {clock(phase.remaining)}
           </span>
         </div>
       </div>
 
-      <span className="mt-3 max-w-36 truncate text-center text-xs text-ink-soft">
+      <span className="mt-3.5 max-w-44 truncate text-center text-xs text-ink-soft">
         {work.title}
       </span>
       {/* Named as a countdown, never as progress — that number is measured elsewhere. */}
