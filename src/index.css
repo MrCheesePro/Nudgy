@@ -146,19 +146,23 @@ html {
 /*
  * The page arriving.
  *
- * Short and small on purpose: 180ms and 6px is enough to say "this is a different
- * page now" without putting a wait in front of something you asked for. Anything
- * longer becomes a toll you pay on every click, and Nudgy is an app people switch
- * between views in all day.
+ * It animates the panels, not the page. Fading one container made the switch
+ * invisible on the views whose content is a single large panel — the box faded
+ * in while everything inside it sat still, so nothing read as arriving. Each
+ * direct child comes in on its own, slightly behind the one above it, which is
+ * what makes the movement legible rather than merely present.
  *
- * Note it does not animate the height — only opacity and a nudge upward — because
- * the views inside are flex children that size themselves to the viewport, and
- * animating their box would make the charts inside reflow for the whole 180ms.
+ * Opacity and a nudge upward only, never height: the panels inside size
+ * themselves to the viewport, and animating their box would make the charts
+ * reflow for the whole duration.
+ *
+ * `both` matters — without it a child sits at full opacity through its delay and
+ * then fades in from nothing, which is a flicker, not an entrance.
  */
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -166,8 +170,29 @@ html {
   }
 }
 
-.page-enter {
-  animation: page-enter 180ms ease-out;
+/* The wrapper is layout only. Animating it as well as its children compounds two
+   fades and lands the page somewhere between the two. */
+.page-enter > * {
+  animation: page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-enter > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.page-enter > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+/* Past the third the stagger stops growing: a long page should not take half a
+   second to finish arriving. */
+.page-enter > *:nth-child(n + 4) {
+  animation-delay: 160ms;
+}
+
+/* For something that arrives on its own, with no children to stagger. */
+.fade-in {
+  animation: page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* The hatched band marking time that has not happened yet. */

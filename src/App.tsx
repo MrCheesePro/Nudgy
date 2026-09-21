@@ -641,7 +641,7 @@ export default function App() {
               type="button"
               onClick={() => setSidebarHidden(false)}
               title="Show Academic & Project Sync"
-              className="page-enter flex shrink-0 items-center border-l border-edge bg-surface px-1.5 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
+              className="fade-in flex shrink-0 items-center border-l border-edge bg-surface px-1.5 text-ink-mute transition hover:bg-surface-sunken hover:text-ink"
             >
               <PanelRightOpen size={15} />
             </button>
