@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { KeyRound, TriangleAlert, Type, X } from "lucide-react";
 
-import {
-  clearActivityData,
-  clearSecret,
-  getSettings,
-  hasSecret,
-  setSecret,
-  setLmsProvider,
-  setSetting,
-} from "../lib/ipc";
+import { clearActivityData, clearSecret, getSettings, hasSecret, importSound, setLmsProvider, setSecret, setSetting } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import {
   applyAppearance,
@@ -27,6 +19,7 @@ import {
   PREF_VOLUME,
   type ChimeId,
 } from "../lib/chime";
+import { open as pickFile } from "@tauri-apps/plugin-dialog";
 import { readPref, writePref } from "../lib/prefs";
 import { THEMES, chooseAccent, chooseTheme, useAccent, useTheme } from "../lib/theme";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -69,6 +62,38 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
   const [chime, setChime] = useState<ChimeId>(() => readPref<ChimeId>(PREF_CHIME, "soft"));
   const [chimeUrl, setChimeUrl] = useState(() => readPref<string>(PREF_CHIME_URL, ""));
   const [volume, setVolume] = useState(() => readPref<number>(PREF_VOLUME, DEFAULT_VOLUME));
+  const [soundError, setSoundError] = useState<string | null>(null);
+
+  /**
+   * Picks a sound and keeps the copy, not the original.
+   *
+   * The dialog returns where the file is now; `importSound` copies it somewhere it will
+   * still be next month and returns that path. Storing the path the dialog gave us would
+   * work today and go quiet the first time Downloads is emptied.
+   */
+  const pickSound = async () => {
+    setSoundError(null);
+    try {
+      const picked = await pickFile({
+        multiple: false,
+        directory: false,
+        filters: [
+          {
+            name: "Audio",
+            extensions: ["mp3", "m4a", "aac", "wav", "aiff", "caf", "mp4", "mov"],
+          },
+        ],
+      });
+      if (typeof picked !== "string") return;
+
+      const stored = await importSound(picked);
+      setChimeUrl(stored);
+      writePref(PREF_CHIME_URL, stored);
+      playChime("custom", volume, stored);
+    } catch (cause) {
+      setSoundError(String(cause));
+    }
+  };
 
   const [canvasTokenStored, setCanvasTokenStored] = useState(false);
   const [calendarStored, setCalendarStored] = useState(false);
@@ -589,14 +614,18 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
             {/* Only for the option that needs it. A URL field sitting under "Soft" is a
                 field that does nothing, which reads as a field that is broken. */}
             {chime === "custom" && (
-              <input
-                value={chimeUrl}
-                onChange={(event) => setChimeUrl(event.target.value)}
-                onBlur={() => writePref(PREF_CHIME_URL, chimeUrl.trim())}
-                placeholder="https://… or a data: URI"
-                aria-label="Custom sound"
-                className="mt-2.5 w-full rounded-lg border border-edge bg-canvas px-2.5 py-2 text-xs text-ink-soft outline-none transition select-text focus:border-edge-strong"
-              />
+              <div className="mt-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void pickSound()}
+                  className="shrink-0 rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
+                >
+                  Choose a file…
+                </button>
+                <span className="min-w-0 flex-1 truncate text-mini text-ink-mute">
+                  {soundError ?? (chimeUrl ? fileName(chimeUrl) : "No sound chosen yet")}
+                </span>
+              </div>
             )}
 
             <label className="mt-3 block">
@@ -829,4 +858,9 @@ function SecretField({
       />
     </label>
   );
+}
+
+/** The last path segment, which is the part anybody recognises. */
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
 }

@@ -244,6 +244,105 @@ pub struct CheckinResponse {
     pub extra_seconds: i64,
 }
 
+/// Rewrites `Title (n/total)` across a plan's remaining blocks.
+///
+/// The numbering is written into the label when a plan is laid down, so dropping the
+/// sittings it never reached leaves "(1/6)" through "(4/6)" describing a plan with four
+/// sittings. Four of six reads as two still to come.
+///
+/// A single remaining block loses the suffix entirely, which is what the planner does
+/// when it lays down one block to begin with.
+fn renumber_sessions(conn: &Connection, plan_id: i64) -> Result<()> {
+    let rows: Vec<(i64, String)> = conn
+        .prepare("SELECT id, label FROM schedule_blocks WHERE plan_id = ?1 ORDER BY start_ts")?
+        .query_map(params![plan_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<std::result::Result<_, _>>()?;
+
+    let total = rows.len();
+    for (index, (id, label)) in rows.iter().enumerate() {
+        let next = relabel(label, index + 1, total);
+        if &next != label {
+            conn.execute(
+                "UPDATE schedule_blocks SET label = ?2 WHERE id = ?1",
+                params![id, next],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Strips a trailing `(n/m)` and applies a new one, or none when there is only one left.
+pub fn relabel(label: &str, index: usize, total: usize) -> String {
+    let base = strip_session_suffix(label);
+    if total <= 1 {
+        base.to_string()
+    } else {
+        format!("{base} ({index}/{total})")
+    }
+}
+
+/// The title without its `(n/m)`, if it had one. Anything else is left exactly as typed —
+/// a task genuinely called "Reading (part 2)" keeps its name.
+fn strip_session_suffix(label: &str) -> &str {
+    let trimmed = label.trim_end();
+    let Some(open) = trimmed.rfind('(') else {
+        return trimmed;
+    };
+    if !trimmed.ends_with(')') {
+        return trimmed;
+    }
+
+    let inner = &trimmed[open + 1..trimmed.len() - 1];
+    let Some((left, right)) = inner.split_once('/') else {
+        return trimmed;
+    };
+    if left.is_empty()
+        || right.is_empty()
+        || !left.bytes().all(|byte| byte.is_ascii_digit())
+        || !right.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return trimmed;
+    }
+
+    trimmed[..open].trim_end()
+}
+
+/// Brings plans finished before this rule existed into line with it.
+///
+/// A plan that was marked done kept every sitting it never reached, so the calendar is
+/// still holding time open for work that ended weeks ago — and on the day it was
+/// finished, Today would still have counted down a block belonging to it. Cut at
+/// `completed_at` rather than at now, because what was in the future is relative to when
+/// it was finished, not to when this runs.
+///
+/// Idempotent: on an already-tidy database every statement matches nothing.
+pub fn tidy_finished(conn: &Connection) -> Result<()> {
+    let finished: Vec<(i64, i64)> = conn
+        .prepare(
+            "SELECT id, completed_at FROM plans
+              WHERE status = 'done' AND completed_at IS NOT NULL",
+        )?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<std::result::Result<_, _>>()?;
+
+    for (id, cut) in finished {
+        conn.execute(
+            "UPDATE schedule_blocks SET end_ts = ?2
+              WHERE plan_id = ?1 AND start_ts <= ?2 AND end_ts > ?2",
+            params![id, cut],
+        )?;
+        let dropped = conn.execute(
+            "DELETE FROM schedule_blocks WHERE plan_id = ?1 AND start_ts >= ?2",
+            params![id, cut],
+        )?;
+        if dropped > 0 {
+            log::info!("tidied {dropped} unstarted blocks from finished plan {id}");
+            renumber_sessions(conn, id)?;
+        }
+    }
+    Ok(())
+}
+
 pub fn respond(conn: &Connection, response: &CheckinResponse) -> Result<PlanProgress> {
     let Some(mut plan) = load(conn, response.plan_id)? else {
         return Err(anyhow::anyhow!("plan {} is not active", response.plan_id));
@@ -279,6 +378,7 @@ pub fn respond(conn: &Connection, response: &CheckinResponse) -> Result<PlanProg
         )?;
         if dropped > 0 {
             log::info!("plan {} finished early; dropped {dropped} unstarted blocks", plan.id);
+            renumber_sessions(conn, plan.id)?;
         }
 
         plan.status = STATUS_DONE.to_string();
@@ -501,6 +601,63 @@ mod tests {
         // The one underway ends at the click, so nothing on Today is still counting down
         // a plan that is over — and every sample inside it is still inside it.
         assert_eq!(blocks[1], (now - 600, now));
+
+        // Four of six would read as two still to come. What is left is all there is.
+        let labels: Vec<String> = conn
+            .prepare("SELECT label FROM schedule_blocks ORDER BY start_ts")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect();
+        assert_eq!(labels, vec!["Lab (1/2)", "Lab (2/2)"]);
+    }
+
+    #[test]
+    fn relabelling_replaces_a_count_rather_than_stacking_them() {
+        assert_eq!(relabel("Homework (5/6)", 2, 4), "Homework (2/4)");
+        assert_eq!(relabel("Homework", 2, 4), "Homework (2/4)");
+        // The last one standing loses the count, the way a one-sitting plan never has it.
+        assert_eq!(relabel("Homework (3/6)", 1, 1), "Homework");
+    }
+
+    // A title that merely looks like a count keeps its name.
+    #[test]
+    fn relabelling_leaves_a_real_bracket_alone() {
+        assert_eq!(relabel("Reading (part 2)", 1, 2), "Reading (part 2) (1/2)");
+        assert_eq!(relabel("Essay (draft)", 1, 1), "Essay (draft)");
+    }
+
+    // Plans finished under an older build kept every sitting they never reached.
+    #[test]
+    fn tidying_cuts_finished_plans_at_the_moment_they_were_finished() {
+        let mut conn = memory_db();
+        let id = create(&conn, &plan(4)).unwrap();
+        let finished = 100_000;
+
+        work(&mut conn, id, finished - 3_600, 1_800, false);
+        work(&mut conn, id, finished - 600, 1_200, false);
+        work(&mut conn, id, finished + 3_600, 3_600, false);
+
+        conn.execute(
+            "UPDATE plans SET status = 'done', completed_at = ?2 WHERE id = ?1",
+            params![id, finished],
+        )
+        .unwrap();
+
+        tidy_finished(&conn).unwrap();
+        // Idempotent: a second pass has nothing left to do and must not change anything.
+        tidy_finished(&conn).unwrap();
+
+        let blocks: Vec<(i64, i64)> = conn
+            .prepare("SELECT start_ts, end_ts FROM schedule_blocks ORDER BY start_ts")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .map(|row| row.unwrap())
+            .collect();
+
+        assert_eq!(blocks, vec![(finished - 3_600, finished - 1_800), (finished - 600, finished)]);
     }
 
     // Done means finished, not erased. The UI has to be able to tell a plan that is over

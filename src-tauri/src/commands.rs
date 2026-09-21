@@ -275,6 +275,66 @@ pub fn set_setting(state: State<'_, AppState>, key: String, value: String) -> Cm
     with_db(&state, |conn| queries::set_setting(conn, &key, &value))
 }
 
+/// Audio the webview will actually play, and nothing that is only pretending to be.
+const SOUND_EXTENSIONS: [&str; 8] = ["mp3", "m4a", "aac", "wav", "aiff", "caf", "mp4", "mov"];
+
+/// A notification sound is seconds long. Ten megabytes is far more than that needs and
+/// far less than a file somebody picked by accident.
+const MAX_SOUND_BYTES: u64 = 10 * 1024 * 1024;
+
+/// Copies a picked audio file into the app's own data directory and returns its new path.
+///
+/// Copied rather than referenced, because the file somebody picks lives in Downloads and
+/// Downloads gets emptied. A sound that stops working a week later, silently, is worse
+/// than one that was never set — the notification still arrives, so there is nothing to
+/// notice until you wonder why the app went quiet.
+///
+/// One file at a time: importing replaces whatever was there, so the directory cannot
+/// accumulate sounds nothing references.
+#[tauri::command]
+pub fn import_sound(app: AppHandle, source: String) -> CmdResult<String> {
+    let path = std::path::PathBuf::from(&source);
+
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
+    if !SOUND_EXTENSIONS.contains(&extension.as_str()) {
+        return Err(AppError::msg(format!(
+            "{extension} is not an audio format Nudgy can play"
+        )));
+    }
+
+    let size = std::fs::metadata(&path)
+        .map_err(|cause| AppError::msg(format!("could not read that file: {cause}")))?
+        .len();
+    if size > MAX_SOUND_BYTES {
+        return Err(AppError::msg("that file is larger than 10 MB"));
+    }
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|cause| AppError::msg(format!("no application data directory: {cause}")))?
+        .join("sounds");
+    std::fs::create_dir_all(&dir).map_err(|cause| AppError::msg(cause.to_string()))?;
+
+    // A fixed name, so the previous import is overwritten rather than orphaned. The
+    // extension varies because the webview decides what to decode from it.
+    for old in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        if old.file_name().to_string_lossy().starts_with("chime.") {
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+
+    let destination = dir.join(format!("chime.{extension}"));
+    std::fs::copy(&path, &destination)
+        .map_err(|cause| AppError::msg(format!("could not copy it: {cause}")))?;
+
+    Ok(destination.to_string_lossy().to_string())
+}
+
 pub const SETTING_CANVAS_BASE_URL: &str = "canvas_base_url";
 
 /// Whether a secret is present — never its value. The frontend has no route to the

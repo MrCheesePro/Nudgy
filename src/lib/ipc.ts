@@ -104,6 +104,15 @@ export const getSettings = () => invoke<[string, string][]>("get_settings");
 export const setSetting = (key: string, value: string) =>
   invoke<void>("set_setting", { key, value });
 
+/**
+ * Copies a picked audio file into the app's data directory and returns its new path.
+ *
+ * Copied rather than referenced: the file you pick lives in Downloads, and Downloads gets
+ * emptied. A sound that goes silent a week later is worse than one never set, because the
+ * notification still arrives and there is nothing to notice.
+ */
+export const importSound = (source: string) => invoke<string>("import_sound", { source });
+
 /** Reports only whether a secret exists — there is no command that returns its value. */
 export const hasSecret = (key: string) => invoke<boolean>("has_secret", { key });
 

@@ -59,6 +59,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
+| `src/lib/chime.ts` | Synthesised tones, an imported sound, and the volume both play at |
 | `src-tauri/src/tray.rs` | Tray menu, pause plumbing, ordered shutdown |
 | `src-tauri/src/commands.rs` | Every `#[tauri::command]` |
 | `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits), `progress.ts` (streaks, averages, direction-aware trend) |
@@ -138,7 +139,10 @@ wrong data.
     are dropped and the one underway is cut to the moment you said you were done. Those
     are not a record of anything — the time is free now, a block nothing will work on is a
     lie the calendar keeps telling, and a plan you have finished should not still be
-    counting down on Today. Everything worked stays inside a window that still covers it. A done plan keeps its blocks and is still returned by `all_progress`, so
+    counting down on Today. Everything worked stays inside a window that still covers it,
+    the remaining labels are renumbered so four sittings do not read as `(4/6)`, and
+    `tidy_finished` runs at startup so plans finished under an older build are brought
+    into line too. A done plan keeps its blocks and is still returned by `all_progress`, so
     the timeline can draw it as finished rather than as never-started; `load_active` stays
     narrow because the check-in loop must not ask about it again. Clearing the Completed
     list writes a timestamp and filters against it.

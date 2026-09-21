@@ -5,15 +5,16 @@
  * ship nothing, and cannot go missing — where three audio files would add a megabyte to
  * every installer for something most people hear twice a day.
  *
- * A sound of your own is a fourth option: a URL or a `data:` URI played through an
- * `Audio` element. A URL rather than a file picker because a picked file has to be copied
- * into the app data directory, tracked, and cleaned up when it is replaced — three moving
- * parts for a sound most people set once. A `data:` URI covers the offline case without
- * any of them.
+ * A sound of your own is a fourth option: any audio file on the machine, picked with the
+ * system dialog. It is copied into the app's data directory and played through the asset
+ * protocol, which is why the stored value is a path rather than the file you chose — the
+ * original lives in Downloads, and Downloads gets emptied.
  *
  * Every call is wrapped: a browser may refuse to start audio before the page has been
  * interacted with, and a notification that cannot make a noise must still arrive.
  */
+
+import { convertFileSrc } from "@tauri-apps/api/core";
 
 export type ChimeId = "soft" | "bright" | "low" | "none" | "custom";
 
@@ -67,7 +68,10 @@ export function playChime(id: ChimeId, volume = DEFAULT_VOLUME, url?: string): v
   if (id === "custom") {
     if (!url) return;
     try {
-      const sound = new Audio(url);
+      // A path on disk becomes an `asset:` URL the webview is allowed to load; anything
+      // already a URL is played as-is.
+      const src = /^[a-z]+:/i.test(url) ? url : convertFileSrc(url);
+      const sound = new Audio(src);
       sound.volume = level;
       void sound.play().catch(() => undefined);
     } catch {

@@ -72,6 +72,12 @@ fn setup(app: &AppHandle) -> Result<()> {
         None => log::warn!("registry seed file not found; starting with an empty registry"),
     }
 
+    // Before anything reads the schedule: a plan finished under an older build kept the
+    // sittings it never reached, and the calendar is still holding that time open.
+    if let Err(cause) = plans::tidy_finished(&connection) {
+        log::warn!("could not tidy finished plans: {cause}");
+    }
+
     let compiled = Registry::load(&connection)?;
     app.manage(AppState::new(connection, compiled));
 
@@ -125,6 +131,7 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             setup(app.handle()).map_err(|error| -> Box<dyn std::error::Error> {
                 Box::new(std::io::Error::other(error.to_string()))
@@ -163,6 +170,7 @@ pub fn run() {
             commands::delete_redaction_rule,
             commands::get_settings,
             commands::set_setting,
+            commands::import_sound,
             commands::has_secret,
             commands::set_secret,
             commands::clear_secret,
