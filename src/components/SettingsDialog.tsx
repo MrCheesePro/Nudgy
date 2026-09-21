@@ -484,10 +484,16 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 <li key={entry.id}>
                   <button
                     type="button"
-                    onClick={() => void chooseTheme(entry.id)}
-                    aria-pressed={entry.id === theme}
+                    onClick={() => {
+                      // Picking a preset clears a custom colour, because the custom one
+                      // *is* a theme now — leaving both set would mean the preset you
+                      // just chose had no visible effect.
+                      if (accent) void chooseAccent("");
+                      void chooseTheme(entry.id);
+                    }}
+                    aria-pressed={!accent && entry.id === theme}
                     className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                      entry.id === theme
+                      !accent && entry.id === theme
                         ? "border-edge-strong bg-canvas font-medium text-ink"
                         : "border-edge text-ink-soft hover:border-edge-strong"
                     }`}
@@ -507,25 +513,31 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
               ))}
             </ul>
 
-            {/* One colour, not four. The interface uses an accent at four strengths and
-                the other three are derived from this one, because picking four shades
-                that agree with each other is the part that is actually hard. */}
-            <div className="mt-3 flex items-center gap-2.5">
+            {/* A theme from one colour. The other eleven are derived from it, because a
+                theme is twelve colours that have to agree and picking twelve is the part
+                that is actually hard. */}
+            <div
+              className={`mt-3 flex items-center gap-2.5 rounded-lg border px-2.5 py-1.5 transition ${
+                accent ? "border-edge-strong bg-canvas" : "border-edge"
+              }`}
+            >
               <input
                 type="color"
                 value={accent || "#e0919c"}
                 onChange={(event) => void chooseAccent(event.target.value)}
-                aria-label="Accent colour"
-                className="h-7 w-10 cursor-pointer rounded-lg border border-edge bg-canvas"
+                aria-label="Build a theme from your own colour"
+                className="h-6 w-9 shrink-0 cursor-pointer rounded border border-edge bg-canvas"
               />
-              <span className="text-xs text-ink-soft">Accent colour</span>
+              <span className={`text-xs ${accent ? "font-medium text-ink" : "text-ink-soft"}`}>
+                Your own colour
+              </span>
               {accent && (
                 <button
                   type="button"
                   onClick={() => void chooseAccent("")}
-                  className="ml-auto text-mini text-ink-mute transition hover:text-ink-soft"
+                  className="ml-auto shrink-0 text-mini text-ink-mute transition hover:text-ink-soft"
                 >
-                  Use the theme's
+                  Back to a preset
                 </button>
               )}
             </div>

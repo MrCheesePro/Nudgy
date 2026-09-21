@@ -79,6 +79,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
+| `src/lib/theme.ts` | The presets, and a whole theme derived from one picked colour |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
@@ -353,3 +354,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     `--color-surface`, because a custom property that refers to itself is a cycle and
     drops out entirely. The floor is 40%: below that the chart colours stop meaning what
     the legend says they mean.
+40. **A picked colour is a theme, not a tint.** One hex derives all twelve tokens with
+    `color-mix`, in the proportions Blush already uses — canvas a tenth of the accent over
+    white, edge a fifth, ink a third of it over black. Every surface is mixed toward white
+    and every ink toward black, which is the whole legibility argument: there is no hue
+    that can produce grey text on a grey card. It is stored beside the theme rather than
+    inside `THEMES` because it is a modifier — clearing it has to put back whatever the
+    preset said — and choosing a preset clears it, since otherwise the preset you just
+    picked would have no visible effect. Category colours are still untouched: they live
+    in the database and mean something specific.

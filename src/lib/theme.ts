@@ -156,17 +156,16 @@ export function applyTheme(id: string) {
 }
 
 /**
- * One colour of your own, and the three shades the app derives from it.
+ * One colour of your own, and the theme the app derives from it.
  *
- * A single hex rather than a palette. The interface uses an accent at four strengths —
- * the colour itself, a darker one for text and hover, a wash behind chips, and a mid tone
- * for bars — and asking somebody to pick four colours that agree with each other is
- * asking them to do the part that is actually hard. `color-mix` derives the other three,
- * so any colour picked produces a set that holds together.
+ * A single hex rather than a palette: a theme is twelve colours that have to agree with
+ * each other, and picking twelve is the part that is actually hard. `color-mix` derives
+ * the other eleven from this one, so any colour produces a whole scheme — surfaces,
+ * borders and text, not just the accent.
  *
- * Empty means the theme's own accent, which is why this is stored separately from the
- * theme rather than as a fifth entry in `THEMES`: it is a modifier, and clearing it has
- * to put back whatever the theme said.
+ * Empty means the chosen theme's own colours, which is why this is stored separately from
+ * the theme rather than as an extra entry in `THEMES`: it is a modifier, and clearing it
+ * has to put back whatever the theme said.
  */
 export function applyAccent(hex: string) {
   accent = hex.trim();
@@ -174,32 +173,60 @@ export function applyAccent(hex: string) {
   for (const listener of listeners) listener();
 }
 
+/**
+ * A whole theme from one colour.
+ *
+ * The proportions are Blush's own, read back out of it: its canvas is about a tenth of
+ * its accent over white, its edge about a fifth, its ink about a third of the accent over
+ * black. Applying those same ratios to another colour gives a set that hangs together for
+ * the same reason Blush does, rather than an accent sitting on top of somebody else's
+ * palette.
+ *
+ * Every surface is mixed toward white and every ink toward black, which is what keeps it
+ * legible whatever gets picked: a navy accent still gives pale surfaces and dark text, and
+ * so does a pale yellow one. That is the whole safety argument — there is no hue that can
+ * produce grey text on a grey card.
+ */
+const DERIVED: [string, number, "white" | "black"][] = [
+  ["--color-canvas", 9, "white"],
+  ["--color-surface", 3, "white"],
+  ["--color-surface-sunken", 13, "white"],
+  ["--color-edge", 20, "white"],
+  ["--color-edge-strong", 34, "white"],
+  ["--color-ink", 32, "black"],
+  ["--color-ink-soft", 52, "black"],
+  ["--color-ink-mute", 68, "black"],
+  ["--color-rose", 100, "white"],
+  ["--color-rose-deep", 74, "black"],
+  ["--color-rose-wash", 20, "white"],
+  ["--color-rose-bar", 55, "white"],
+];
+
+const ACCENT_TOKENS = DERIVED.map(([token]) => token);
+
 function paintAccent() {
   const root = document.documentElement;
+
   if (!accent) {
-    // Cleared, not overwritten — the theme's own values are already on `:root`, so
-    // removing these inline properties is what puts them back.
-    for (const token of ACCENT_TOKENS) root.style.removeProperty(token);
+    // Cleared, not overwritten — put back whatever the current theme says for each one.
     const theme = THEMES.find((entry) => entry.id === current) ?? THEMES[0];
     for (const token of ACCENT_TOKENS) {
       const value = theme.tokens[token];
       if (value) root.style.setProperty(token, value);
+      else root.style.removeProperty(token);
     }
     return;
   }
 
-  root.style.setProperty("--color-rose", accent);
-  root.style.setProperty("--color-rose-deep", `color-mix(in srgb, ${accent} 74%, black)`);
-  root.style.setProperty("--color-rose-wash", `color-mix(in srgb, ${accent} 18%, white)`);
-  root.style.setProperty("--color-rose-bar", `color-mix(in srgb, ${accent} 55%, white)`);
+  for (const [token, percent, toward] of DERIVED) {
+    root.style.setProperty(
+      token,
+      percent >= 100 ? accent : `color-mix(in srgb, ${accent} ${percent}%, ${toward})`,
+    );
+  }
+  // Light surfaces and dark text, whatever the hue — so the native controls match.
+  root.style.colorScheme = "light";
 }
-
-const ACCENT_TOKENS = [
-  "--color-rose",
-  "--color-rose-deep",
-  "--color-rose-wash",
-  "--color-rose-bar",
-];
 
 export function useAccent(): string {
   return useSyncExternalStore(subscribe, () => accent);
