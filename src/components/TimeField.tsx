@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { ChevronDown } from "lucide-react";
 
 import {
   applyDigit,
+  formatTwelveHour,
   settle,
+  timeSuggestions,
   toParts,
   toValue,
   type ClockParts,
   type Meridiem,
 } from "../lib/clockInput";
+
+const SUGGESTIONS = timeSuggestions();
 
 interface Props {
   /** 24-hour `HH:MM`, or "" for unset. */
@@ -47,6 +52,19 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
   const hour = hourRef ?? fallbackHour;
   const minute = useRef<HTMLInputElement>(null);
   const meridiem = useRef<HTMLButtonElement>(null);
+  const frame = useRef<HTMLSpanElement>(null);
+  const [listOpen, setListOpen] = useState(false);
+
+  // Click anywhere else and the list goes away. `mousedown` rather than `click`, so
+  // pressing a control outside does not both close this and miss that control.
+  useEffect(() => {
+    if (!listOpen) return;
+    const dismiss = (event: MouseEvent) => {
+      if (!frame.current?.contains(event.target as Node)) setListOpen(false);
+    };
+    window.addEventListener("mousedown", dismiss);
+    return () => window.removeEventListener("mousedown", dismiss);
+  }, [listOpen]);
 
   // A value set from outside — cleared by "Any time", or loaded from a draft — replaces
   // what is here. What is being typed is left alone, or every keystroke fights the parent.
@@ -64,7 +82,8 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
 
   return (
     <span
-      className={`inline-flex items-center rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm transition focus-within:border-edge-strong ${
+      ref={frame}
+      className={`relative inline-flex items-center rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm transition focus-within:border-edge-strong ${
         disabled ? "opacity-50" : ""
       }`}
       role="group"
@@ -166,6 +185,53 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
       >
         {parts.meridiem || "--"}
       </button>
+
+      {/* The list and the typed field, not one or the other: picking is faster for the
+          times people actually choose, and 2:05 still has to be typeable. */}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`${label}, choose from a list`}
+        aria-expanded={listOpen}
+        onClick={() => setListOpen((open) => !open)}
+        className="ml-1 rounded p-0.5 text-ink-mute transition hover:text-ink-soft"
+      >
+        <ChevronDown size={13} />
+      </button>
+
+      {listOpen && (
+        <ul
+          role="listbox"
+          // Scrolled to whatever is set, so opening it lands near the answer rather than
+          // at midnight — the list is the whole day and the day is long.
+          ref={(node) =>
+            node?.querySelector<HTMLElement>("[data-selected=true]")?.scrollIntoView({
+              block: "center",
+            })
+          }
+          className="scroll-area absolute top-full right-0 z-50 mt-1 max-h-56 w-32 rounded-lg border border-edge bg-surface py-1 shadow-xl"
+        >
+          {SUGGESTIONS.map((option) => (
+            <li key={option}>
+              <button
+                type="button"
+                data-selected={option === value}
+                onClick={() => {
+                  commit(toParts(option));
+                  setListOpen(false);
+                }}
+                className={`block w-full px-3 py-1 text-left text-xs transition ${
+                  option === value
+                    ? "bg-rose-wash font-semibold text-rose-deep"
+                    : "text-ink-soft hover:bg-surface-sunken"
+                }`}
+              >
+                {formatTwelveHour(option)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </span>
   );
 }

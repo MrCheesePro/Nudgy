@@ -476,17 +476,6 @@ export function PlanAssignmentDialog({
           </span>
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setStartDay(null)}
-              className={`rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                startDay === null
-                  ? "border-edge-strong bg-rose-wash text-rose-deep"
-                  : "border-edge text-ink-mute hover:text-ink-soft"
-              }`}
-            >
-              Any day
-            </button>
             {days.map((day, index) => (
               <button
                 key={day.key}
@@ -590,12 +579,6 @@ export function PlanAssignmentDialog({
                   </li>
                 ))}
               </ul>
-              {placement && placement.shortfallSeconds > 0 && (
-                <p className="mt-2 text-xs text-warn">
-                  {formatDuration(placement.shortfallSeconds)} could not fit before the
-                  deadline.
-                </p>
-              )}
             </>
           )}
         </div>

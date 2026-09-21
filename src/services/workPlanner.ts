@@ -109,7 +109,15 @@ export interface Placement {
 }
 
 export const DEFAULT_BREAK_SECONDS = 5 * 60;
-/** Below this a fragment is not worth walking to the desk for. */
+/**
+ * Below this a *fragment* is not worth walking to the desk for.
+ *
+ * It is a floor on how finely a long plan may be chopped, never a floor on the work
+ * itself: asked for five minutes, the planner has no business refusing because ten is its
+ * idea of a sitting. So the usable slot length is this or the whole estimate, whichever
+ * is smaller — which is what made "5 minutes" report no free time before its deadline on
+ * an otherwise empty evening.
+ */
 const MIN_SESSION_SECONDS = 10 * 60;
 
 /**
@@ -165,7 +173,7 @@ export function placeWork(input: PlacementInput): Placement {
             now: day.startTs,
             dayEnd,
             commitments: day.commitments,
-            minSlotSeconds: MIN_SESSION_SECONDS,
+            minSlotSeconds: Math.min(MIN_SESSION_SECONDS, remaining),
           });
 
     return { key: day.key, slots };

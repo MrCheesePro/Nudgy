@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyDigit,
+  formatTwelveHour,
+  timeSuggestions,
   EMPTY_PARTS,
   hourComplete,
   minuteComplete,
@@ -149,5 +151,23 @@ describe("typing through the segments", () => {
 
   it("drops anything that is not a digit", () => {
     expect(applyDigit(EMPTY_PARTS, "hour", "a").parts.hour).toBe("");
+  });
+});
+
+describe("timeSuggestions", () => {
+  it("covers the whole day in quarter-hours", () => {
+    const times = timeSuggestions();
+    expect(times).toHaveLength(96);
+    expect(times[0]).toBe("00:00");
+    expect(times[1]).toBe("00:15");
+    expect(times[times.length - 1]).toBe("23:45");
+  });
+});
+
+describe("formatTwelveHour", () => {
+  it("reads a stored time back the way it was typed", () => {
+    expect(formatTwelveHour("14:30")).toBe("2:30 PM");
+    expect(formatTwelveHour("00:00")).toBe("12:00 AM");
+    expect(formatTwelveHour("")).toBe("");
   });
 });

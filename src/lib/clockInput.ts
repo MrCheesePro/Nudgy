@@ -136,3 +136,29 @@ export function settle(parts: ClockParts, segment: Segment): ClockParts {
     ? { ...parts, hour: settleHour(parts.hour) }
     : { ...parts, minute: settleMinute(parts.minute) };
 }
+
+/** Quarter-hours, the way every calendar app offers them. */
+export const SUGGESTION_STEP_MINUTES = 15;
+
+/**
+ * Every quarter-hour of the day as `HH:MM`, for the dropdown beside the field.
+ *
+ * A list *and* a typed field, not one or the other: picking is faster for the times
+ * people actually choose, and 2:05 still has to be typeable. The list is exhaustive
+ * rather than relative to now, so the same time is always in the same place in it.
+ */
+export function timeSuggestions(): string[] {
+  const times: string[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += SUGGESTION_STEP_MINUTES) {
+    const hour = Math.floor(minutes / 60);
+    times.push(`${String(hour).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`);
+  }
+  return times;
+}
+
+/** `14:30` as `2:30 PM`, for showing a stored value back to somebody. */
+export function formatTwelveHour(value: string): string {
+  const parts = toParts(value);
+  if (!parts.hour) return "";
+  return `${parts.hour}:${parts.minute} ${parts.meridiem}`;
+}

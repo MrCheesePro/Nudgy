@@ -318,3 +318,41 @@ describe("placeWork — five-minute starts", () => {
     }
   });
 });
+
+describe("short work", () => {
+  /**
+   * The ten-minute floor is about not chopping a long plan into useless fragments. Asked
+   * for five minutes, the planner has no business refusing because ten is its idea of a
+   * sitting — this reported "no free time before the deadline" on an empty evening.
+   */
+  it("places an estimate shorter than a session", () => {
+    const start = 1_600_000_000;
+    const placement = placeWork({
+      estimateSeconds: 5 * 60,
+      focusSeconds: 25 * 60,
+      mode: "continuous",
+      now: start,
+      dueAt: start + 25 * 60,
+      days: [{ key: "2020-09-13", startTs: start, endTs: start + 8 * 3600, commitments: [] }],
+    });
+
+    expect(placement.blocks).toHaveLength(1);
+    expect(placement.placedSeconds).toBe(5 * 60);
+    expect(placement.shortfallSeconds).toBe(0);
+    expect(placement.reason).toBeNull();
+  });
+
+  it("still refuses when the gap is shorter than the work", () => {
+    const start = 1_600_000_000;
+    const placement = placeWork({
+      estimateSeconds: 30 * 60,
+      focusSeconds: 25 * 60,
+      mode: "continuous",
+      now: start,
+      dueAt: start + 10 * 60,
+      days: [{ key: "2020-09-13", startTs: start, endTs: start + 8 * 3600, commitments: [] }],
+    });
+
+    expect(placement.blocks).toHaveLength(0);
+  });
+});
