@@ -196,7 +196,7 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
         </div>
 
         <div className="mt-4 rounded-xl border border-edge bg-canvas px-3 py-2.5">
-          <span className="text-[0.6875rem] font-medium tracking-wide text-ink-soft">
+          <span className="text-mini font-medium tracking-wide text-ink-soft">
             Free from here on
           </span>
           <p className="mt-1 text-xs text-ink-mute">
@@ -242,7 +242,7 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
                     : `due ${relativeDayLabel(item.dueAt)} ${formatClock(item.dueAt)}`}
                 </p>
               </div>
-              <span className="shrink-0 font-mono text-[0.6875rem] text-ink-mute">
+              <span className="shrink-0 font-mono text-mini text-ink-mute">
                 {index + 1} of {queue.length}
               </span>
             </div>
@@ -279,10 +279,10 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
               )}
 
               {placement && placement.overdue && blocks.length > 0 && (
-                <p className="mt-2 text-[0.6875rem] text-warn">{placement.reason}</p>
+                <p className="mt-2 text-mini text-warn">{placement.reason}</p>
               )}
               {placement && placement.shortfallSeconds > 0 && blocks.length > 0 && (
-                <p className="mt-2 text-[0.6875rem] text-warn">
+                <p className="mt-2 text-mini text-warn">
                   {formatDuration(placement.shortfallSeconds)} could not fit.
                 </p>
               )}

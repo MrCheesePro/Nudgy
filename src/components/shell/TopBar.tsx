@@ -44,7 +44,7 @@ export function TopBar({
       <button
         type="button"
         onClick={onTogglePause}
-        className="flex shrink-0 items-center gap-1.5 rounded-full border border-edge bg-surface px-3 py-1 text-[0.6875rem] font-medium text-ink-soft transition hover:border-edge-strong"
+        className="flex shrink-0 items-center gap-1.5 rounded-full border border-edge bg-surface px-3 py-1 text-mini font-medium text-ink-soft transition hover:border-edge-strong"
       >
         <span
           className={`h-1.5 w-1.5 rounded-full ${paused ? "" : "live-dot"}`}
@@ -86,7 +86,7 @@ export function TopBar({
         type="button"
         aria-label="Settings"
         onClick={onOpenSettings}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-wash text-[0.625rem] font-semibold text-rose-deep transition hover:bg-edge-strong"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-wash text-tiny font-semibold text-rose-deep transition hover:bg-edge-strong"
       >
         NU
       </button>

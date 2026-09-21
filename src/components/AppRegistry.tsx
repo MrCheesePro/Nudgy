@@ -347,7 +347,7 @@ function RecordedSection({
   return (
     <section className="rounded-2xl border border-edge bg-surface p-6">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+        <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
           Known apps
         </h2>
         <span className="font-mono text-xs tabular-nums text-ink-mute">{total}</span>
@@ -414,12 +414,12 @@ function RecordedSection({
                           <div className="truncate text-xs text-ink">
                             {group.name}
                             {allSites && (
-                              <span className="ml-1.5 text-[0.625rem] tracking-wide text-ink-mute uppercase">
+                              <span className="ml-1.5 text-tiny tracking-wide text-ink-mute uppercase">
                                 site
                               </span>
                             )}
                             {group.mixed && (
-                              <span className="ml-1.5 rounded bg-warn/15 px-1 py-px text-[0.5625rem] font-medium text-warn uppercase">
+                              <span className="ml-1.5 rounded bg-warn/15 px-1 py-px text-micro font-medium text-warn uppercase">
                                 split
                               </span>
                             )}
@@ -428,7 +428,7 @@ function RecordedSection({
                               they stay visible — just demoted to a count once there is
                               more than one, since nobody reads two bundle ids. */}
                           <div
-                            className="truncate font-mono text-[0.625rem] text-ink-mute"
+                            className="truncate font-mono text-tiny text-ink-mute"
                             title={group.rules.map((rule) => rule.pattern).join("\n")}
                           >
                             {group.rules.length === 1
@@ -437,7 +437,7 @@ function RecordedSection({
                           </div>
                         </div>
 
-                        <span className="shrink-0 font-mono text-[0.6875rem] tabular-nums text-ink-mute">
+                        <span className="shrink-0 font-mono text-mini tabular-nums text-ink-mute">
                           {group.seconds > 0 ? formatDuration(group.seconds) : "\u2014"}
                         </span>
 
@@ -445,7 +445,7 @@ function RecordedSection({
                           value={group.category}
                           disabled={pending}
                           onChange={(event) => onMove(group, event.target.value)}
-                          className="rounded-lg border border-edge bg-surface px-2 py-1 text-[0.6875rem] text-ink-soft outline-none focus:border-edge-strong disabled:opacity-50"
+                          className="rounded-lg border border-edge bg-surface px-2 py-1 text-mini text-ink-soft outline-none focus:border-edge-strong disabled:opacity-50"
                         >
                           {categories.map((entry) => (
                             <option key={entry.id} value={entry.name}>
@@ -481,7 +481,7 @@ function RecordedSection({
                   <button
                     type="button"
                     onClick={() => setOpen((previous) => new Set(previous).add(category))}
-                    className="mt-1.5 text-[0.6875rem] text-ink-mute transition hover:text-ink-soft"
+                    className="mt-1.5 text-mini text-ink-mute transition hover:text-ink-soft"
                   >
                     Show all {group.rows.length}
                   </button>
@@ -535,10 +535,10 @@ function UnmappedSection({ unmapped, categories, busy, onMapped }: UnmappedProps
   return (
     <section className="rounded-2xl border border-edge bg-surface p-6">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+        <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
           Unrecognised
         </h2>
-        <span className="text-[0.6875rem] text-ink-mute">last 48 hours</span>
+        <span className="text-mini text-ink-mute">last 48 hours</span>
       </div>
       <p className="mt-1 text-xs text-ink-mute">
         Tracked as Neutral because no rule matched. Give one a category and Nudgy will
@@ -568,16 +568,16 @@ function UnmappedSection({ unmapped, categories, busy, onMapped }: UnmappedProps
                     </div>
                   </div>
 
-                  <span className="shrink-0 text-right font-mono text-[0.6875rem] tabular-nums text-ink-mute">
+                  <span className="shrink-0 text-right font-mono text-mini tabular-nums text-ink-mute">
                     {formatDuration(entry.seconds)}
-                    <span className="block text-[0.625rem]">{sinceLabel(entry.lastSeen)}</span>
+                    <span className="block text-tiny">{sinceLabel(entry.lastSeen)}</span>
                   </span>
 
                   <button
                     type="button"
                     disabled={guessing === entry.processName || pending}
                     onClick={() => void guess(entry)}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-[0.6875rem] text-ink-soft transition hover:border-edge-strong disabled:opacity-50"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1.5 text-mini text-ink-soft transition hover:border-edge-strong disabled:opacity-50"
                   >
                     {guessing === entry.processName ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -588,7 +588,7 @@ function UnmappedSection({ unmapped, categories, busy, onMapped }: UnmappedProps
                   </button>
 
                   {source && (
-                    <span className="shrink-0 text-[0.625rem] tracking-wide text-ink-mute uppercase">
+                    <span className="shrink-0 text-tiny tracking-wide text-ink-mute uppercase">
                       {source === "heuristic" ? "guess" : source === "llm" ? "AI" : "no idea"}
                     </span>
                   )}
@@ -629,7 +629,7 @@ function UnmappedSection({ unmapped, categories, busy, onMapped }: UnmappedProps
             <button
               type="button"
               onClick={() => setShowAll((shown) => !shown)}
-              className="mt-2 text-[0.6875rem] text-ink-mute transition hover:text-ink-soft"
+              className="mt-2 text-mini text-ink-mute transition hover:text-ink-soft"
             >
               {showAll ? "Show fewer" : `Show all ${unmapped.length}`}
             </button>
@@ -703,7 +703,7 @@ function CategoriesSection({ categories, counts, busy, onAdd, onDelete }: Catego
 
   return (
     <section className="rounded-2xl border border-edge bg-surface p-6">
-      <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+      <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
         Categories
       </h2>
       <p className="mt-1 text-xs text-ink-mute">
@@ -722,7 +722,7 @@ function CategoriesSection({ categories, counts, busy, onAdd, onDelete }: Catego
               style={{ background: category.color }}
             />
             <span className="text-xs text-ink">{category.name}</span>
-            <span className="font-mono text-[0.625rem] tabular-nums text-ink-mute">
+            <span className="font-mono text-tiny tabular-nums text-ink-mute">
               {counts.get(category.name) ?? 0}
             </span>
             {category.isBuiltin ? (

@@ -31,7 +31,7 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
     <header className="shrink-0 rounded-2xl border border-edge bg-surface p-6">
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-widest text-ink-mute uppercase">
+          <div className="flex items-center gap-2 text-mini font-semibold tracking-widest text-ink-mute uppercase">
             <span
               className={`h-2 w-2 rounded-full ${paused ? "" : "live-dot"}`}
               style={{
@@ -66,7 +66,7 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
             >
               {work.courseCode && (
                 <span
-                  className="shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[0.625rem] font-medium text-ink-soft"
+                  className="shrink-0 rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft"
                   title="Course this block is for"
                 >
                   {work.courseCode}
@@ -90,7 +90,7 @@ export function LiveStatusHeader({ status, sessionSeconds, paused, work }: Props
               thing instead: how much of the block has gone by. */}
           {work && (
             <div className="mt-3 max-w-md">
-              <div className="flex items-baseline justify-between gap-3 text-[0.6875rem]">
+              <div className="flex items-baseline justify-between gap-3 text-mini">
                 <span className="text-ink-mute">
                   {work.planPercent !== null
                     ? `${formatDuration(work.workedSeconds)} of ${formatDuration(

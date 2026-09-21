@@ -106,12 +106,12 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
 
   return (
     <section className="rounded-2xl border border-edge bg-surface px-5 py-4">
-      <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+      <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
         Targets
       </h2>
       <p className="mt-1.5 text-xs leading-relaxed text-ink-soft italic">
         “{quote.text}”{" "}
-        <span className="text-[0.6875rem] not-italic text-ink-mute">— {quote.film}</span>
+        <span className="text-mini not-italic text-ink-mute">— {quote.film}</span>
       </p>
 
       {failure && <p className="mt-3 text-xs text-bad">{failure}</p>}
@@ -169,7 +169,7 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
             aria-label="Hours"
             className="w-12 rounded-lg border border-edge bg-canvas px-2 py-1.5 text-right font-mono text-xs tabular-nums text-ink-soft outline-none focus:border-edge-strong"
           />
-          <span className="text-[0.6875rem] text-ink-mute">h</span>
+          <span className="text-mini text-ink-mute">h</span>
         </label>
         <label className="flex items-center gap-1">
           <input
@@ -182,7 +182,7 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
             aria-label="Minutes"
             className="w-12 rounded-lg border border-edge bg-canvas px-2 py-1.5 text-right font-mono text-xs tabular-nums text-ink-soft outline-none focus:border-edge-strong"
           />
-          <span className="text-[0.6875rem] text-ink-mute">m a day</span>
+          <span className="text-mini text-ink-mute">m a day</span>
         </label>
 
         <button
@@ -198,7 +198,7 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
           <button
             type="button"
             onClick={cancelEdit}
-            className="text-[0.6875rem] text-ink-mute transition hover:text-ink-soft"
+            className="text-mini text-ink-mute transition hover:text-ink-soft"
           >
             Cancel
           </button>
@@ -270,7 +270,7 @@ function TargetCard({
         </span>
       </span>
 
-      <span className="shrink-0 font-mono text-[0.6875rem] tabular-nums text-ink-soft">
+      <span className="shrink-0 font-mono text-mini tabular-nums text-ink-soft">
         {formatDuration(todaySeconds)}
         <span className="text-ink-mute">
           {" / "}
@@ -279,7 +279,7 @@ function TargetCard({
       </span>
 
       <span
-        className="flex w-9 shrink-0 items-center justify-end gap-0.5 text-[0.6875rem] font-medium text-rose-deep"
+        className="flex w-9 shrink-0 items-center justify-end gap-0.5 text-mini font-medium text-rose-deep"
         style={{ opacity: streakHeat(run, state.lit) }}
         title={
           run === 0

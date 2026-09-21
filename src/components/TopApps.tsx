@@ -70,7 +70,7 @@ export function TopApps({ apps, streaks }: Props) {
 
   return (
     <section className="flex min-h-0 flex-col rounded-2xl border border-edge bg-surface p-6">
-      <h2 className="shrink-0 text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+      <h2 className="shrink-0 text-mini font-semibold tracking-widest text-ink-soft uppercase">
         Where the time went
       </h2>
 
@@ -108,7 +108,7 @@ export function TopApps({ apps, streaks }: Props) {
                     {/* Always present, so a missing flame never has to be read as "no
                         data" rather than "no streak". How lit it is carries the number. */}
                     <span
-                      className="flex shrink-0 items-center gap-0.5 text-[0.6875rem] font-medium text-rose-deep"
+                      className="flex shrink-0 items-center gap-0.5 text-mini font-medium text-rose-deep"
                       style={{
                         opacity: streakHeat(
                           streaks?.[group.category]?.days ?? 0,

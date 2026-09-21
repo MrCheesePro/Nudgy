@@ -6,18 +6,20 @@ import { setSetting } from "./ipc";
  * Text size, typeface and background — the three things that make an app yours.
  *
  * All applied the way [theme.ts](./theme.ts) applies colour: properties written onto
- * `:root`, so no component learns any of this exists. Text size is a root `font-size`,
- * which is why the codebase uses `rem` throughout — a pixel size would sit still while
- * everything around it grew, and half a scaled UI looks broken rather than scaled.
+ * `:root`, so no component learns any of this exists.
+ *
+ * The two size controls are deliberately different mechanisms, because they answer
+ * different complaints. **Text** multiplies `--text-scale`, which every font size in
+ * `index.css` runs through and nothing else does — the words grow, the layout holds.
+ * **Everything** is `zoom` on the app root, which takes icons, chart rings and fixed
+ * pixel widths with it. A root `font-size` would have been neither: it moves every rem,
+ * so spacing grows with type and the two sliders end up doing the same job.
  */
 
 export const SETTING_TEXT_SCALE = "text_scale";
 export const SETTING_UI_SCALE = "ui_scale";
 export const SETTING_FONT = "font_family";
 export const SETTING_BACKGROUND = "background_image";
-
-/** The browser default, and the number the slider reads as 100%. */
-const BASE_PX = 16;
 
 export const MIN_SCALE = 0.8;
 export const MAX_SCALE = 1.5;
@@ -131,8 +133,12 @@ export function applyAppearance(next: Partial<Appearance>) {
   current = { ...current, ...next };
   const root = document.documentElement;
 
+  // A multiplier on the font sizes only, never a root `font-size`. Tailwind's spacing is
+  // rem too, so scaling the root moved padding, gaps and widths along with the words —
+  // which made "text size" quietly mean "everything", and left the Everything slider
+  // with nothing of its own to do.
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.scale));
-  root.style.fontSize = `${BASE_PX * scale}px`;
+  root.style.setProperty("--text-scale", String(scale));
 
   // Zoom is applied to the app's own root, never to `html` — a control that floats over
   // the page to *set* this must not be scaled by it while you drag.

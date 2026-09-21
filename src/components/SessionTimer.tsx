@@ -40,7 +40,7 @@ export function SessionTimer({ work, category }: Props) {
 
   return (
     <section className="flex shrink-0 flex-col items-center justify-center rounded-2xl border border-edge bg-surface px-7 py-6">
-      <span className="flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-widest text-ink-mute uppercase">
+      <span className="flex items-center gap-1.5 text-mini font-semibold tracking-widest text-ink-mute uppercase">
         {phase.kind === "break" ? <Coffee size={12} /> : <Zap size={12} />}
         {phase.kind === "break" ? "Break" : "Focus"}
       </span>
@@ -79,7 +79,7 @@ export function SessionTimer({ work, category }: Props) {
         {work.title}
       </span>
       {/* Named as a countdown, never as progress — that number is measured elsewhere. */}
-      <span className="text-[0.6875rem] text-ink-mute">
+      <span className="text-mini text-ink-mute">
         {phase.kind === "break" ? "until back to it" : "left in this session"}
       </span>
     </section>

@@ -21,6 +21,24 @@
   --color-warn: #d9944a;
   --color-bad: #d56a72;
 
+  /* Every font size runs through `--text-scale`, and nothing else does.
+   *
+   * The Text slider used to be a root `font-size`, which moves every rem — so padding,
+   * gaps and widths grew with the words and "text size" quietly meant "everything".
+   * Multiplying only these leaves the layout where it is; the Everything slider is
+   * `zoom` and is the one meant to move the lot. */
+  --text-micro: calc(0.5625rem * var(--text-scale, 1));
+  --text-tiny: calc(0.625rem * var(--text-scale, 1));
+  --text-mini: calc(0.6875rem * var(--text-scale, 1));
+  --text-xs: calc(0.75rem * var(--text-scale, 1));
+  --text-sm: calc(0.875rem * var(--text-scale, 1));
+  --text-base: calc(1rem * var(--text-scale, 1));
+  --text-lg: calc(1.125rem * var(--text-scale, 1));
+  --text-xl: calc(1.25rem * var(--text-scale, 1));
+  --text-2xl: calc(1.5rem * var(--text-scale, 1));
+  --text-3xl: calc(1.875rem * var(--text-scale, 1));
+  --text-4xl: calc(2.25rem * var(--text-scale, 1));
+
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 }
@@ -29,6 +47,10 @@ html,
 body,
 #root {
   height: 100%;
+}
+
+:root {
+  --text-scale: 1;
 }
 
 /* A chosen background sits behind everything, dimmed by the canvas colour so text keeps

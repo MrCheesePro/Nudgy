@@ -100,7 +100,7 @@ export function ProgressPage() {
 
       <section className="flex min-h-[22rem] flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
         <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-[0.6875rem] font-semibold tracking-widest text-ink-soft uppercase">
+          <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
             Last {range} days
           </h2>
           <div className="flex items-center gap-2">
@@ -112,7 +112,7 @@ export function ProgressPage() {
                 key={option}
                 type="button"
                 onClick={() => setRange(option)}
-                className={`rounded-lg px-2 py-1 text-[0.6875rem] transition ${
+                className={`rounded-lg px-2 py-1 text-mini transition ${
                   option === range
                     ? "bg-rose-wash font-medium text-rose-deep"
                     : "text-ink-mute hover:text-ink-soft"
@@ -129,7 +129,7 @@ export function ProgressPage() {
                 )
               }
               aria-label="Top of the hours axis"
-              className="rounded-lg border border-edge bg-canvas px-1.5 py-1 text-[0.6875rem] text-ink-soft outline-none focus:border-edge-strong"
+              className="rounded-lg border border-edge bg-canvas px-1.5 py-1 text-mini text-ink-soft outline-none focus:border-edge-strong"
             >
               {CEILINGS.map((option) => (
                 <option key={option ?? "fit"} value={option ?? "fit"}>
@@ -140,7 +140,7 @@ export function ProgressPage() {
             <button
               type="button"
               onClick={() => setMode(mode === "bars" ? "lines" : "bars")}
-              className="rounded-lg border border-edge px-2 py-1 text-[0.6875rem] text-ink-soft transition hover:border-edge-strong"
+              className="rounded-lg border border-edge px-2 py-1 text-mini text-ink-soft transition hover:border-edge-strong"
             >
               {mode === "bars" ? "Lines" : "Bars"}
             </button>
@@ -160,14 +160,14 @@ export function ProgressPage() {
               {mode === "bars" ? (
                 <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
                   <CartesianGrid vertical={false} stroke="currentColor" className="text-edge" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="0.625rem" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="var(--text-tiny)" />
                   <YAxis
                     domain={[0, top]}
                     ticks={ticks}
                     interval={0}
                     tickLine={false}
                     axisLine={false}
-                    fontSize="0.625rem"
+                    fontSize="var(--text-tiny)"
                     width={34}
                     tickFormatter={(value: number) => `${value}h`}
                   />
@@ -190,14 +190,14 @@ export function ProgressPage() {
               ) : (
                 <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
                   <CartesianGrid vertical={false} stroke="currentColor" className="text-edge" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="0.625rem" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="var(--text-tiny)" />
                   <YAxis
                     domain={[0, top]}
                     ticks={ticks}
                     interval={0}
                     tickLine={false}
                     axisLine={false}
-                    fontSize="0.625rem"
+                    fontSize="var(--text-tiny)"
                     width={34}
                     tickFormatter={(value: number) => `${value}h`}
                   />
@@ -235,7 +235,7 @@ export function ProgressPage() {
         {categories.length > 0 && (
           <ul className="mt-4 flex shrink-0 flex-wrap gap-x-4 gap-y-1.5">
             {categories.map((category) => (
-              <li key={category} className="flex items-center gap-1.5 text-[0.6875rem] text-ink-soft">
+              <li key={category} className="flex items-center gap-1.5 text-mini text-ink-soft">
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
                   style={{ background: categoryColor(category) }}
@@ -286,14 +286,14 @@ function HoursTooltip({
   return (
     <div className="rounded-xl border border-edge bg-surface px-3 py-2 shadow-lg">
       <div className="flex items-baseline justify-between gap-4">
-        <span className="text-[0.6875rem] font-semibold text-ink">{label}</span>
-        <span className="font-mono text-[0.6875rem] tabular-nums text-ink-soft">
+        <span className="text-mini font-semibold text-ink">{label}</span>
+        <span className="font-mono text-mini tabular-nums text-ink-soft">
           {formatDuration(total * 3600)}
         </span>
       </div>
       <ul className="mt-1 space-y-0.5">
         {rows.map((entry) => (
-          <li key={entry.name} className="flex items-center gap-2 text-[0.6875rem]">
+          <li key={entry.name} className="flex items-center gap-2 text-mini">
             <span
               className="h-2 w-2 shrink-0 rounded-full"
               style={{ background: entry.color }}

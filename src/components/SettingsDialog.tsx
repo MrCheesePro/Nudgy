@@ -239,7 +239,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-ink">Settings</h2>
             {dirty && (
-              <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[0.625rem] font-medium text-warn">
+              <span className="rounded-full bg-warn/15 px-2 py-0.5 text-tiny font-medium text-warn">
                 Unsaved
               </span>
             )}
@@ -324,7 +324,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 >
                   Use it
                 </button>
-                <p className="w-full text-[0.6875rem] text-ink-mute">
+                <p className="w-full text-mini text-ink-mute">
                   Any family name from fonts.google.com, spelled as it is there. Fetched
                   once, then cached — the built-in choices never touch the network.
                 </p>
@@ -526,7 +526,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 Play
               </button>
             </div>
-            <p className="mt-1 text-[0.6875rem] text-ink-mute">
+            <p className="mt-1 text-mini text-ink-mute">
               Zero minutes means "tell me as it starts". A task can override this with its
               own warning when you plan it.
             </p>
@@ -706,7 +706,7 @@ function SecretField({
         <span className="flex items-center gap-1.5">
           {label}
           {stored && (
-            <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-[0.5625rem] font-medium text-ok">
+            <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-micro font-medium text-ok">
               saved
             </span>
           )}

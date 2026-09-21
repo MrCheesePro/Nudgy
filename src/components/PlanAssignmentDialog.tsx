@@ -390,13 +390,13 @@ export function PlanAssignmentDialog({
                     }`}
                   >
                     <span
-                      className={`block text-[0.6875rem] font-semibold ${
+                      className={`block text-mini font-semibold ${
                         style === id ? "text-rose-deep" : "text-ink"
                       }`}
                     >
                       {label}
                     </span>
-                    <span className="mt-0.5 block text-[0.625rem] leading-tight text-ink-mute">
+                    <span className="mt-0.5 block text-tiny leading-tight text-ink-mute">
                       {detail}
                     </span>
                   </button>
@@ -406,7 +406,7 @@ export function PlanAssignmentDialog({
               {style !== "classic" && (
                 <div className="mt-3 flex flex-wrap items-end gap-3">
                   <div className="min-w-44 flex-1">
-                    <span className="text-[0.6875rem] font-medium text-ink-soft">
+                    <span className="text-mini font-medium text-ink-soft">
                       Session length
                     </span>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -415,7 +415,7 @@ export function PlanAssignmentDialog({
                           key={preset}
                           type="button"
                           onClick={() => setSession(String(preset))}
-                          className={`rounded-md border px-2 py-1 font-mono text-[0.6875rem] transition ${
+                          className={`rounded-md border px-2 py-1 font-mono text-mini transition ${
                             sessionMinutes === preset
                               ? "border-edge-strong bg-rose-wash text-rose-deep"
                               : "border-edge text-ink-mute hover:text-ink-soft"
@@ -432,14 +432,14 @@ export function PlanAssignmentDialog({
                         onChange={(event) => setSession(event.target.value)}
                         onBlur={() => setSession(String(sessionMinutes))}
                         aria-label="Session minutes"
-                        className="w-16 rounded-md border border-edge bg-surface px-2 py-1 text-[0.6875rem] text-ink outline-none select-text focus:border-edge-strong"
+                        className="w-16 rounded-md border border-edge bg-surface px-2 py-1 text-mini text-ink outline-none select-text focus:border-edge-strong"
                       />
                     </div>
                   </div>
 
                   {style === "custom" ? (
                     <label className="w-24">
-                      <span className="text-[0.6875rem] font-medium text-ink-soft">Break</span>
+                      <span className="text-mini font-medium text-ink-soft">Break</span>
                       <input
                         type="number"
                         min={0}
@@ -448,11 +448,11 @@ export function PlanAssignmentDialog({
                         onChange={(event) => setBreakLength(event.target.value)}
                         onBlur={() => setBreakLength(String(breakMinutes))}
                         aria-label="Break minutes"
-                        className="mt-1.5 w-full rounded-md border border-edge bg-surface px-2 py-1 text-[0.6875rem] text-ink outline-none select-text focus:border-edge-strong"
+                        className="mt-1.5 w-full rounded-md border border-edge bg-surface px-2 py-1 text-mini text-ink outline-none select-text focus:border-edge-strong"
                       />
                     </label>
                   ) : (
-                    <span className="pb-1 text-[0.6875rem] text-ink-mute">
+                    <span className="pb-1 text-mini text-ink-mute">
                       Break: {breakMinutes}m ({sessionMinutes} ÷ 5)
                     </span>
                   )}
@@ -460,7 +460,7 @@ export function PlanAssignmentDialog({
               )}
 
               {style === "classic" && (
-                <p className="mt-2.5 text-[0.6875rem] text-ink-mute">
+                <p className="mt-2.5 text-mini text-ink-mute">
                   25 minutes of work, 5 minutes off, and 15 minutes after every fourth
                   session.
                 </p>
@@ -517,7 +517,7 @@ export function PlanAssignmentDialog({
               <button
                 type="button"
                 onClick={() => setStartTime("")}
-                className="text-[0.6875rem] text-ink-mute transition hover:text-ink-soft"
+                className="text-mini text-ink-mute transition hover:text-ink-soft"
               >
                 Any time
               </button>
@@ -677,7 +677,7 @@ function ModeCard({
         {icon}
         {title}
       </span>
-      <span className="mt-1 block text-[0.6875rem] text-ink-mute">{detail}</span>
+      <span className="mt-1 block text-mini text-ink-mute">{detail}</span>
     </button>
   );
 }

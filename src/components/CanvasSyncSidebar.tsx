@@ -134,7 +134,7 @@ export function CanvasSyncSidebar({
             <div className="text-xs font-semibold text-ink">
               {canvasLinked ? "Coursework linked" : "No coursework source"}
             </div>
-            <div className="truncate text-[0.6875rem] text-ink-soft">
+            <div className="truncate text-mini text-ink-soft">
               {canvasLinked
                 ? (lastSync ?? `${tasks.length} assignments tracked`)
                 : "Add your LMS calendar URL — no API key needed"}
@@ -144,7 +144,7 @@ export function CanvasSyncSidebar({
             type="button"
             onClick={canvasLinked ? onSync : onOpenSettings}
             disabled={syncing}
-            className="flex shrink-0 items-center gap-1 rounded-lg bg-surface px-2.5 py-1.5 text-[0.6875rem] font-medium text-rose-deep transition hover:bg-edge disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1 rounded-lg bg-surface px-2.5 py-1.5 text-mini font-medium text-rose-deep transition hover:bg-edge disabled:opacity-50"
           >
             <RefreshCw size={11} className={syncing ? "animate-spin" : undefined} />
             {canvasLinked ? "Sync now" : "Connect"}
@@ -152,7 +152,7 @@ export function CanvasSyncSidebar({
         </div>
 
         {syncError && (
-          <p className="rounded-lg bg-bad/10 px-3 py-2 text-[0.6875rem] text-bad">{syncError}</p>
+          <p className="rounded-lg bg-bad/10 px-3 py-2 text-mini text-bad">{syncError}</p>
         )}
 
         <Section
@@ -178,7 +178,7 @@ export function CanvasSyncSidebar({
                 >
                   <div className="flex items-center gap-2">
                     <StateChip state={stateForTask(plans, task)} />
-                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-[0.625rem] font-medium text-ink-soft">
+                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft">
                       {task.courseCode ?? "COURSE"}
                     </span>
                     <span className="ml-auto" />
@@ -201,7 +201,7 @@ export function CanvasSyncSidebar({
                     </button>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-xs font-semibold text-ink">{task.title}</div>
-                      <div className="mt-0.5 text-[0.6875rem] text-ink-mute">
+                      <div className="mt-0.5 text-mini text-ink-mute">
                         {dueLine(task.dueAt)}
                         {estimateFor(plans, task.id)}
                       </div>
@@ -252,7 +252,7 @@ export function CanvasSyncSidebar({
                       style={{ width: `${Math.min(100, entry.percent)}%` }}
                     />
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between text-[0.6875rem] text-ink-mute">
+                  <div className="mt-1.5 flex items-center justify-between text-mini text-ink-mute">
                     <span className="font-mono">
                       {formatDuration(entry.workedSeconds)} /{" "}
                       {formatDuration(entry.plan.estimateSeconds)}
@@ -292,7 +292,7 @@ export function CanvasSyncSidebar({
                     <div className="flex items-center gap-2">
                       <StateChip state={stateForGoal(plans, goal)} />
                       <span
-                        className="rounded px-1.5 py-0.5 font-mono text-[0.625rem] font-medium uppercase"
+                        className="rounded px-1.5 py-0.5 font-mono text-tiny font-medium uppercase"
                         style={{ background: `${color}22`, color }}
                       >
                         {category}
@@ -306,7 +306,7 @@ export function CanvasSyncSidebar({
                     <div className="mt-2 truncate text-xs font-semibold text-ink">
                       {goal.label}
                     </div>
-                    <div className="mt-0.5 text-[0.6875rem] text-ink-mute">
+                    <div className="mt-0.5 text-mini text-ink-mute">
                       {goal.targetSeconds > 0
                         ? `${Math.round(goal.targetSeconds / 60)} min est.`
                         : "No estimate yet"}
@@ -328,7 +328,7 @@ export function CanvasSyncSidebar({
               <button
                 type="button"
                 onClick={onClearCompleted}
-                className="text-[0.6875rem] text-ink-mute transition hover:text-ink"
+                className="text-mini text-ink-mute transition hover:text-ink"
               >
                 Clear
               </button>
@@ -354,10 +354,10 @@ export function CanvasSyncSidebar({
                     >
                       <CircleCheckBig size={13} />
                     </button>
-                    <span className="min-w-0 flex-1 truncate text-[0.6875rem] text-ink-mute line-through">
+                    <span className="min-w-0 flex-1 truncate text-mini text-ink-mute line-through">
                       {entry.title}
                     </span>
-                    <span className="shrink-0 text-[0.625rem] text-ink-mute">
+                    <span className="shrink-0 text-tiny text-ink-mute">
                       {entry.subtitle}
                     </span>
                   </li>
@@ -404,7 +404,7 @@ function Section({
           type="button"
           onClick={onToggle}
           aria-expanded={open}
-          className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] font-semibold tracking-wider text-ink-soft uppercase transition hover:text-ink"
+          className="flex min-w-0 items-center gap-1.5 text-mini font-semibold tracking-wider text-ink-soft uppercase transition hover:text-ink"
         >
           {open ? (
             <ChevronDown size={12} className="shrink-0" />
@@ -480,7 +480,7 @@ function StateChip({ state }: { state: RowState }) {
         : "border border-edge text-ink-mute";
 
   return (
-    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[0.5625rem] font-semibold uppercase ${style}`}>
+    <span className={`shrink-0 rounded px-1.5 py-0.5 text-micro font-semibold uppercase ${style}`}>
       {state}
     </span>
   );
