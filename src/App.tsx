@@ -556,6 +556,20 @@ export default function App() {
               </p>
             )}
 
+            {/* `key={view}` is what makes this an animation rather than a class that
+                only ever runs once: React tears the old view down and mounts the new
+                one, so the keyframe starts again on every switch. The banner and the
+                error stay outside — they are about the app, not about the page, and
+                should not flicker when you move between views. */}
+            <div
+              key={view}
+              className={`page-enter flex flex-col gap-5 ${
+                // The two views that fit the viewport are held to it; the two that
+                // scroll must be free to grow past it, or the wrapper caps their
+                // height and the scrollbar it lives in never learns there is more.
+                view === "timeline" || view === "overview" ? "min-h-0 flex-1" : ""
+              }`}
+            >
             {view === "overview" && (
               <>
                 {/* The header narrows to make room whenever a block is running; with
@@ -617,7 +631,7 @@ export default function App() {
             {view === "progress" && <ProgressPage />}
 
             {view === "apps" && <AppRegistry />}
-
+            </div>
           </main>
 
           {/* Folded away, it leaves a tab against the right edge. A collapse with no

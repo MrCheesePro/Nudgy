@@ -143,6 +143,33 @@ html {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/*
+ * The page arriving.
+ *
+ * Short and small on purpose: 180ms and 6px is enough to say "this is a different
+ * page now" without putting a wait in front of something you asked for. Anything
+ * longer becomes a toll you pay on every click, and Nudgy is an app people switch
+ * between views in all day.
+ *
+ * Note it does not animate the height — only opacity and a nudge upward — because
+ * the views inside are flex children that size themselves to the viewport, and
+ * animating their box would make the charts inside reflow for the whole 180ms.
+ */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: page-enter 180ms ease-out;
+}
+
 /* The hatched band marking time that has not happened yet. */
 .future-hatch {
   background-image: repeating-linear-gradient(
