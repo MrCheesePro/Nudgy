@@ -581,8 +581,9 @@ export default function App() {
             >
             {view === "overview" && (
               <>
-                {/* The header narrows to make room whenever a block is running; with
-                    nothing scheduled it takes the full width and no timer appears. */}
+                {/* The timer is always here. Driven by the block when one is running,
+                    and a plain pomodoro you start by hand when none is — wanting to work
+                    in twenty-five minute stretches does not depend on having planned. */}
                 <div className="flex shrink-0 flex-wrap items-stretch gap-5">
                   <div className="min-w-0 flex-1">
                     <LiveStatusHeader
@@ -592,9 +593,10 @@ export default function App() {
                       work={currentWork}
                     />
                   </div>
-                  {currentWork && (
-                    <SessionTimer work={currentWork} category={status?.category ?? "Neutral"} />
-                  )}
+                  <SessionTimer
+                    work={currentWork}
+                    category={status?.category ?? "Neutral"}
+                  />
                 </div>
                 {/* Fills what is left of the viewport rather than growing past it, so
                     Today is a dashboard you read at a glance instead of a page you

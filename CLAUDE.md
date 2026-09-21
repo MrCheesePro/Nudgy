@@ -224,11 +224,15 @@ wrong data.
     neither — Tailwind's spacing is `rem` too, so it moved padding with type and left the
     second slider with nothing of its own to do. A control that *sets* either one is
     written in pixels and portalled out of `#root`, or it scales itself as you drag it.
-31. **The timer is a view, not a source.** `SessionTimer` derives its phase from the
-    block's start and the plan's own lengths, so it is right whenever you look —
-    including after an hour with the app closed, which a counter would have to guess at.
-    It writes nothing: what counts as work done stays what the watcher measured, so a
-    countdown running against an app you are not using advances nothing.
+31. **The timer is a view, not a source.** `SessionTimer` derives its phase from a start
+    time and a pair of lengths, so it is right whenever you look — including after an hour
+    with the app closed, which a counter would have to guess at. It writes nothing: what
+    counts as work done stays what the watcher measured, so a countdown running against an
+    app you are not using advances nothing. It is **always on Today**: driven by the block
+    when one is running, and a plain 25/5 pomodoro you start by hand when none is, whose
+    start time lives in `localStorage` so it survives navigating away. Both halves of the
+    cycle are shown at once — finding out the break is five minutes rather than fifteen
+    should not require arriving at it.
 32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
