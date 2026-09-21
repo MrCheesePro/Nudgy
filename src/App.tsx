@@ -540,7 +540,7 @@ export default function App() {
           {/* The timeline manages its own scrolling, so the page itself must not add a
               second scrollbar behind it. */}
           <main
-            className={`flex min-w-0 flex-1 flex-col gap-5 px-7 py-6 ${
+            className={`relative flex min-w-0 flex-1 flex-col gap-5 px-7 py-6 ${
               // Today is a dashboard you read at a glance, so it fits the viewport and
               // does not scroll — the breakdown gives up its labels as it shrinks rather
               // than pushing the page past the bottom of the window. The timeline manages
@@ -548,6 +548,15 @@ export default function App() {
               view === "timeline" || view === "overview" ? "overflow-hidden" : "scroll-area"
             }`}
           >
+            {/* The flash. Keyed like the page itself, so it is a fresh element on every
+                switch and the animation runs again; `pointer-events-none` because it is
+                lying over the thing you just clicked towards. */}
+            <div
+              key={`flash-${view}`}
+              aria-hidden
+              className="page-flash pointer-events-none absolute inset-0 z-10"
+            />
+
             <PermissionBanner status={permissions} onRefresh={refreshPermissions} />
 
             {error && (

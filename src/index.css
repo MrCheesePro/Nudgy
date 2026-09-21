@@ -162,37 +162,63 @@ html {
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(16px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+/*
+ * The flash the panels arrive through.
+ *
+ * A pane of the surface colour laid over the view, at its brightest the instant
+ * the page changes and gone by the time the last panel lands. It reads as a wipe
+ * rather than a glare because it is the app's own background colour, so it works
+ * in either theme without being white in one of them.
+ *
+ * Deliberately not a `filter: brightness()` on the panels: a filter that survives
+ * its animation makes the element a containing block for anything positioned
+ * against the viewport, which is how a dialog ends up anchored to a dashboard.
+ */
+@keyframes page-flash {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.page-flash {
+  animation: page-flash 420ms ease-out both;
+  background: var(--color-surface);
 }
 
 /* The wrapper is layout only. Animating it as well as its children compounds two
    fades and lands the page somewhere between the two. */
 .page-enter > * {
-  animation: page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .page-enter > *:nth-child(2) {
-  animation-delay: 60ms;
+  animation-delay: 80ms;
 }
 
 .page-enter > *:nth-child(3) {
-  animation-delay: 120ms;
+  animation-delay: 160ms;
 }
 
-/* Past the third the stagger stops growing: a long page should not take half a
-   second to finish arriving. */
+/* Past the third the stagger stops growing: a long page should not take three
+   quarters of a second to finish arriving. */
 .page-enter > *:nth-child(n + 4) {
-  animation-delay: 160ms;
+  animation-delay: 220ms;
 }
 
 /* For something that arrives on its own, with no children to stagger. */
 .fade-in {
-  animation: page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* The hatched band marking time that has not happened yet. */
