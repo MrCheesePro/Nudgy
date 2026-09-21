@@ -571,7 +571,7 @@ export default function App() {
                 {/* The grid takes whatever the header and the targets leave, and
                     "Where the time went" is the only thing inside it allowed to scroll —
                     it is the one panel whose length depends on how many apps you used. */}
-                <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[1.3fr_1fr]">
+                <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[1.25fr_1fr]">
                   <UsageBreakdown breakdown={breakdown} streaks={streaks} />
                   <TopApps apps={apps} streaks={streaks} />
                 </div>

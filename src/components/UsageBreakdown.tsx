@@ -129,8 +129,8 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
                   nameKey="category"
                   cx="50%"
                   cy="50%"
-                  innerRadius="34%"
-                  outerRadius="50%"
+                  innerRadius="30%"
+                  outerRadius="45%"
                   paddingAngle={2}
                   stroke="none"
                   isAnimationActive={false}

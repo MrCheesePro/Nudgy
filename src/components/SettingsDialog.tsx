@@ -256,12 +256,14 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
 
         <div className="mt-6 space-y-5">
           <div>
-            <span className="text-xs font-medium tracking-wide text-ink-soft">
-              Text size
-            </span>
+            <span className="text-xs font-medium tracking-wide text-ink-soft">Size</span>
             <p className="mt-1 text-xs text-ink-mute">
-              Judged against the real page rather than a sample — Settings steps aside and
-              a slider appears over the app.
+              Two sliders, judged against the real page rather than a sample.{" "}
+              <strong className="font-medium text-ink-soft">Text</strong> grows the words
+              and the room around them;{" "}
+              <strong className="font-medium text-ink-soft">Everything</strong> zooms the
+              whole interface — icons, charts and all — to fit more on a large display or
+              make the lot legible on a small one.
             </p>
             <button
               type="button"
@@ -269,7 +271,8 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
               className="mt-2 flex items-center gap-2 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
             >
               <Type size={13} />
-              Adjust — currently {Math.round(appearance.scale * 100)}%
+              Adjust — text {Math.round(appearance.scale * 100)}%, everything{" "}
+              {Math.round(appearance.uiScale * 100)}%
             </button>
           </div>
 

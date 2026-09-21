@@ -117,7 +117,7 @@ function TargetsSection({ targets, series, full, onSave, onRemove }: TargetsProp
       {failure && <p className="mt-3 text-xs text-bad">{failure}</p>}
 
       {targets.length > 0 && (
-        <ul className="mt-3 grid gap-1.5 xl:grid-cols-2">
+        <ul className="mt-3 grid gap-1.5 lg:grid-cols-2">
           {targets.map((target) => (
             <TargetCard
               key={target.category}
