@@ -102,3 +102,37 @@ export function settleMinute(text: string): string {
 export function padTyped(text: string): string {
   return text.length === 1 ? `0${text}` : text;
 }
+
+export type Segment = "hour" | "minute";
+
+/**
+ * One keystroke's worth of change, and whether the caret should move on.
+ *
+ * Here rather than in the control so the ordering is testable: the settle that follows a
+ * keystroke has to run against the parts *this* returned, not against the render the
+ * keystroke arrived in. Reading the stale copy is what put a completed hour back to empty
+ * and turned a typed 55 into 05, and that is an ordering bug, not a rules bug — so the
+ * rules and the order now live in the same place.
+ */
+export function applyDigit(
+  parts: ClockParts,
+  segment: Segment,
+  typed: string,
+): { parts: ClockParts; advance: boolean } {
+  const next = digits(typed);
+
+  if (segment === "hour") {
+    return { parts: { ...parts, hour: next }, advance: hourComplete(next) };
+  }
+
+  const advance = minuteComplete(next);
+  // Padded only once it is finished, so 5 can still become 55 rather than settling at 05.
+  return { parts: { ...parts, minute: advance ? padTyped(next) : next }, advance };
+}
+
+/** What a segment settles to when focus leaves it. */
+export function settle(parts: ClockParts, segment: Segment): ClockParts {
+  return segment === "hour"
+    ? { ...parts, hour: settleHour(parts.hour) }
+    : { ...parts, minute: settleMinute(parts.minute) };
+}

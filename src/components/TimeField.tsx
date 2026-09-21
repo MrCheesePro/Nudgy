@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import {
-  digits,
-  hourComplete,
-  minuteComplete,
-  padTyped,
-  settleHour,
-  settleMinute,
+  applyDigit,
+  settle,
   toParts,
   toValue,
   type ClockParts,
@@ -37,6 +33,16 @@ interface Props {
 export function TimeField({ value, onChange, disabled, label, hourRef }: Props) {
   const [parts, setParts] = useState<ClockParts>(() => toParts(value));
 
+  /**
+   * The same segments, readable without waiting for a render.
+   *
+   * Advancing focus fires the old segment's `onBlur` in the same turn as the `onChange`
+   * that filled it, and a handler closing over `parts` sees the render *before* the
+   * keystroke. Settling from that stale copy put the hour back to empty the moment it
+   * completed, and turned a typed 55 into 05. Every handler reads this instead.
+   */
+  const latest = useRef<ClockParts>(parts);
+
   const fallbackHour = useRef<HTMLInputElement>(null);
   const hour = hourRef ?? fallbackHour;
   const minute = useRef<HTMLInputElement>(null);
@@ -45,10 +51,13 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
   // A value set from outside — cleared by "Any time", or loaded from a draft — replaces
   // what is here. What is being typed is left alone, or every keystroke fights the parent.
   useEffect(() => {
-    setParts((current) => (toValue(current) === value ? current : toParts(value)));
+    if (toValue(latest.current) === value) return;
+    latest.current = toParts(value);
+    setParts(latest.current);
   }, [value]);
 
   const commit = (next: ClockParts) => {
+    latest.current = next;
     setParts(next);
     onChange(toValue(next));
   };
@@ -70,12 +79,14 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
         aria-label={`${label}, hour`}
         onFocus={(event) => event.target.select()}
         onChange={(event) => {
-          const next = digits(event.target.value);
-          commit({ ...parts, hour: next });
-          // The whole point: a segment that cannot take another digit hands over.
-          if (hourComplete(next)) minute.current?.focus();
+          const step = applyDigit(latest.current, "hour", event.target.value);
+          commit(step.parts);
+          // The whole point: a segment that cannot take another digit hands over. The
+          // blur this triggers settles from `latest`, which `commit` has already moved
+          // on — reading the render's copy instead is what emptied a finished hour.
+          if (step.advance) minute.current?.focus();
         }}
-        onBlur={() => commit({ ...parts, hour: settleHour(parts.hour) })}
+        onBlur={() => commit(settle(latest.current, "hour"))}
         onKeyDown={(event) => {
           if (event.key === "ArrowRight" && parts.hour) minute.current?.focus();
         }}
@@ -93,13 +104,11 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
         aria-label={`${label}, minute`}
         onFocus={(event) => event.target.select()}
         onChange={(event) => {
-          const next = digits(event.target.value);
-          const done = minuteComplete(next);
-          // Padded on the way out, so a lone 7 is 07 rather than 70.
-          commit({ ...parts, minute: done ? padTyped(next) : next });
-          if (done) meridiem.current?.focus();
+          const step = applyDigit(latest.current, "minute", event.target.value);
+          commit(step.parts);
+          if (step.advance) meridiem.current?.focus();
         }}
-        onBlur={() => commit({ ...parts, minute: settleMinute(parts.minute) })}
+        onBlur={() => commit(settle(latest.current, "minute"))}
         onKeyDown={(event) => {
           // Backspace out of an empty minute goes back to the hour, the way every other
           // segmented field on the machine behaves.
@@ -118,7 +127,10 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
         disabled={disabled}
         aria-label={`${label}, AM or PM`}
         onClick={() =>
-          commit({ ...parts, meridiem: parts.meridiem === "PM" ? "AM" : "PM" })
+          commit({
+            ...latest.current,
+            meridiem: latest.current.meridiem === "PM" ? "AM" : "PM",
+          })
         }
         onKeyDown={(event) => {
           const key = event.key.toLowerCase();
@@ -128,7 +140,7 @@ export function TimeField({ value, onChange, disabled, label, hourRef }: Props) 
             minute.current?.focus();
             return;
           }
-          commit({ ...parts, meridiem: (key === "a" ? "AM" : "PM") as Meridiem });
+          commit({ ...latest.current, meridiem: (key === "a" ? "AM" : "PM") as Meridiem });
         }}
         className="ml-1.5 rounded px-1 text-mini font-semibold text-ink-soft transition hover:text-ink focus:text-ink focus:outline-none focus-visible:bg-surface-sunken"
       >

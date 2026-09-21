@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyDigit,
   EMPTY_PARTS,
   hourComplete,
   minuteComplete,
   padTyped,
+  settle,
   settleHour,
   settleMinute,
   toParts,
   toValue,
+  type ClockParts,
+  type Segment,
 } from "./clockInput";
 
 describe("toParts", () => {
@@ -102,5 +106,48 @@ describe("settling", () => {
   it("pads a lone digit into the tens place", () => {
     expect(padTyped("7")).toBe("07");
     expect(padTyped("45")).toBe("45");
+  });
+});
+
+/**
+ * What the control does per keystroke: apply the digit, and if that finished the segment,
+ * settle it on the way out. The settle has to see the digit that was just typed.
+ */
+function type(parts: ClockParts, segment: Segment, typed: string): ClockParts {
+  const step = applyDigit(parts, segment, typed);
+  return step.advance ? settle(step.parts, segment) : step.parts;
+}
+
+describe("typing through the segments", () => {
+  // The two symptoms of reading the segments one render late: a completed hour settled
+  // from the empty copy that preceded it, and a second minute digit settled from the
+  // first. Both are ordering, not rules, which is why the order is tested here.
+  it("keeps an hour that completes on its first digit", () => {
+    expect(type(EMPTY_PARTS, "hour", "3").hour).toBe("3");
+  });
+
+  it("keeps both minute digits rather than padding the first", () => {
+    const afterFirst = type(EMPTY_PARTS, "minute", "5");
+    expect(afterFirst.minute).toBe("5");
+    expect(type(afterFirst, "minute", "55").minute).toBe("55");
+  });
+
+  it("types a whole time in five keystrokes", () => {
+    let parts = type(EMPTY_PARTS, "hour", "1");
+    parts = type(parts, "hour", "12");
+    parts = type(parts, "minute", "3");
+    parts = type(parts, "minute", "30");
+    expect(toValue({ ...parts, meridiem: "PM" })).toBe("12:30");
+  });
+
+  it("advances only when the segment cannot take another digit", () => {
+    expect(applyDigit(EMPTY_PARTS, "hour", "1").advance).toBe(false);
+    expect(applyDigit(EMPTY_PARTS, "hour", "12").advance).toBe(true);
+    expect(applyDigit(EMPTY_PARTS, "minute", "5").advance).toBe(false);
+    expect(applyDigit(EMPTY_PARTS, "minute", "6").advance).toBe(true);
+  });
+
+  it("drops anything that is not a digit", () => {
+    expect(applyDigit(EMPTY_PARTS, "hour", "a").parts.hour).toBe("");
   });
 });
