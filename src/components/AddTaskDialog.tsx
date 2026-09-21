@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
+import { TimeField } from "./TimeField";
 import { resolveAppForText } from "../lib/ipc";
 import { categoryColor, useAssignableCategories } from "../lib/categories";
 import { clearPref, readPref, writePref } from "../lib/prefs";
@@ -180,14 +181,12 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
                 aria-label="Due date"
                 className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
               />
-              <input
-                ref={dueTimeRef}
-                type="time"
+              <TimeField
+                hourRef={dueTimeRef}
                 value={dueTime}
                 disabled={!dueDate}
-                onChange={(event) => setDueTime(event.target.value)}
-                aria-label="Due time"
-                className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong disabled:opacity-50"
+                onChange={setDueTime}
+                label="Due time"
               />
               {dueDate && (
                 <button

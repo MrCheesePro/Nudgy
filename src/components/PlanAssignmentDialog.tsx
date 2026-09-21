@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Timer, TriangleAlert, X } from "lucide-react";
 
 import { clearPref, readPref, writePref } from "../lib/prefs";
+import { TimeField } from "./TimeField";
 import { formatClock, formatDuration, parseTimeOfDay } from "../lib/time";
 import { categoryColor } from "../lib/categories";
 import type { Category } from "../lib/types";
@@ -503,16 +504,9 @@ export function PlanAssignmentDialog({
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {/* A real time control rather than a text box: choosing 14:30 from a picker
-                cannot be mistyped, so there is no parse error to explain. */}
-            <input
-              type="time"
-              value={startTime}
-              step={300}
-              onChange={(event) => setStartTime(event.target.value)}
-              aria-label="Start time"
-              className="rounded-lg border border-edge bg-canvas px-3 py-2 text-sm text-ink outline-none transition focus:border-edge-strong"
-            />
+            {/* Three segments that hand over as you type, rather than a text box you can
+                spell a time wrong in. Anything it reports is a real time or nothing. */}
+            <TimeField value={startTime} onChange={setStartTime} label="Start time" />
             {startTime && (
               <button
                 type="button"

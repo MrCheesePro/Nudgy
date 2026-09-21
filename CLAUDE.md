@@ -71,6 +71,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/TimelinePlanner.tsx` | Shell: Add task, month chip, category filter, Generate plan |
 | `src/components/timeline/PlanTimeline.tsx` | The chart: day strip, vertical hour axis, Calendar and Plan columns for the selected day |
 | `src/components/AddTaskDialog.tsx` | The only way to add a task by hand: title, time, activity type |
+| `src/components/TimeField.tsx` | The clock you type straight through; rules in `lib/clockInput.ts` |
 | `src/components/GeneratePlanDialog.tsx` | Walks the unplanned queue, proposes one real gap at a time, writes only what is accepted |
 | `src/components/CanvasSyncSidebar.tsx` | Right panel: Canvas link, in-progress plans, coursework, user goals, focus-block picker |
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
@@ -293,3 +294,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     Windows and Linux ignore `titleBarStyle` and keep their own title bar above the page,
     which is why the padding is conditional rather than a constant: there, that corner is
     the app's to use.
+36. **A time is typed straight through.** `TimeField` is three segments — hour, minute,
+    AM/PM — and the caret moves the moment a segment cannot take another digit: one digit
+    is enough for 3, but 1 waits because it might still become 12. `<input type="time">`
+    did this on some platforms and waited to be clicked into each segment on others, and
+    typing a time is the most common thing the app asks anybody to do. The rules live in
+    `lib/clockInput.ts` because "when is this segment finished?" is arithmetic and belongs
+    in a test, not in a control. It reports 24-hour `HH:MM` so nothing downstream knows,
+    and **"" until all three segments are set** — a half-typed hour that resolved to a real
+    time would have the planner acting on 1:00 while somebody was still typing 1:45.
