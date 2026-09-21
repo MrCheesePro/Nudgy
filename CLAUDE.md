@@ -153,7 +153,11 @@ wrong data.
     "no free time left today". When nothing fits, `explainNoSlots` says what is in the way
     — the commitment, the deadline, or the size of the biggest gap. A deadline already in
     the past is not a bound: overdue work is placed as soon as possible, inside a soft
-    three-day horizon.
+    three-day horizon. **The day itself is not a bound either**: `DAY_START_HOUR` is 0 and
+    `DAY_END_HOUR` is 24. An 08:00–23:00 window told an early riser a day was full when
+    six of its hours had merely been declared not to exist, and `explainNoSlots` could not
+    name the real reason because it did not know one. The app has no opinion about the
+    hours somebody keeps.
 17. **A block says what the time is for; the live flags say whether it is happening.**
     `useCurrentWork` decides membership by the clock alone, so alt-tabbing to Finder
     changes a dot from green to amber and never erases the course label. Verification

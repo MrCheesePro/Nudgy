@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 
 import { resolveAppForText } from "../lib/ipc";
@@ -39,6 +39,15 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
   const [detected, setDetected] = useState<AppRule | null>(null);
   const categories = useAssignableCategories();
   const [dueDate, setDueDate] = useState("");
+  /**
+   * Where the caret goes once the date is whole.
+   *
+   * Filling a date and then reaching for the mouse to fill the time next to it is the
+   * kind of small friction that makes a two-field control feel like two chores. The
+   * segments inside each field already advance on their own; this is the same courtesy
+   * across the gap between them.
+   */
+  const dueTimeRef = useRef<HTMLInputElement>(null);
   const [dueTime, setDueTime] = useState("");
 
   /**
@@ -156,11 +165,23 @@ export function AddTaskDialog({ open, onClose, onAdd }: Props) {
               <input
                 type="date"
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setDueDate(next);
+                  // Only on the way from empty to filled, and only once the date is
+                  // whole. Jumping on every change would move the caret out of the
+                  // field while someone was correcting the month they already typed.
+                  if (!dueDate && next) {
+                    // After the paint that enables the time field — focusing a disabled
+                    // input does nothing, and it is disabled until this state lands.
+                    requestAnimationFrame(() => dueTimeRef.current?.focus());
+                  }
+                }}
                 aria-label="Due date"
                 className="rounded-lg border border-edge bg-canvas px-2.5 py-2 text-sm text-ink-soft outline-none transition focus:border-edge-strong"
               />
               <input
+                ref={dueTimeRef}
                 type="time"
                 value={dueTime}
                 disabled={!dueDate}

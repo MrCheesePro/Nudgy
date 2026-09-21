@@ -1,10 +1,22 @@
 /**
- * The usable day: nothing is planned before the wake hour or after bedtime. One pair of
- * constants for every planner — a second copy is how the timeline and the dialog end up
+ * The planning window: the whole day, midnight to midnight.
+ *
+ * It used to be 08:00 to 23:00, on the theory that nobody wants work scheduled at four in
+ * the morning. But people keep hours the app has no business having an opinion about, and
+ * the cost of being wrong was silent: an early riser was told a day was full when six of
+ * its hours had simply been declared not to exist, and `explainNoSlots` could not name the
+ * real reason because it did not know one.
+ *
+ * The bounds stay as constants rather than being deleted because the arithmetic is written
+ * in terms of a window, and a window of the whole day is one honest value rather than a
+ * special case threaded through `plannableDays`. `DAY_END_HOUR` is exclusive: 24 is
+ * midnight at the end of the day, which `setHours` rolls over correctly.
+ *
+ * One pair for every planner — a second copy is how the timeline and the dialog end up
  * disagreeing about whether an evening exists.
  */
-export const DAY_START_HOUR = 8;
-export const DAY_END_HOUR = 23;
+export const DAY_START_HOUR = 0;
+export const DAY_END_HOUR = 24;
 
 /** Local-day bounds in epoch seconds. The backend stores UTC seconds and stays
  *  timezone-agnostic; deciding what "today" means is the frontend's job. */

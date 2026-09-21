@@ -114,7 +114,9 @@ export function GeneratePlanDialog({ open, queue, daysFor, onClose, onAccept }: 
       return `That is before the planning window opens (${formatClock(day.startTs)}).`;
     }
     if (requestedStart >= day.endTs) {
-      return `That is after the day ends (${String(DAY_END_HOUR).padStart(2, "0")}:00).`;
+      // Unreachable while the window is the whole day, and kept for when it is not:
+      // the check belongs to the window, not to the hour that happens to bound it.
+      return `That is after the day ends (${String(DAY_END_HOUR % 24).padStart(2, "0")}:00).`;
     }
 
     const length = timing.session * 60;
