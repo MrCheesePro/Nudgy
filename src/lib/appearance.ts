@@ -21,6 +21,17 @@ export const SETTING_UI_SCALE = "ui_scale";
 export const SETTING_FONT = "font_family";
 export const SETTING_BACKGROUND = "background_image";
 export const SETTING_PANEL_OPACITY = "panel_opacity";
+export const SETTING_BACKGROUND_SAVED = "background_saved";
+
+/**
+ * How many backgrounds can be kept.
+ *
+ * Three, because this is a shortcut between a few images somebody actually alternates
+ * between — a morning one, a night one, a plain one — not a library. A list that grows
+ * without limit needs naming, ordering and deleting, which is three features to avoid
+ * pasting a URL again.
+ */
+export const MAX_SAVED_BACKGROUNDS = 3;
 
 export const MIN_SCALE = 0.8;
 export const MAX_SCALE = 1.5;
@@ -89,6 +100,8 @@ export interface Appearance {
   font: string;
   /** A URL or data URI drawn behind the app, or empty for none. */
   background: string;
+  /** Up to `MAX_SAVED_BACKGROUNDS` kept to switch between, newest first. */
+  savedBackgrounds: string[];
   /**
    * How opaque the panels in the content area are, 0.4–1.
    *
@@ -104,6 +117,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   uiScale: 1,
   font: "default",
   background: "",
+  savedBackgrounds: [],
   panelOpacity: 1,
 };
 
@@ -210,6 +224,13 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
   if (next.background !== undefined) {
     writes.push(setSetting(SETTING_BACKGROUND, current.background));
   }
+  if (next.savedBackgrounds !== undefined) {
+    // One row of JSON rather than three keys: the list is read and written whole, and
+    // three keys would let it be half-updated.
+    writes.push(
+      setSetting(SETTING_BACKGROUND_SAVED, JSON.stringify(current.savedBackgrounds)),
+    );
+  }
   if (next.panelOpacity !== undefined) {
     writes.push(setSetting(SETTING_PANEL_OPACITY, String(current.panelOpacity)));
   }
@@ -226,7 +247,45 @@ export function hydrateAppearance(settings: Map<string, string>) {
     uiScale: Number.isFinite(uiScale) && uiScale > 0 ? uiScale : 1,
     font: settings.get(SETTING_FONT) ?? "default",
     background: settings.get(SETTING_BACKGROUND) ?? "",
+    savedBackgrounds: parseSaved(settings.get(SETTING_BACKGROUND_SAVED)),
     panelOpacity:
       Number.isFinite(panelOpacity) && panelOpacity > 0 ? panelOpacity : 1,
+  });
+}
+
+/** Whatever was stored, minus anything that is not a non-empty string. */
+function parseSaved(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+      .slice(0, MAX_SAVED_BACKGROUNDS);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Keeps the current background, dropping the oldest once there are three.
+ *
+ * Saving one already saved moves it to the front rather than adding it twice — the same
+ * thing twice in a row of three is a third of the row wasted.
+ */
+export function saveCurrentBackground(): Promise<void> {
+  const url = current.background.trim();
+  if (!url) return Promise.resolve();
+
+  const next = [url, ...current.savedBackgrounds.filter((entry) => entry !== url)].slice(
+    0,
+    MAX_SAVED_BACKGROUNDS,
+  );
+  return saveAppearance({ savedBackgrounds: next });
+}
+
+export function forgetBackground(url: string): Promise<void> {
+  return saveAppearance({
+    savedBackgrounds: current.savedBackgrounds.filter((entry) => entry !== url),
   });
 }

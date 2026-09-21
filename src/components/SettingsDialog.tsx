@@ -4,10 +4,13 @@ import { KeyRound, TriangleAlert, Type, X } from "lucide-react";
 import { clearActivityData, clearSecret, getSettings, hasSecret, importSound, setLmsProvider, setSecret, setSetting } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import {
-  applyAppearance,
   FONTS,
+  MAX_SAVED_BACKGROUNDS,
   MIN_PANEL_OPACITY,
+  applyAppearance,
+  forgetBackground,
   saveAppearance,
+  saveCurrentBackground,
   useAppearance,
 } from "../lib/appearance";
 import {
@@ -393,6 +396,53 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 </>
               )}
             </p>
+
+            {/* Up to three, to switch between rather than paste again. The current one
+                is saved by hand: automatically keeping every URL typed into the box
+                would fill the row with typos and half-pasted links. */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              {appearance.savedBackgrounds.map((url) => (
+                <span key={url} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBackground(url);
+                      void saveAppearance({ background: url });
+                    }}
+                    title={url}
+                    aria-label={`Use this background`}
+                    className={`block h-10 w-16 rounded-lg border bg-cover bg-center transition ${
+                      background.trim() === url
+                        ? "border-rose-deep"
+                        : "border-edge hover:border-edge-strong"
+                    }`}
+                    style={{ backgroundImage: `url("${url}")` }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void forgetBackground(url)}
+                    aria-label="Forget this background"
+                    title="Forget it"
+                    className="absolute -top-1.5 -right-1.5 rounded-full border border-edge bg-surface p-0.5 text-ink-mute opacity-0 transition group-hover:opacity-100 hover:text-bad"
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+
+              {background.trim() &&
+                !appearance.savedBackgrounds.includes(background.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => void saveCurrentBackground()}
+                    className="rounded-lg border border-dashed border-edge-strong px-2.5 py-2 text-mini text-ink-soft transition hover:text-ink"
+                  >
+                    {appearance.savedBackgrounds.length >= MAX_SAVED_BACKGROUNDS
+                      ? "Save, replacing the oldest"
+                      : "Save this one"}
+                  </button>
+                )}
+            </div>
 
             {/* Only once there is something to see through to. A translucency slider with
                 no background behind it just makes the cards grey. */}

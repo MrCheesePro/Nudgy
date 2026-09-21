@@ -389,13 +389,21 @@ pub async fn sync_lms(app: AppHandle) -> CmdResult<SyncResult> {
     // has been handed in, so it wins whenever it is available. Canvas only — the others
     // have no REST client here.
     let token = secrets::get(secrets::CANVAS_TOKEN).map_err(AppError::from)?;
-    let tasks = match (provider_name.as_str(), base_url.as_deref(), token.as_deref()) {
+    let mut tasks = match (provider_name.as_str(), base_url.as_deref(), token.as_deref()) {
         ("canvas", Some(url), Some(token)) if !url.trim().is_empty() => {
             let client = CanvasClient::new(url, token).map_err(AppError::from)?;
             log::info!("syncing via the {} API", client.provider_id());
             client.fetch_tasks().await.map_err(AppError::from)?
         }
-        _ => {
+        _ => Vec::new(),
+    };
+
+    // The API knows what has been handed in; the feed knows about everything on the
+    // calendar, including events that are not assignments at all. An empty answer from
+    // the API is not evidence there is nothing — a term with no graded work still has a
+    // calendar — so the feed is read whenever the API came back with nothing to show.
+    if tasks.is_empty() {
+        let tasks_from_feed = {
             // The feed URL is a credential — anyone holding it reads your coursework —
             // so it lives in the keychain beside the calendar one, never in `settings`.
             let feed_url = secrets::get(secrets::LMS_FEED_URL)
@@ -408,8 +416,9 @@ pub async fn sync_lms(app: AppHandle) -> CmdResult<SyncResult> {
             log::info!("syncing {provider_name} from its calendar feed");
             let feed = calendar::fetch_feed(&feed_url).await.map_err(AppError::from)?;
             lms::feed_tasks(&feed, &provider_name).map_err(AppError::from)?
-        }
-    };
+        };
+        tasks = tasks_from_feed;
+    }
 
     let fetched = tasks.len();
     log::info!("{provider_name} sync fetched {fetched} tasks");
@@ -626,8 +635,15 @@ pub async fn get_calendar_events(
     start_ts: i64,
     end_ts: i64,
 ) -> CmdResult<Vec<calendar::CalendarEvent>> {
-    let Some(url) = secrets::get(secrets::CALENDAR_ICS_URL).map_err(AppError::from)? else {
-        return Ok(Vec::new());
+    // A dedicated calendar feed wins. Without one, the LMS feed is a calendar — it is
+    // the same file, and a personal event on it ("gaming, 5:45") is a commitment whether
+    // or not the URL was pasted into the box labelled "calendar".
+    let url = match secrets::get(secrets::CALENDAR_ICS_URL).map_err(AppError::from)? {
+        Some(url) => url,
+        None => match secrets::get(secrets::LMS_FEED_URL).map_err(AppError::from)? {
+            Some(url) => url,
+            None => return Ok(Vec::new()),
+        },
     };
 
     let feed = calendar::fetch_feed(&url).await.map_err(AppError::from)?;
