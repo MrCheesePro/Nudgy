@@ -13,7 +13,6 @@ import {
 } from "./components/PlanAssignmentDialog";
 import { AppRegistry } from "./components/AppRegistry";
 import { ProgressPage } from "./components/ProgressPage";
-import { PanelLayout } from "./components/PanelLayout";
 import { SessionTimer } from "./components/SessionTimer";
 import { TextScalePreview } from "./components/TextScalePreview";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -121,8 +120,6 @@ export default function App() {
   const [notifications, setNotifications] = useState(true);
   /** Settings steps aside so text size can be judged against the real page. */
   const [scalingText, setScalingText] = useState(false);
-  /** Puts a divider and hide buttons on the Today panels. The order is fixed. */
-  const [editingLayout, setEditingLayout] = useState(false);
   // Remembered, because a column you fold away should stay folded away.
   const [sidebarHidden, setSidebarHidden] = usePref("sidebar.hidden", false);
 
@@ -533,8 +530,6 @@ export default function App() {
           paused={paused}
           onTogglePause={() => void togglePause()}
           alerts={alerts}
-          editingLayout={editingLayout}
-          onToggleLayout={view === "overview" ? () => setEditingLayout((on) => !on) : undefined}
           notifications={notifications}
           onToggleNotifications={() => void toggleNotifications()}
           onOpenSettings={() => setSettingsOpen(true)}
@@ -546,12 +541,11 @@ export default function App() {
               second scrollbar behind it. */}
           <main
             className={`flex min-w-0 flex-1 flex-col gap-5 px-7 py-6 ${
-              // Today fits the viewport at any normal size and does not scroll. It is
-              // `scroll-area` rather than `overflow-hidden` only so that a window too
-              // short to hold the panels at their minimum gives you a way to reach the
-              // bottom of them, instead of silently clipping. The timeline manages its
-              // own scrolling and must not get a second scrollbar behind it.
-              view === "timeline" ? "overflow-hidden" : "scroll-area"
+              // Today is a dashboard you read at a glance, so it fits the viewport and
+              // does not scroll — the breakdown gives up its labels as it shrinks rather
+              // than pushing the page past the bottom of the window. The timeline manages
+              // its own scrolling and must not get a second scrollbar behind it.
+              view === "timeline" || view === "overview" ? "overflow-hidden" : "scroll-area"
             }`}
           >
             <PermissionBanner status={permissions} onRefresh={refreshPermissions} />
@@ -585,14 +579,10 @@ export default function App() {
                 {/* The grid takes whatever the header and the targets leave, and
                     "Where the time went" is the only thing inside it allowed to scroll —
                     it is the one panel whose length depends on how many apps you used. */}
-                <PanelLayout
-                  editing={editingLayout}
-                  onDone={() => setEditingLayout(false)}
-                  panels={{
-                    breakdown: <UsageBreakdown breakdown={breakdown} streaks={streaks} />,
-                    apps: <TopApps apps={apps} streaks={streaks} />,
-                  }}
-                />
+                <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[1.25fr_1fr]">
+                  <UsageBreakdown breakdown={breakdown} streaks={streaks} />
+                  <TopApps apps={apps} streaks={streaks} />
+                </div>
               </>
             )}
 

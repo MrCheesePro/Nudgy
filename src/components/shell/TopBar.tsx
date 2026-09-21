@@ -1,4 +1,4 @@
-import { Bell, BellOff, LayoutGrid, Pause, Play } from "lucide-react";
+import { Bell, BellOff, Pause, Play } from "lucide-react";
 
 import type { View } from "./IconRail";
 
@@ -15,8 +15,6 @@ interface Props {
   onTogglePause: () => void;
   alerts: number;
   /** Only on pages with a layout worth editing, so the button is absent elsewhere. */
-  onToggleLayout?: () => void;
-  editingLayout: boolean;
   notifications: boolean;
   onToggleNotifications: () => void;
   onOpenSettings: () => void;
@@ -29,8 +27,6 @@ export function TopBar({
   paused,
   onTogglePause,
   alerts,
-  onToggleLayout,
-  editingLayout,
   notifications,
   onToggleNotifications,
   onOpenSettings,
@@ -61,22 +57,6 @@ export function TopBar({
         {paused ? <Play size={11} /> : <Pause size={11} />}
       </button>
 
-      {onToggleLayout && (
-        <button
-          type="button"
-          aria-label="Edit layout"
-          aria-pressed={editingLayout}
-          title={editingLayout ? "Finish editing the layout" : "Resize and reorder panels"}
-          onClick={onToggleLayout}
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${
-            editingLayout
-              ? "border-edge bg-rose-wash text-rose-deep"
-              : "border-edge text-ink-soft hover:border-edge-strong"
-          }`}
-        >
-          <LayoutGrid size={13} />
-        </button>
-      )}
 
       {/* A switch, not a tray. There is nothing to read in a notification list you have
           already seen as a notification — the only question worth a button here is

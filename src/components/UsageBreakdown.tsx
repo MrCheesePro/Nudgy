@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
 import { formatDuration } from "../lib/time";
@@ -20,6 +21,17 @@ interface Props {
  */
 const LABEL_THRESHOLD = 0.04;
 
+/**
+ * Below this the chart is a ring and nothing else.
+ *
+ * The labels sit outside the ring and the total sits inside it, so both are budgeted out
+ * of the same space the circle wants. In a small window that budget runs out, and what
+ * you get is not a smaller chart but three sets of words printed over each other. The
+ * shape still reads at any size — the proportions are the point, and the numbers are all
+ * spelled out again in the panel beside it.
+ */
+const ROOM_FOR_LABELS = { width: 340, height: 250 };
+
 /** What Recharts hands a custom pie label. */
 interface PieLabelProps {
   cx: number;
@@ -32,6 +44,22 @@ interface PieLabelProps {
 }
 
 export function UsageBreakdown({ breakdown, streaks }: Props) {
+  const chart = useRef<HTMLDivElement>(null);
+  // Measured, not guessed from a breakpoint: this panel is resizable, so its width has
+  // no fixed relationship to the width of the window.
+  const [roomy, setRoomy] = useState(true);
+
+  useEffect(() => {
+    const box = chart.current;
+    if (!box || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setRoomy(width >= ROOM_FOR_LABELS.width && height >= ROOM_FOR_LABELS.height);
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, []);
+
   const slices = (breakdown?.categories ?? []).filter((entry) => entry.seconds > 0);
   const total = breakdown?.totalSeconds ?? 0;
   const tiny = slices.filter(
@@ -99,7 +127,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
   };
 
   return (
-    <section className="flex min-h-96 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
       <div className="flex shrink-0 items-baseline justify-between">
         <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
           Tracked today
@@ -120,12 +148,10 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
               than a chart sat beside a list saying the same thing twice. The radii are
               percentages so the ring shrinks to leave room for its own labels instead of
               pushing them past the edge of the card. */}
-          {/* A floor under the chart, and it has to be this tall. Recharts sizes a pie
-              off `min(width, height)`, so in a wide, short box the ring collapses to a
-              bracelet while the card sits half empty — and the total printed in the
-              middle spills over the wedges. Height is the only dimension that makes the
-              ring bigger here. */}
-          <div className="relative min-h-70 flex-1">
+          {/* Recharts sizes a pie off `min(width, height)`, so height is what makes the
+              ring bigger in a wide box. The floor is low because the labels now step
+              aside when the space runs out, rather than the panel refusing to shrink. */}
+          <div ref={chart} className="relative min-h-40 flex-1">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -134,16 +160,18 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
                   nameKey="category"
                   cx="50%"
                   cy="50%"
-                  // Of `min(width, height) / 2`. The outer edge stops at 64% to leave
-                  // the labels the ~50px they need beyond it, and the hole is wide
-                  // enough to hold the total without it touching the ring.
-                  innerRadius="46%"
-                  outerRadius="64%"
+                  // Of `min(width, height) / 2`. With labels to make room for, the outer
+                  // edge stops at 64% and leaves them the ~50px they need beyond it; with
+                  // no labels the ring takes the space they were holding.
+                  innerRadius={roomy ? "46%" : "58%"}
+                  outerRadius={roomy ? "64%" : "88%"}
                   paddingAngle={2}
                   stroke="none"
                   isAnimationActive={false}
-                  label={renderLabel}
-                  labelLine={{ stroke: "var(--color-edge-strong)", strokeWidth: 1 }}
+                  label={roomy ? renderLabel : false}
+                  labelLine={
+                    roomy ? { stroke: "var(--color-edge-strong)", strokeWidth: 1 } : false
+                  }
                 >
                   {slices.map((entry) => (
                     <Cell key={entry.category} fill={categoryColor(entry.category)} />
@@ -152,15 +180,20 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
               </PieChart>
             </ResponsiveContainer>
 
-            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-              <span className="font-mono text-xl tabular-nums text-ink">
-                {formatDuration(total)}
-              </span>
-              <span className="text-xs text-ink-mute">tracked</span>
-            </div>
+            {/* The total is already in the header as active + idle; in the middle of the
+                ring it is a nicety, and the first thing to go when the ring needs the
+                room. */}
+            {roomy && (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-mono text-xl tabular-nums text-ink">
+                  {formatDuration(total)}
+                </span>
+                <span className="text-xs text-ink-mute">tracked</span>
+              </div>
+            )}
           </div>
 
-          {tiny.length > 0 && (
+          {roomy && tiny.length > 0 && (
             <ul className="mt-2 flex shrink-0 flex-wrap justify-center gap-x-4 gap-y-1">
               {tiny.map((entry) => (
                 <li

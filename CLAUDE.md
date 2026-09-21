@@ -76,8 +76,6 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
-| `src/lib/layout.ts` | Today's panel order, split and hidden list, repaired on every read |
-| `src/components/PanelLayout.tsx` | Renders those panels; in edit mode, the handles and the divider |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,
@@ -227,18 +225,7 @@ wrong data.
 32. **A calendar event keeps its `LOCATION`, and that is all.** The feed's own text is
     parsed and displayed verbatim. Routing between places was built and then removed:
     timing a trip needs a paid service, and `git log` has it if it is ever wanted back.
-33. **The layout is furniture, and it is repaired on read.** Today's split and hidden list
-    live in `localStorage` (`src/lib/layout.ts`) — per-viewer, never in SQLite, never in
-    Rust. The split is a *ratio*, so it survives a resized window and a different monitor,
-    which a stored pixel width gets wrong the moment you unplug. **The order is fixed**:
-    panels resize and hide, they do not move, because reading left to right is the one
-    thing about this page that should be the same on every machine. A stored layout
-    outlives the code that wrote it, so `normalise()` runs on every read and every write:
-    ids nothing knows about are dropped, a nonsense ratio falls back, and hiding the last
-    panel is refused — a blank page with no way back is not a layout anybody chose. Edit
-    mode is Today only. Anything foldable leaves a visible way back: the sync column's
-    collapse leaves a tab against the right edge.
-34. **One Nudgy, and one row per second per app.** A second copy is not a duplicate
+33. **One Nudgy, and one row per second per app.** A second copy is not a duplicate
     window: both tick, both write a sample for every second they are awake, and the day
     adds up past twenty-four hours while still looking like data.
     `tauri-plugin-single-instance` is registered *first*, before anything opens the
@@ -247,6 +234,14 @@ wrong data.
     unreachable from SQL — a replayed flush after a crash is dropped rather than added,
     and `insert_samples` returns what landed, not what it was handed. Two *different* apps
     may share a timestamp; the same app twice in one second is the bug.
+34. **A chart gives up its words before it gives up its shape.** The breakdown's labels
+    sit outside the ring and its total sits inside, so both are budgeted out of the space
+    the circle wants; in a small panel that budget runs out and the result is not a
+    smaller chart but three sets of words printed over each other. A `ResizeObserver` on
+    the chart — measured, because the panel's width has no fixed relationship to the
+    window's — drops the labels, the total and the small-category legend below
+    340x250, and the ring takes the room back. The proportions still read, and every
+    number is spelled out again in the panel beside it.
 
 ## Secrets
 
