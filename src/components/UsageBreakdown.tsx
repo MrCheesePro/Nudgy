@@ -3,56 +3,27 @@ import { Cell, Pie, PieChart } from "recharts";
 
 import { formatDuration } from "../lib/time";
 import { categoryColor } from "../lib/categories";
-import { streakHeat, type StreakState } from "../services/progress";
 import type { UsageBreakdown as Breakdown } from "../lib/types";
 
 interface Props {
   breakdown: Breakdown | null;
-  /** Streak state per category, for the ones with a target. */
-  streaks?: Record<string, StreakState>;
 }
 
 /**
- * Below this a slice is thinner than its own label.
+ * Below this the total in the middle of the ring is dropped.
  *
- * Leader lines from three 1% slivers converge on the same few pixels and produce a
- * tangle that names nothing. Those categories move to a line under the chart instead —
- * still counted, still visible, just not pretending to point at anything.
+ * It is the one thing still competing with the circle for space, and it is already in
+ * the header as active plus idle, so it goes first when the panel gets small.
  */
-const LABEL_THRESHOLD = 0.04;
+const ROOM_FOR_TOTAL = { width: 220, height: 200 };
 
-/**
- * Below this the chart is a ring and nothing else.
- *
- * The labels sit outside the ring and the total sits inside it, so both are budgeted out
- * of the same space the circle wants. In a small panel that budget runs out, and what you
- * get is not a smaller chart but three sets of words printed over each other. The shape
- * still reads at any size — the proportions are the point, and the numbers are all
- * spelled out again in the panel beside it.
- */
-const ROOM_FOR_LABELS = { width: 340, height: 250 };
-
-/** Ring to card edge. Enough for two lines of label and the leader line that points. */
-const LABEL_MARGIN = 52;
-
-/** Ring to card edge with no labels to place — just enough not to touch. */
-const BARE_MARGIN = 8;
+/** Ring to box edge. The circle is the whole chart now, so this is only breathing room. */
+const RING_MARGIN = 10;
 
 /** The ring is never smaller than this, whatever the panel does. */
 const MIN_RADIUS = 26;
 
-/** What Recharts hands a custom pie label. */
-interface PieLabelProps {
-  cx: number;
-  cy: number;
-  midAngle: number;
-  outerRadius: number;
-  percent: number;
-  name: string;
-  value: number;
-}
-
-export function UsageBreakdown({ breakdown, streaks }: Props) {
+export function UsageBreakdown({ breakdown }: Props) {
   /**
    * The chart's own box, measured.
    *
@@ -87,80 +58,17 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
   }, []);
 
   const drawable = box.width > 0 && box.height > 0;
-  const roomy =
-    box.width >= ROOM_FOR_LABELS.width && box.height >= ROOM_FOR_LABELS.height;
+  const roomForTotal =
+    box.width >= ROOM_FOR_TOTAL.width && box.height >= ROOM_FOR_TOTAL.height;
 
-  // The circle takes what the box gives it, less the margin its labels need. It only
-  // gets smaller when the box does, and it never disappears.
+  // The circle takes what the box gives it. Nothing is placed outside the ring any more,
+  // so the only margin it owes is breathing room.
   const half = Math.min(box.width, box.height) / 2;
-  const outerRadius = Math.max(MIN_RADIUS, half - (roomy ? LABEL_MARGIN : BARE_MARGIN));
-  const innerRadius = outerRadius * 0.7;
+  const outerRadius = Math.max(MIN_RADIUS, half - RING_MARGIN);
+  const innerRadius = outerRadius * 0.66;
 
   const slices = (breakdown?.categories ?? []).filter((entry) => entry.seconds > 0);
   const total = breakdown?.totalSeconds ?? 0;
-  const tiny = slices.filter(
-    (entry) => total > 0 && entry.seconds / total < LABEL_THRESHOLD,
-  );
-
-  /**
-   * One label per slice, placed on the ring's own angle so the leader line Recharts
-   * draws actually points at the wedge it names.
-   */
-  const renderLabel = (props: unknown) => {
-    const { cx, cy, midAngle, outerRadius, percent, name, value } = props as PieLabelProps;
-    if (percent < LABEL_THRESHOLD) return null;
-
-    const radians = Math.PI / 180;
-    const radius = outerRadius + 20;
-    const x = cx + radius * Math.cos(-midAngle * radians);
-    const y = cy + radius * Math.sin(-midAngle * radians);
-    const anchor = x >= cx ? "start" : "end";
-    const state = streaks?.[name];
-    const run = state?.days ?? 0;
-    const lit = state?.lit ?? false;
-
-    return (
-      <g>
-        <text
-          x={x}
-          y={y - 5}
-          textAnchor={anchor}
-          fill="var(--color-ink)"
-          fontSize="var(--text-xs)"
-          fontWeight={600}
-        >
-          {name}
-        </text>
-        <text
-          x={x}
-          y={y + 9}
-          textAnchor={anchor}
-          fill="var(--color-ink-mute)"
-          fontSize="var(--text-mini)"
-          fontFamily="var(--font-mono)"
-        >
-          {`${formatDuration(value)} · ${Math.round(percent * 100)}%`}
-        </text>
-        {/* Only once there is a streak to report. A line saying "no streak" on every
-            slice is six repetitions of nothing, and it crowds the labels that matter. */}
-        {run > 0 && (
-          <text
-            x={x}
-            y={y + 22}
-            textAnchor={anchor}
-            fill="var(--color-rose-deep)"
-            fillOpacity={streakHeat(run, lit)}
-            fontSize="var(--text-tiny)"
-            fontWeight={600}
-          >
-            {lit
-              ? `\u25B2 ${run} day${run === 1 ? "" : "s"}`
-              : `\u25B3 ${run} day${run === 1 ? "" : "s"} \u2014 not yet today`}
-          </text>
-        )}
-      </g>
-    );
-  };
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-edge bg-surface p-6">
@@ -196,10 +104,11 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
                   paddingAngle={2}
                   stroke="none"
                   isAnimationActive={false}
-                  label={roomy ? renderLabel : false}
-                  labelLine={
-                    roomy ? { stroke: "var(--color-edge-strong)", strokeWidth: 1 } : false
-                  }
+                  // No labels on the chart itself. Leader lines from six wedges converge
+                  // on the same few pixels and produce a tangle that names nothing; the
+                  // legend under the ring says the same thing in a straight line.
+                  label={false}
+                  labelLine={false}
                 >
                   {slices.map((entry) => (
                     <Cell key={entry.category} fill={categoryColor(entry.category)} />
@@ -211,7 +120,7 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
             {/* The total is already in the header as active + idle; in the middle of the
                 ring it is a nicety, and the first thing to go when the ring needs the
                 room. */}
-            {roomy && (
+            {roomForTotal && (
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span className="font-mono text-xl tabular-nums text-ink">
                   {formatDuration(total)}
@@ -221,25 +130,27 @@ export function UsageBreakdown({ breakdown, streaks }: Props) {
             )}
           </div>
 
-          {roomy && tiny.length > 0 && (
-            <ul className="mt-2 flex shrink-0 flex-wrap justify-center gap-x-4 gap-y-1">
-              {tiny.map((entry) => (
-                <li
-                  key={entry.category}
-                  className="flex items-center gap-1.5 text-mini text-ink-mute"
-                >
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: categoryColor(entry.category) }}
-                  />
-                  {entry.category}
-                  <span className="font-mono tabular-nums">
-                    {formatDuration(entry.seconds)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {/* Every category, in one line under the chart. A swatch and a percentage in
+              reading order beats six labels pointing inward from six angles — and a 1%
+              sliver gets the same legible row as a 40% wedge, which a label on the ring
+              could never give it. */}
+          <ul className="mt-3 flex shrink-0 flex-wrap justify-center gap-x-4 gap-y-1.5">
+            {slices.map((entry) => (
+              <li
+                key={entry.category}
+                className="flex items-center gap-1.5 text-mini text-ink-soft"
+              >
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: categoryColor(entry.category) }}
+                />
+                {entry.category}
+                <span className="font-mono tabular-nums text-ink-mute">
+                  {total > 0 ? Math.round((entry.seconds / total) * 100) : 0}%
+                </span>
+              </li>
+            ))}
+          </ul>
         </>
       )}
     </section>

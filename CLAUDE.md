@@ -234,14 +234,15 @@ wrong data.
     unreachable from SQL — a replayed flush after a crash is dropped rather than added,
     and `insert_samples` returns what landed, not what it was handed. Two *different* apps
     may share a timestamp; the same app twice in one second is the bug.
-34. **A chart gives up its words before it gives up its shape.** The breakdown's labels
-    sit outside the ring and its total sits inside, so both are budgeted out of the space
-    the circle wants; in a small panel that budget runs out and the result is not a
-    smaller chart but three sets of words printed over each other. A `ResizeObserver` on
-    the chart — measured, because the panel's width has no fixed relationship to the
-    window's — drops the labels, the total and the small-category legend below
-    340x250, and the ring takes the room back. The proportions still read, and every
-    number is spelled out again in the panel beside it.
+34. **The ring is a shape, and the words are a list.** The breakdown draws no labels on
+    the chart: leader lines from six wedges converge on the same few pixels and name
+    nothing, and a 1% sliver can never carry a legible one. Every category gets an equal
+    row in the legend under the ring — swatch, name, percentage — and the ring is sized
+    in pixels from a box the component measures itself with a callback ref. Percentages
+    inside a `ResponsiveContainer` made its existence depend on a height resolving
+    before first paint, and when it did not the panel drew an empty card rather than a
+    small one. The radius has a floor, so there is no state in which the circle is
+    absent.
 
 ## Secrets
 
