@@ -540,6 +540,10 @@ export default function App() {
       <div className="flex min-h-0 flex-1">
         <IconRail view={view} onChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
 
+        {/* Everything from here in is content, and can be made translucent. The top bar
+            above and the rail beside it are the app's frame and stay solid — a chrome you
+            can see through is a chrome you have to find. */}
+        <div className="panels-see-through flex min-w-0 flex-1">
           {/* The timeline manages its own scrolling, so the page itself must not add a
               second scrollbar behind it. */}
           <main
@@ -699,6 +703,7 @@ export default function App() {
             </div>
           )}
         </div>
+      </div>
 
       <AddTaskDialog
         open={addTaskOpen}

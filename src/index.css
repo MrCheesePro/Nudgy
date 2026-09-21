@@ -57,6 +57,34 @@ body,
  * its contrast. `--app-background` is `none` until one is picked, which costs nothing. */
 :root {
   --app-background: none;
+  --panel-opacity: 1;
+
+  /*
+   * The panel colour, mixed down by `--panel-opacity`.
+   *
+   * Computed here, at the root, from the theme's own surface colour — which is why it is
+   * a second property rather than a redefinition of `--color-surface`. A custom property
+   * that refers to itself is a cycle and drops out entirely, even when the reference is
+   * on a descendant, so the mix has to be named something else and then assigned.
+   */
+  --panel-surface: color-mix(
+    in srgb,
+    var(--color-surface) calc(var(--panel-opacity) * 100%),
+    transparent
+  );
+}
+
+/*
+ * Panels you can see through, scoped to the content area.
+ *
+ * Assigning `--color-surface` here rather than on every card means every `bg-surface`
+ * inside this element inherits it — the Today panels, the charts, the sync column — with
+ * no component knowing the setting exists. The top bar and the icon rail sit outside this
+ * element and keep the opaque value, because they are the app's frame: a chrome you can
+ * see through is a chrome you have to find.
+ */
+.panels-see-through {
+  --color-surface: var(--panel-surface);
 }
 
 body::before {

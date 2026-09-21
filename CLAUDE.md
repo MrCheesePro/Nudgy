@@ -335,3 +335,13 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     layout does not rearrange inside that range — no `flex-wrap` on the Today row or in
     the status card, because a card that reflows when the window loses ten pixels makes a
     drag feel like a redesign. Things truncate; they do not move.
+39. **The frame stays solid; the content can float.** Panel opacity mixes
+    `--color-surface` down by `--panel-opacity` and assigns it on `.panels-see-through`,
+    which wraps `main` and the sync column — so every `bg-surface` inside inherits it and
+    no component knows the setting exists. The top bar, the icon rail and every dialog sit
+    outside that element and stay opaque: a chrome you can see through is a chrome you
+    have to find, and a dialog you can read the dashboard through is a dialog you cannot
+    read. The mix is a *second* property computed at `:root` rather than a redefinition of
+    `--color-surface`, because a custom property that refers to itself is a cycle and
+    drops out entirely. The floor is 40%: below that the chart colours stop meaning what
+    the legend says they mean.

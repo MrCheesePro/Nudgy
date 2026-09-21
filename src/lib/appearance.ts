@@ -20,9 +20,20 @@ export const SETTING_TEXT_SCALE = "text_scale";
 export const SETTING_UI_SCALE = "ui_scale";
 export const SETTING_FONT = "font_family";
 export const SETTING_BACKGROUND = "background_image";
+export const SETTING_PANEL_OPACITY = "panel_opacity";
 
 export const MIN_SCALE = 0.8;
 export const MAX_SCALE = 1.5;
+
+/**
+ * How solid the panels are.
+ *
+ * Below about 40% the text on a card starts competing with whatever is behind it, and the
+ * chart colours stop meaning what the legend says they mean. Solid is the default: a
+ * background you cannot see is the same as no background, but a dashboard you cannot read
+ * is worse than a plain one.
+ */
+export const MIN_PANEL_OPACITY = 0.4;
 
 export interface FontChoice {
   id: string;
@@ -78,6 +89,14 @@ export interface Appearance {
   font: string;
   /** A URL or data URI drawn behind the app, or empty for none. */
   background: string;
+  /**
+   * How opaque the panels in the content area are, 0.4–1.
+   *
+   * The top bar and the icon rail are never included. They are the app's own frame —
+   * the thing you aim at — and a chrome you can see through is a chrome you have to
+   * find. Everything inside that frame is content, and content can float.
+   */
+  panelOpacity: number;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -85,6 +104,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   uiScale: 1,
   font: "default",
   background: "",
+  panelOpacity: 1,
 };
 
 let current: Appearance = { ...DEFAULT_APPEARANCE };
@@ -163,6 +183,11 @@ export function applyAppearance(next: Partial<Appearance>) {
     );
   }
 
+  // A percentage the stylesheet mixes into the panel colour. Written even at 1, so
+  // turning it back up is the same code path as turning it down.
+  const panel = Math.min(1, Math.max(MIN_PANEL_OPACITY, current.panelOpacity));
+  root.style.setProperty("--panel-opacity", String(panel));
+
   root.style.setProperty(
     "--app-background",
     current.background ? `url("${CSS.escape(current.background).replace(/\\"/g, '"')}")` : "none",
@@ -185,6 +210,9 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
   if (next.background !== undefined) {
     writes.push(setSetting(SETTING_BACKGROUND, current.background));
   }
+  if (next.panelOpacity !== undefined) {
+    writes.push(setSetting(SETTING_PANEL_OPACITY, String(current.panelOpacity)));
+  }
   await Promise.all(writes);
 }
 
@@ -192,10 +220,13 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
 export function hydrateAppearance(settings: Map<string, string>) {
   const scale = Number(settings.get(SETTING_TEXT_SCALE));
   const uiScale = Number(settings.get(SETTING_UI_SCALE));
+  const panelOpacity = Number(settings.get(SETTING_PANEL_OPACITY));
   applyAppearance({
     scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
     uiScale: Number.isFinite(uiScale) && uiScale > 0 ? uiScale : 1,
     font: settings.get(SETTING_FONT) ?? "default",
     background: settings.get(SETTING_BACKGROUND) ?? "",
+    panelOpacity:
+      Number.isFinite(panelOpacity) && panelOpacity > 0 ? panelOpacity : 1,
   });
 }

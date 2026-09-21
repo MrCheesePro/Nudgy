@@ -11,7 +11,13 @@ import {
   setSetting,
 } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
-import { FONTS, saveAppearance, useAppearance } from "../lib/appearance";
+import {
+  applyAppearance,
+  FONTS,
+  MIN_PANEL_OPACITY,
+  saveAppearance,
+  useAppearance,
+} from "../lib/appearance";
 import { CHIMES, playChime, type ChimeId } from "../lib/chime";
 import { readPref, writePref } from "../lib/prefs";
 import { chooseTheme, THEMES, useTheme } from "../lib/theme";
@@ -69,6 +75,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
   const appearance = useAppearance();
   const [customFont, setCustomFont] = useState("");
   const [background, setBackground] = useState(appearance.background);
+  const [panelOpacity, setPanelOpacity] = useState(appearance.panelOpacity);
   const [autostart, setAutostart] = useState(false);
 
   useEffect(() => {
@@ -94,6 +101,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
       setCalendarUrl("");
       setLmsFeed("");
       setBackground(appearance.background);
+      setPanelOpacity(appearance.panelOpacity);
       setCustomFont(FONTS.some((entry) => entry.id === appearance.font) ? "" : appearance.font);
       setStatus(null);
       setConfirmingClose(false);
@@ -363,6 +371,42 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 </>
               )}
             </p>
+
+            {/* Only once there is something to see through to. A translucency slider with
+                no background behind it just makes the cards grey. */}
+            {background.trim() && (
+              <label className="mt-4 block">
+                <span className="flex items-baseline justify-between text-xs font-medium tracking-wide text-ink-soft">
+                  Panel opacity
+                  <span className="font-mono text-mini tabular-nums text-ink-mute">
+                    {Math.round(panelOpacity * 100)}%
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={MIN_PANEL_OPACITY * 100}
+                  max={100}
+                  step={5}
+                  value={Math.round(panelOpacity * 100)}
+                  aria-label="Panel opacity"
+                  onChange={(event) => {
+                    const next = Number(event.target.value) / 100;
+                    setPanelOpacity(next);
+                    // Live while dragging, written when the drag ends — the same shape as
+                    // the text size slider, for the same reason: this is judged by eye.
+                    applyAppearance({ panelOpacity: next });
+                  }}
+                  onPointerUp={() => void saveAppearance({ panelOpacity })}
+                  onKeyUp={() => void saveAppearance({ panelOpacity })}
+                  className="mt-2 w-full cursor-pointer appearance-none rounded-full bg-surface-sunken accent-rose"
+                  style={{ height: "4px" }}
+                />
+                <p className="mt-1.5 text-xs text-ink-mute">
+                  How much of the background shows through the panels. The top bar and the
+                  rail stay solid.
+                </p>
+              </label>
+            )}
           </div>
 
           <div className="border-t border-edge pt-5">
