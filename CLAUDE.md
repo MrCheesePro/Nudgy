@@ -66,7 +66,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/lib/ipc.ts` | One typed wrapper per command; components never call `invoke` directly |
 | `src/lib/types.ts` | Mirror of `models.rs` — keep the two in step |
 | `src/hooks/` | `useLiveActivity`, `useUsageStats`, `usePermissions`, `useTasks`, `useSchedule`, `useCalendar`, `usePlans`, `useCurrentWork` (which block, and which class, is running now) |
-| `src/components/shell/` | `IconRail` (view switcher) and `TopBar` (breadcrumb, search, tracking pill) |
+| `src/components/shell/` | `IconRail` (view switcher) and `TopBar` (breadcrumb, tracking pill, window chrome) |
+| `src/lib/platform.ts` | `IS_MAC` and the traffic-light width — the only place the chrome differs |
 | `src/components/TimelinePlanner.tsx` | Shell: Add task, month chip, category filter, Generate plan |
 | `src/components/timeline/PlanTimeline.tsx` | The chart: day strip, vertical hour axis, Calendar and Plan columns for the selected day |
 | `src/components/AddTaskDialog.tsx` | The only way to add a task by hand: title, time, activity type |
@@ -278,3 +279,13 @@ npx tsc --noEmit
 sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
   "SELECT category, SUM(duration_seconds)/60 AS mins FROM activity_samples
    WHERE ts > strftime('%s','now','-1 day') GROUP BY category ORDER BY mins DESC;"
+35. **The title bar is the top bar, on macOS only.** `titleBarStyle: "Overlay"` lets the
+    page run the full height of the window and macOS draws its three buttons *over* the
+    top-left of it — over whatever is there, without pushing anything aside. So `TopBar`
+    spans the window, `IconRail` hangs below it, and the bar reserves
+    `TRAFFIC_LIGHTS_WIDTH` on the left when `IS_MAC`. `data-tauri-drag-region` puts back
+    the only thing the native bar did that nothing else does, and it goes on the header
+    and the breadcrumb but never on a control — a drag region swallows the click.
+    Windows and Linux ignore `titleBarStyle` and keep their own title bar above the page,
+    which is why the padding is conditional rather than a constant: there, that corner is
+    the app's to use.

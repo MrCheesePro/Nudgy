@@ -1,5 +1,6 @@
 import { Bell, BellOff, Pause, Play } from "lucide-react";
 
+import { IS_MAC, TRAFFIC_LIGHTS_WIDTH } from "../../lib/platform";
 import type { View } from "./IconRail";
 
 const VIEW_TITLES: Record<View, string> = {
@@ -33,8 +34,27 @@ export function TopBar({
   trackingLabel,
 }: Props) {
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-edge bg-surface px-5">
-      <div className="mr-auto flex min-w-0 items-center gap-2 text-sm">
+    /*
+     * The window's own title bar, furnished.
+     *
+     * On macOS the title bar is set to `Overlay`, so the close/minimise/zoom buttons are
+     * drawn over this strip and the page runs the full height of the window. The padding
+     * on the left is the space they occupy: it is the app's job to leave it, because the
+     * buttons are drawn over whatever is there rather than pushing it aside.
+     *
+     * `data-tauri-drag-region` puts back the one thing a title bar was doing that nothing
+     * else does — dragging the window. It is on the header and on the breadcrumb, and on
+     * nothing that can be clicked, since a drag region swallows the click.
+     */
+    <header
+      data-tauri-drag-region
+      className="flex h-12 shrink-0 items-center gap-3 border-b border-edge bg-surface px-5"
+      style={IS_MAC ? { paddingLeft: TRAFFIC_LIGHTS_WIDTH } : undefined}
+    >
+      <div
+        data-tauri-drag-region
+        className="mr-auto flex min-w-0 items-center gap-2 text-sm"
+      >
         <span className="text-ink-mute">Nudgy</span>
         <span className="text-ink-mute">·</span>
         <span className="font-medium text-ink">{VIEW_TITLES[view]}</span>

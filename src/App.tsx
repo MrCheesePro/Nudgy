@@ -521,22 +521,23 @@ export default function App() {
   }, [notifications]);
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <IconRail view={view} onChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
+    /* The bar runs the full width of the window and the rail hangs below it, so the
+       breadcrumb sits beside the window buttons rather than under them. */
+    <div className="flex h-full flex-col overflow-hidden">
+      <TopBar
+        view={view}
+        paused={paused}
+        onTogglePause={() => void togglePause()}
+        alerts={alerts}
+        notifications={notifications}
+        onToggleNotifications={() => void toggleNotifications()}
+        onOpenSettings={() => setSettingsOpen(true)}
+        trackingLabel={currentWork?.courseCode ?? null}
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar
-          view={view}
-          paused={paused}
-          onTogglePause={() => void togglePause()}
-          alerts={alerts}
-          notifications={notifications}
-          onToggleNotifications={() => void toggleNotifications()}
-          onOpenSettings={() => setSettingsOpen(true)}
-          trackingLabel={currentWork?.courseCode ?? null}
-        />
+      <div className="flex min-h-0 flex-1">
+        <IconRail view={view} onChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
 
-        <div className="flex min-h-0 flex-1">
           {/* The timeline manages its own scrolling, so the page itself must not add a
               second scrollbar behind it. */}
           <main
@@ -693,7 +694,6 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
 
       <AddTaskDialog
         open={addTaskOpen}
