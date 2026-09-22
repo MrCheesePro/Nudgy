@@ -368,5 +368,8 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     a counter every second so the counter counts, and everything `App` renders goes with
     it. Anything expensive to *draw* — the charts especially, which are hundreds of SVG
     elements — is wrapped in `memo`, so it redraws when its data changes rather than when
-    the clock does. A page whose lag comes back is far more likely to be re-rendering than
-    re-fetching: check that first.
+    the clock does. And `useProgress` keeps **one** module-level copy of the history for
+    every caller — `App` holds one for the streaks on Today, the progress page and its
+    targets panel mount two more, and all three want the same two months of the same
+    table. An instance mounting into a warm cache renders with data on its first pass,
+    which is the difference between opening a page and waiting for one.
