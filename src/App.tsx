@@ -14,7 +14,7 @@ import {
 import { AppRegistry } from "./components/AppRegistry";
 import { ProgressPage } from "./components/ProgressPage";
 import { SessionTimer } from "./components/SessionTimer";
-import { TextScalePreview } from "./components/TextScalePreview";
+import { AppearanceBar } from "./components/AppearanceBar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TimelinePlanner } from "./components/TimelinePlanner";
 import { TopApps } from "./components/TopApps";
@@ -795,7 +795,7 @@ export default function App() {
         }}
       />
 
-      <TextScalePreview open={scalingText} onClose={() => setScalingText(false)} />
+      <AppearanceBar open={scalingText} onClose={() => setScalingText(false)} />
     </div>
   );
 }

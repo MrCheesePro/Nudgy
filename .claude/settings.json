@@ -12,7 +12,10 @@
       "Bash(grep -qE 'Running `target/debug/nudgy`|^error|could not compile|already in use' /private/tmp/claude-501/-Users-joshuayamamoto-kim-Developer-Nudge/44202893-b85b-4760-bfdc-89f9b9016cd2/scratchpad/dev.log)",
       "Bash(rtk git *)",
       "Bash(pkill -f \"target/debug/nudgy\")",
-      "Bash(awk '{print $2}')"
+      "Bash(awk '{print $2}')",
+      "Bash(gh run view:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh release view:*)"
     ]
   }
 }

@@ -8,16 +8,13 @@ import { setSetting } from "./ipc";
  * All applied the way [theme.ts](./theme.ts) applies colour: properties written onto
  * `:root`, so no component learns any of this exists.
  *
- * The two size controls are deliberately different mechanisms, because they answer
- * different complaints. **Text** multiplies `--text-scale`, which every font size in
- * `index.css` runs through and nothing else does — the words grow, the layout holds.
- * **Everything** is `zoom` on the app root, which takes icons, chart rings and fixed
- * pixel widths with it. A root `font-size` would have been neither: it moves every rem,
- * so spacing grows with type and the two sliders end up doing the same job.
+ * **Text size** multiplies `--text-scale`, which every font size in `index.css` runs
+ * through and nothing else does — the words grow and the layout holds. A root
+ * `font-size` would have moved every rem with them, so padding and gaps would grow too
+ * and "text size" would quietly mean "everything".
  */
 
 export const SETTING_TEXT_SCALE = "text_scale";
-export const SETTING_UI_SCALE = "ui_scale";
 export const SETTING_FONT = "font_family";
 export const SETTING_BACKGROUND = "background_image";
 export const SETTING_PANEL_OPACITY = "panel_opacity";
@@ -87,15 +84,6 @@ export interface Appearance {
    * what makes bigger type actually readable rather than cramped into the same box.
    */
   scale: number;
-  /**
-   * The whole interface, text and everything else alike.
-   *
-   * `zoom`, not a font size: it takes icons, chart rings, borders and the fixed-pixel
-   * widths with it, which a root font-size cannot reach. Use this to fit more on a big
-   * display or make the lot legible on a small one; use `scale` when only the words are
-   * too small.
-   */
-  uiScale: number;
   /** A `FONTS` id, or a raw Google Fonts family name the user typed. */
   font: string;
   /** A URL or data URI drawn behind the app, or empty for none. */
@@ -114,7 +102,6 @@ export interface Appearance {
 
 export const DEFAULT_APPEARANCE: Appearance = {
   scale: 1,
-  uiScale: 1,
   font: "default",
   background: "",
   savedBackgrounds: [],
@@ -174,12 +161,6 @@ export function applyAppearance(next: Partial<Appearance>) {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.scale));
   root.style.setProperty("--text-scale", String(scale));
 
-  // Zoom is applied to the app's own root, never to `html` — a control that floats over
-  // the page to *set* this must not be scaled by it while you drag.
-  const ui = Math.min(MAX_SCALE, Math.max(MIN_SCALE, current.uiScale));
-  const app = document.getElementById("root");
-  if (app) app.style.zoom = String(ui);
-
   const known = FONTS.find((entry) => entry.id === current.font);
   if (known) {
     loadGoogleFont(known.google);
@@ -217,9 +198,6 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
   if (next.scale !== undefined) {
     writes.push(setSetting(SETTING_TEXT_SCALE, String(current.scale)));
   }
-  if (next.uiScale !== undefined) {
-    writes.push(setSetting(SETTING_UI_SCALE, String(current.uiScale)));
-  }
   if (next.font !== undefined) writes.push(setSetting(SETTING_FONT, current.font));
   if (next.background !== undefined) {
     writes.push(setSetting(SETTING_BACKGROUND, current.background));
@@ -240,11 +218,9 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
 /** Reads what was stored at startup, before anything renders against the defaults. */
 export function hydrateAppearance(settings: Map<string, string>) {
   const scale = Number(settings.get(SETTING_TEXT_SCALE));
-  const uiScale = Number(settings.get(SETTING_UI_SCALE));
   const panelOpacity = Number(settings.get(SETTING_PANEL_OPACITY));
   applyAppearance({
     scale: Number.isFinite(scale) && scale > 0 ? scale : 1,
-    uiScale: Number.isFinite(uiScale) && uiScale > 0 ? uiScale : 1,
     font: settings.get(SETTING_FONT) ?? "default",
     background: settings.get(SETTING_BACKGROUND) ?? "",
     savedBackgrounds: parseSaved(settings.get(SETTING_BACKGROUND_SAVED)),

@@ -225,14 +225,15 @@ wrong data.
     keeps the seconds shown when pause was pressed; resuming shifts `session_started_at`
     back by that much so the counter carries on. Reporting zero made a pause look like a
     lost sitting.
-30. **Type sizes are `rem`, never pixels, and the two size sliders are different
-    mechanisms.** Every size in the `@theme` block multiplies `--text-scale`, so **Text**
-    moves the words and leaves the layout alone; a hardcoded `text-[11px]` would sit still
-    while everything around it grew. **Everything** is `zoom` on `#root`, which takes
-    icons, rings and fixed pixel widths with it. A root `font-size` would have been
-    neither — Tailwind's spacing is `rem` too, so it moved padding with type and left the
-    second slider with nothing of its own to do. A control that *sets* either one is
-    written in pixels and portalled out of `#root`, or it scales itself as you drag it.
+30. **Type sizes are `rem`, never pixels.** Every size in the `@theme` block multiplies
+    `--text-scale`, so the text slider moves the words and leaves the layout alone; a
+    hardcoded `text-[11px]` would sit still while everything around it grew. A root
+    `font-size` would have moved padding and gaps with the type, which is the same as
+    zooming. `AppearanceBar` sets this and the other visual settings over the real page,
+    and **every dimension in it is in pixels and portalled out of the app** — a control
+    written in the unit it changes grows under the cursor as you drag it. Nothing in it
+    is conditionally rendered either: the bar is centred with a transform, so anything
+    that changes its width moves it sideways mid-drag.
 31. **The timer is a view, not a source.** `SessionTimer` derives its phase from a start
     time and a pair of lengths, so it is right whenever you look — including after an hour
     with the app closed, which a counter would have to guess at. It writes nothing: what
