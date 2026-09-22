@@ -364,3 +364,9 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     preset said — and choosing a preset clears it, since otherwise the preset you just
     picked would have no visible effect. Category colours are still untouched: they live
     in the database and mean something specific.
+41. **The session clock re-renders the whole app once a second.** `useLiveActivity` bumps
+    a counter every second so the counter counts, and everything `App` renders goes with
+    it. Anything expensive to *draw* — the charts especially, which are hundreds of SVG
+    elements — is wrapped in `memo`, so it redraws when its data changes rather than when
+    the clock does. A page whose lag comes back is far more likely to be re-rendering than
+    re-fetching: check that first.

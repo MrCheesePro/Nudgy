@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 
 import { formatDuration } from "../lib/time";
@@ -23,7 +23,13 @@ const RING_MARGIN = 10;
 /** The ring is never smaller than this, whatever the panel does. */
 const MIN_RADIUS = 26;
 
-export function UsageBreakdown({ breakdown }: Props) {
+/**
+ * Memoised for the same reason the progress chart is: the ring is SVG, its parent ticks
+ * once a second for the session clock, and the breakdown behind it changes every five.
+ * `breakdown` is state and holds its identity between refreshes, so this redraws when the
+ * numbers move rather than when the clock does.
+ */
+export const UsageBreakdown = memo(function UsageBreakdown({ breakdown }: Props) {
   /**
    * The chart's own box, measured.
    *
@@ -155,4 +161,4 @@ export function UsageBreakdown({ breakdown }: Props) {
       )}
     </section>
   );
-}
+});

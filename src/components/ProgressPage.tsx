@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   Bar,
   BarChart,
@@ -38,7 +38,17 @@ import { categoriesInSeries, IDLE, secondsOn } from "../services/progress";
 const CEILINGS = [6, 12, 24, null] as const;
 type Ceiling = (typeof CEILINGS)[number];
 
-export function ProgressPage() {
+/**
+ * Wrapped in `memo` because it takes no props and its parent re-renders every second.
+ *
+ * `useLiveActivity` ticks once a second so the session clock counts, which re-renders
+ * `App` and everything inside it. For a page built out of a few hundred SVG elements that
+ * meant redrawing the whole chart every second to show the same bars — the lag was not in
+ * fetching anything, it was in drawing it over and over. With no props there is nothing
+ * to compare, so `memo` skips the render entirely and the page redraws only when its own
+ * data changes.
+ */
+export const ProgressPage = memo(function ProgressPage() {
   // Remembered across navigation: leaving the page and coming back should not undo a
   // choice you made about how to read it.
   const [range, setRange] = usePref<Range>("progress.range", 7);
@@ -273,7 +283,7 @@ export function ProgressPage() {
       </div>
     </>
   );
-}
+});
 
 /** `Mon 15` — enough to find a day without crowding thirty of them onto an axis. */
 function shortDay(day: string): string {

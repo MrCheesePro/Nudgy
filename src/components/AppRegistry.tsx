@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Loader2, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 
 import { useAppRegistry } from "../hooks/useAppRegistry";
@@ -53,7 +53,8 @@ function sinceLabel(epochSeconds: number): string {
  * time it records next. A correction that only applies to the future leaves every chart
  * showing the answer you just told it was wrong.
  */
-export function AppRegistry() {
+/** Memoised for the reason `ProgressPage` is: no props, and a parent that ticks. */
+export const AppRegistry = memo(function AppRegistry() {
   const { rules, totals, unmapped, error, loading, refresh } = useAppRegistry();
   const categories = useAssignableCategories();
 
@@ -332,7 +333,7 @@ export function AppRegistry() {
       />
     </>
   );
-}
+});
 
 /* ------------------------------------------------------------------ recorded */
 
