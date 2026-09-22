@@ -199,6 +199,11 @@ export function ProgressPage() {
                       fill={categoryColor(category)}
                       // Only the top segment is rounded, or every band looks detached.
                       radius={index === categories.length - 1 ? [4, 4, 0, 0] : undefined}
+                      // Every refresh re-animates every bar otherwise, and this redraws on
+                      // a timer — the newest day grows by seconds and the rest cannot have
+                      // changed at all, so there is nothing worth animating and a lot to
+                      // pay for it.
+                      isAnimationActive={false}
                     />
                   ))}
                 </BarChart>
@@ -239,6 +244,7 @@ export function ProgressPage() {
                       stroke={categoryColor(category)}
                       strokeWidth={2}
                       dot={false}
+                      isAnimationActive={false}
                     />
                   ))}
                 </LineChart>

@@ -13,6 +13,9 @@ import type { CategoryTarget, DailyTotal } from "../lib/types";
 import { dailySeries } from "../services/progress";
 
 /** How far back the page can look. The longest one bounds what is ever fetched. */
+/** At most one refresh per this many milliseconds in response to a flush. */
+const FLUSH_COALESCE_MS = 30_000;
+
 export const RANGES = [7, 14, 30] as const;
 export type Range = (typeof RANGES)[number];
 
@@ -30,9 +33,9 @@ export function useProgress(range: Range) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (flushFirst = true) => {
     try {
-      await flushSamples();
+      if (flushFirst) await flushSamples();
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       start.setDate(start.getDate() - (Math.max(...RANGES) * 2 - 1));
@@ -58,7 +61,24 @@ export function useProgress(range: Range) {
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 60_000);
-    const unlisten = listen("nudgy://flushed", () => void refresh());
+
+    /*
+     * Flushes arrive every few seconds. This page does not.
+     *
+     * It reads two months of daily totals, the targets and the category list, then redraws
+     * a chart — and it is mounted twice, once for the page and once for the streaks on
+     * Today. Answering every flush meant all of that six times a minute per instance, for
+     * a chart whose bars are days: the newest one grows by a few seconds and the rest
+     * cannot change at all. Coalescing to twice a minute is still far fresher than the
+     * thing being drawn.
+     */
+    let lastFromFlush = 0;
+    const unlisten = listen("nudgy://flushed", () => {
+      const now = Date.now();
+      if (now - lastFromFlush < FLUSH_COALESCE_MS) return;
+      lastFromFlush = now;
+      void refresh(false);
+    });
     return () => {
       window.clearInterval(timer);
       unlisten.then((dispose) => dispose()).catch(() => undefined);

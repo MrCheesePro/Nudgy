@@ -19,9 +19,17 @@ export function useUsageStats() {
    *  waited out. */
   const currentDay = useRef(dayKey(new Date()));
 
-  const refresh = useCallback(async () => {
+  /**
+   * `flushFirst` drains the sample buffer before reading.
+   *
+   * Worth it on a poll or a day rollover, where the buffer may hold seconds nothing has
+   * written yet. Never worth it when the refresh was *caused* by a flush: the table
+   * already has everything, and asking for another write transaction on the event that
+   * announced the last one is pure cost.
+   */
+  const refresh = useCallback(async (flushFirst = true) => {
     try {
-      await flushSamples();
+      if (flushFirst) await flushSamples();
       currentDay.current = dayKey(new Date());
       const { startTs, endTs } = dayBounds();
       const [nextBreakdown, nextApps] = await Promise.all([
@@ -39,7 +47,7 @@ export function useUsageStats() {
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 30_000);
-    const unlisten = listen("nudgy://flushed", () => void refresh());
+    const unlisten = listen("nudgy://flushed", () => void refresh(false));
 
     // Midnight, and waking up after it. The interval alone would roll the day over
     // eventually, but a laptop opened at 9am would show yesterday's totals until the next
