@@ -137,24 +137,30 @@ pub fn active_seconds_for_process(
 /// evaluated here — this list exists to drive "register this app", and an app already
 /// covered by a regex is still worth offering an explicit mapping for.
 pub fn unmapped_processes(conn: &Connection, since_ts: i64) -> Result<Vec<UnmappedProcess>> {
+    // The registry, lowercased, read once.
+    //
+    // This used to be a correlated `NOT EXISTS` with `LOWER()` on both sides, evaluated
+    // per sample: no index can serve that, so it scanned the window and then ran a second
+    // scan of `known_apps` for every row in it — the single slowest thing the App registry
+    // tab did, and the reason opening it stalled. There are a few hundred rules and one
+    // grouped row per process; doing the comparison here is the same answer in a fraction
+    // of the time.
+    //
+    // Still `LOWER()` on both sides, matching what the categorizer does, so a rule typed
+    // as `Code.exe` retires `code.exe` the moment it is saved.
+    let known: std::collections::HashSet<String> = conn
+        .prepare_cached("SELECT LOWER(pattern) FROM known_apps WHERE match_type = 'exe'")?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<Result<_, _>>()?;
+
     let mut stmt = conn.prepare_cached(
-        "SELECT s.process_name,
-                COALESCE(MAX(s.app_name), s.process_name) AS app_name,
-                SUM(s.duration_seconds) AS seconds,
-                MAX(s.ts) AS last_seen
-           FROM activity_samples s
-          WHERE s.ts >= ?1
-            AND s.is_idle = 0
-            AND NOT EXISTS (
-                -- LOWER() on both sides, matching what the categorizer actually does, so a
-                -- rule typed as `Code.exe` retires `code.exe` from this list the moment it
-                -- is saved. A COLLATE clause against a UNIQUE (BINARY) index is subtle
-                -- enough not to be worth trusting here.
-                SELECT 1 FROM known_apps k
-                 WHERE k.match_type = 'exe'
-                   AND LOWER(k.pattern) = LOWER(s.process_name)
-            )
-          GROUP BY s.process_name
+        "SELECT process_name,
+                COALESCE(MAX(app_name), process_name) AS app_name,
+                SUM(duration_seconds) AS seconds,
+                MAX(ts) AS last_seen
+           FROM activity_samples
+          WHERE ts >= ?1 AND is_idle = 0
+          GROUP BY process_name
           ORDER BY seconds DESC",
     )?;
     let rows = stmt
@@ -166,6 +172,10 @@ pub fn unmapped_processes(conn: &Connection, since_ts: i64) -> Result<Vec<Unmapp
                 last_seen: row.get(3)?,
             })
         })?
+        .filter(|row| match row {
+            Ok(entry) => !known.contains(&entry.process_name.to_lowercase()),
+            Err(_) => true,
+        })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }

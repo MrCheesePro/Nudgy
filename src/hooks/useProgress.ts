@@ -59,7 +59,8 @@ export function useProgress(range: Range) {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    // The first read paints the page; the flush can wait for the one after it.
+    void refresh(false);
     const timer = window.setInterval(() => void refresh(), 60_000);
 
     /*

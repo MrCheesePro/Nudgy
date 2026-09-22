@@ -26,9 +26,17 @@ export function useAppRegistry() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
+  /**
+   * `flushFirst` drains the sample buffer before reading.
+   *
+   * Never on the first read. Opening a page is the one moment latency is felt, and a
+   * flush is a write transaction standing between the click and anything appearing —
+   * to gain at most `FLUSH_SECONDS` of freshness in a view whose smallest unit is a
+   * minute. The flush happens on the refresh that follows instead.
+   */
+  const refresh = useCallback(async (flushFirst = true) => {
     try {
-      await flushSamples();
+      if (flushFirst) await flushSamples();
       const { startTs, endTs } = dayBounds();
       const [nextRules, nextTotals, nextUnmapped] = await Promise.all([
         getAppRules(),
@@ -48,8 +56,8 @@ export function useAppRegistry() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const unlisten = listen("nudgy://flushed", () => void refresh());
+    void refresh(false);
+    const unlisten = listen("nudgy://flushed", () => void refresh(false));
     return () => {
       unlisten.then((dispose) => dispose()).catch(() => undefined);
     };
