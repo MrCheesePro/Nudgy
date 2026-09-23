@@ -12,6 +12,7 @@ import type {
   LiveStatus,
   HabitsSnapshot,
   LmsTask,
+  MeetingPattern,
   LocalEvent,
   Plan,
   PlanProgress,
@@ -134,6 +135,13 @@ export const getDismissedTasks = () => invoke<LmsTask[]>("get_dismissed_tasks");
 /** Sets a task aside, or brings it back. Nothing is deleted — the feed still lists it. */
 export const setTaskDismissed = (id: number, dismissed: boolean) =>
   invoke<void>("set_task_dismissed", { id, dismissed });
+
+/** The text of a PDF, txt or md. Reports a scan as a scan rather than as empty text. */
+export const readDocument = (path: string) => invoke<string>("read_document", { path });
+
+/** Class times a syllabus appears to describe. Proposes only; writes nothing. */
+export const readSyllabus = (text: string) =>
+  invoke<MeetingPattern[]>("read_syllabus", { text });
 
 export const listHabits = () => invoke<HabitsSnapshot>("list_habits");
 

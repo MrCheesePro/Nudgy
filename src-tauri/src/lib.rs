@@ -14,6 +14,7 @@ mod rpc;
 mod scheduler;
 mod secrets;
 mod state;
+mod syllabus;
 mod tray;
 mod watcher;
 
@@ -178,6 +179,8 @@ pub fn run() {
             commands::clear_secret,
             commands::get_tasks,
             commands::set_task_completed,
+            commands::read_document,
+            commands::read_syllabus,
             commands::list_habits,
             commands::create_habit,
             commands::update_habit,

@@ -152,6 +152,22 @@ export interface ScheduleBlock {
   reminderLeadSeconds?: number | null;
 }
 
+/**
+ * A class time a syllabus appears to describe.
+ *
+ * A proposal, never a record: it is shown for confirmation and only becomes a `LocalEvent`
+ * if you keep it.
+ */
+export interface MeetingPattern {
+  label: string | null;
+  /** 0 is Sunday. */
+  weekdays: number[];
+  /** Minutes past midnight, local. */
+  startMinutes: number;
+  endMinutes: number;
+  location: string | null;
+}
+
 /** A habit, and when it was created — `services/habits.ts` does the arithmetic. */
 export interface HabitRow {
   id: number;

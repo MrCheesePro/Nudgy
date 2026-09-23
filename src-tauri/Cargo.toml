@@ -44,6 +44,7 @@ tauri-plugin-autostart = "2.5.1"
 tauri-plugin-single-instance = "2"
 # The file picker for a notification sound of your own.
 tauri-plugin-dialog = "2"
+pdf-extract = "0.12.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

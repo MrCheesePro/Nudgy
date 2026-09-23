@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, CalendarPlus, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, CalendarPlus, FileText, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
 
 import { PlanTimeline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
@@ -30,6 +30,8 @@ interface Props {
   onAddTask: () => void;
   /** Opens the event dialog — a commitment the planner will not schedule over. */
   onAddEvent: () => void;
+  /** Reads class times out of a syllabus, proposing them for confirmation. */
+  onImportSyllabus: () => void;
 }
 
 export function TimelinePlanner({
@@ -45,6 +47,7 @@ export function TimelinePlanner({
   error,
   onAddTask,
   onAddEvent,
+  onImportSyllabus,
 }: Props) {
   const [filter, setFilter] = useState<Category | "All">("All");
   const categories = useAssignableCategories();
@@ -97,6 +100,15 @@ export function TimelinePlanner({
         >
           <CalendarPlus size={14} />
           Add event
+        </button>
+        {/* A term's worth of the same thing, read out of the document you were handed. */}
+        <button
+          type="button"
+          onClick={onImportSyllabus}
+          className="flex items-center gap-1.5 rounded-full border border-edge px-3.5 py-1.5 text-sm font-medium text-ink-soft transition hover:border-edge-strong hover:text-ink"
+        >
+          <FileText size={14} />
+          Read a syllabus
         </button>
       </div>
 

@@ -58,6 +58,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/integrations/lms.rs` | Coursework from any LMS's iCal feed — no API key |
 | `src-tauri/src/events.rs` | Hand-added events and their repeat rules, expanded per window |
 | `src-tauri/src/habits.rs` | Habits and their ticks. Storage only — the streaks are in TS |
+| `src-tauri/src/syllabus.rs` | Reads meeting patterns out of a syllabus. Proposes; writes nothing |
 | `src/services/habits.ts` | `habitStreak`, `perfectDayStreak`, `dueOn` — pure and tested |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
@@ -400,3 +401,14 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     morning spoil a day that was perfect at the time. **Archiving keeps the history and
     deleting destroys it**, which is why they are separate buttons and only one of them
     asks.
+44. **A syllabus is read, never trusted.** `syllabus.rs` understands one grammar — a day
+    token, a time range, an optional room — and nothing else, because there is still no
+    model in Nudgy. It will miss unusual layouts and will happily offer your own office
+    hours, and both are survivable for one reason: **it writes nothing**. Every candidate
+    is confirmed and then laid down through the existing `create_event`, so imported
+    classes are ordinary weekly events and inherit invariant 18 rather than becoming a
+    third kind of thing. Days are read **word by word** — `MWF` is a run of day letters and
+    `and` is a word that merely starts with one — and `R` is Thursday. A meridiem on one
+    half of a range applies to both, so `8–8:50 AM` is fifty minutes. And a scanned PDF is
+    reported as having no text rather than as having no classes: one is fixed by pasting,
+    the other by checking the format, and saying the wrong one sends people the wrong way.

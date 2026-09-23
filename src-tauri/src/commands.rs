@@ -5,6 +5,7 @@ use crate::db::queries;
 use crate::error::{AppError, CmdResult};
 use crate::events;
 use crate::habits;
+use crate::syllabus;
 use crate::integrations::canvas::CanvasClient;
 use crate::integrations::{calendar, lms, LmsProvider};
 use crate::categorize;
@@ -368,6 +369,65 @@ pub fn set_task_completed(state: State<'_, AppState>, id: i64, completed: bool) 
         queries::set_task_completed(conn, id, completed)
     })?;
     Ok(())
+}
+
+/// Formats whose text can actually be read. Anything else is refused by name rather than
+/// attempted and failed, so the message says what to do instead.
+const READABLE: [&str; 3] = ["pdf", "txt", "md"];
+
+/// A syllabus is a few pages. Past this it is not one, and the parser would spend a long
+/// time proving it.
+const MAX_DOCUMENT_BYTES: u64 = 20 * 1024 * 1024;
+
+/// The text of a document, for the syllabus reader.
+///
+/// **A scanned syllabus is a photograph.** There is no text in it to extract, and the
+/// difference between "this file has no text" and "no classes found in this text" matters:
+/// one is fixed by pasting, the other by checking the format. So this reports the first
+/// specifically rather than returning an empty string and letting the parser shrug.
+#[tauri::command]
+pub fn read_document(path: String) -> CmdResult<String> {
+    let file = std::path::PathBuf::from(&path);
+
+    let extension = file
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
+    if !READABLE.contains(&extension.as_str()) {
+        return Err(AppError::msg(format!(
+            "Nudgy can read PDF, txt and md. Copy the text out of a {extension} and paste it instead."
+        )));
+    }
+
+    let size = std::fs::metadata(&file)
+        .map_err(|cause| AppError::msg(format!("could not open that file: {cause}")))?
+        .len();
+    if size > MAX_DOCUMENT_BYTES {
+        return Err(AppError::msg("that file is larger than 20 MB"));
+    }
+
+    let text = if extension == "pdf" {
+        pdf_extract::extract_text(&file)
+            .map_err(|cause| AppError::msg(format!("could not read that PDF: {cause}")))?
+    } else {
+        std::fs::read_to_string(&file)
+            .map_err(|cause| AppError::msg(format!("could not read that file: {cause}")))?
+    };
+
+    if text.trim().is_empty() {
+        return Err(AppError::msg(
+            "There is no text in that file — it looks like a scan. Copy the text from somewhere else and paste it instead.",
+        ));
+    }
+
+    Ok(text)
+}
+
+/// The class times a syllabus appears to describe. Proposes only; writes nothing.
+#[tauri::command]
+pub fn read_syllabus(text: String) -> Vec<syllabus::MeetingPattern> {
+    syllabus::meetings(&text)
 }
 
 /// Habits and every tick worth drawing a streak from, in one answer.

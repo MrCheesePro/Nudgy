@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AddEventDialog } from "./components/AddEventDialog";
 import { HabitDialog } from "./components/HabitDialog";
+import { SyllabusDialog } from "./components/SyllabusDialog";
 import { HabitStrip } from "./components/HabitStrip";
 import { AddTaskDialog } from "./components/AddTaskDialog";
 import { CanvasSyncSidebar } from "./components/CanvasSyncSidebar";
@@ -127,6 +128,7 @@ export default function App() {
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addEventOpen, setAddEventOpen] = useState(false);
   const [habitsOpen, setHabitsOpen] = useState(false);
+  const [syllabusOpen, setSyllabusOpen] = useState(false);
   const [canvasLinked, setCanvasLinked] = useState(false);
   const [calendarLinked, setCalendarLinked] = useState(false);
   /** Set by "Clear": everything finished before it stops showing, nothing is deleted. */
@@ -678,6 +680,7 @@ export default function App() {
                   error={schedule.error}
                   onAddTask={() => setAddTaskOpen(true)}
                   onAddEvent={() => setAddEventOpen(true)}
+                  onImportSyllabus={() => setSyllabusOpen(true)}
                 />
               </>
             )}
@@ -742,6 +745,12 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <SyllabusDialog
+        open={syllabusOpen}
+        onClose={() => setSyllabusOpen(false)}
+        onAdded={() => void calendar.refresh()}
+      />
 
       <HabitDialog
         open={habitsOpen}
