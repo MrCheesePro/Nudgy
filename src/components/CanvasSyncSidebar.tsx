@@ -106,6 +106,21 @@ export function CanvasSyncSidebar({
     setOpen((current) => ({ ...current, [key]: !current[key] }));
 
   /**
+   * Courses start open, so an absent key means open.
+   *
+   * The sections above default closed and read `!current[key]`, which treats undefined as
+   * closed. A course has to default the other way — hiding the list the moment it is
+   * grouped would be a strange welcome — so the state is stored explicitly and only ever
+   * says "closed".
+   */
+  const courseOpen = (course: string) => open[`course:${course}`] !== false;
+  const toggleCourse = (course: string) =>
+    setOpen((current) => {
+      const key = `course:${course}`;
+      return { ...current, [key]: current[key] === false };
+    });
+
+  /**
    * Coursework grouped by course, courses ordered by their nearest deadline.
    *
    * By deadline rather than alphabetically: the group you need is the one with something
@@ -230,12 +245,23 @@ export function CanvasSyncSidebar({
                deadline, so whatever is due next is the group at the top. */
             byCourse.map(([course, group]) => (
               <div key={course} className="mt-3">
-                <div className="mb-1.5 flex items-baseline gap-2">
-                  <span className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft">
+                <button
+                  type="button"
+                  onClick={() => toggleCourse(course)}
+                  aria-expanded={courseOpen(course)}
+                  className="mb-1.5 flex w-full items-center gap-1.5 text-left transition hover:opacity-80"
+                >
+                  {courseOpen(course) ? (
+                    <ChevronDown size={11} className="shrink-0 text-ink-mute" />
+                  ) : (
+                    <ChevronRight size={11} className="shrink-0 text-ink-mute" />
+                  )}
+                  <span className="truncate rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft">
                     {course}
                   </span>
-                  <span className="text-tiny text-ink-mute">{group.length}</span>
-                </div>
+                  <span className="shrink-0 text-tiny text-ink-mute">{group.length}</span>
+                </button>
+                {courseOpen(course) && (
                 <ul className="space-y-2.5">
               {group.map((task) => (
                 <RowShell
@@ -305,6 +331,7 @@ export function CanvasSyncSidebar({
                 </RowShell>
               ))}
                 </ul>
+                )}
               </div>
             ))
           )}
