@@ -1,6 +1,7 @@
 use anyhow::Result;
 use rusqlite::{params, Connection};
 
+use crate::events::LocalEvent;
 use crate::models::{
     ActivitySample, AppRule, AppTotal, Category, CategoryTarget, CategoryTotal, DailyTotal,
     LmsTask, RedactionRule, UnmappedProcess, UsageBreakdown, CATEGORY_IDLE,
@@ -648,6 +649,82 @@ pub fn set_task_completed(conn: &Connection, id: i64, completed: bool) -> Result
     )?)
 }
 
+
+pub fn insert_event(conn: &Connection, event: &LocalEvent) -> Result<i64> {
+    conn.execute(
+        "INSERT INTO events
+            (title, kind, location, start_ts, end_ts, repeat, weekdays, until_ts, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            event.title,
+            event.kind,
+            event.location,
+            event.start_ts,
+            event.end_ts,
+            event.repeat,
+            join_weekdays(&event.weekdays),
+            event.until_ts,
+            chrono::Utc::now().timestamp(),
+        ],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Every event rule. Expansion into occurrences happens in `events.rs`, not here — the
+/// table stores what was asked for, and what that means on a given Tuesday is arithmetic.
+pub fn load_events(conn: &Connection) -> Result<Vec<LocalEvent>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, title, kind, location, start_ts, end_ts, repeat, weekdays, until_ts
+           FROM events
+          ORDER BY start_ts",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(LocalEvent {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                kind: row.get(2)?,
+                location: row.get(3)?,
+                start_ts: row.get(4)?,
+                end_ts: row.get(5)?,
+                repeat: row.get(6)?,
+                weekdays: split_weekdays(row.get::<_, Option<String>>(7)?.as_deref()),
+                until_ts: row.get(8)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Deleting an event removes every occurrence of it, because there is only ever one row.
+pub fn delete_event(conn: &Connection, id: i64) -> Result<usize> {
+    Ok(conn.execute("DELETE FROM events WHERE id = ?1", params![id])?)
+}
+
+fn join_weekdays(days: &[u32]) -> Option<String> {
+    if days.is_empty() {
+        return None;
+    }
+    Some(
+        days.iter()
+            .map(|day| day.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    )
+}
+
+/// Anything unparseable is dropped rather than failing the row: a broken weekday list
+/// should cost you a day of a repeat, not the whole event.
+fn split_weekdays(raw: Option<&str>) -> Vec<u32> {
+    raw.map(|value| {
+        value
+            .split(',')
+            .filter_map(|part| part.trim().parse::<u32>().ok())
+            .filter(|day| *day < 7)
+            .collect()
+    })
+    .unwrap_or_default()
+}
 
 pub fn delete_setting(conn: &Connection, key: &str) -> Result<usize> {
     Ok(conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?)

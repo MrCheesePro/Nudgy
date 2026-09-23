@@ -3,6 +3,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::db::queries;
 use crate::error::{AppError, CmdResult};
+use crate::events;
 use crate::integrations::canvas::CanvasClient;
 use crate::integrations::{calendar, lms, LmsProvider};
 use crate::categorize;
@@ -368,6 +369,25 @@ pub fn set_task_completed(state: State<'_, AppState>, id: i64, completed: bool) 
     Ok(())
 }
 
+/// Saves an event. Returns its id, so the caller can delete it without a refetch.
+#[tauri::command]
+pub fn create_event(state: State<'_, AppState>, event: events::LocalEvent) -> CmdResult<i64> {
+    let clean = events::sanitize(event).map_err(AppError::from)?;
+    with_db(&state, |conn| queries::insert_event(conn, &clean))
+}
+
+/// The rules, not the occurrences — for the list that lets you delete one.
+#[tauri::command]
+pub fn list_events(state: State<'_, AppState>) -> CmdResult<Vec<events::LocalEvent>> {
+    with_db(&state, queries::load_events)
+}
+
+#[tauri::command]
+pub fn delete_event(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    with_db(&state, |conn| queries::delete_event(conn, id))?;
+    Ok(())
+}
+
 /// Coursework set aside, for the section that lists it.
 #[tauri::command]
 pub fn get_dismissed_tasks(state: State<'_, AppState>) -> CmdResult<Vec<LmsTask>> {
@@ -667,6 +687,7 @@ pub fn verify_goal(
 /// planner before it works out where the free time is.
 #[tauri::command]
 pub async fn get_calendar_events(
+    app: AppHandle,
     start_ts: i64,
     end_ts: i64,
 ) -> CmdResult<Vec<calendar::CalendarEvent>> {
@@ -674,15 +695,35 @@ pub async fn get_calendar_events(
     // the same file, and a personal event on it ("gaming, 5:45") is a commitment whether
     // or not the URL was pasted into the box labelled "calendar".
     let url = match secrets::get(secrets::CALENDAR_ICS_URL).map_err(AppError::from)? {
-        Some(url) => url,
-        None => match secrets::get(secrets::LMS_FEED_URL).map_err(AppError::from)? {
-            Some(url) => url,
-            None => return Ok(Vec::new()),
-        },
+        Some(url) => Some(url),
+        None => secrets::get(secrets::LMS_FEED_URL).map_err(AppError::from)?,
+    };
+
+    // No feed is not an empty calendar any more: events added by hand are a calendar on
+    // their own, and returning nothing here would let the planner book over a class.
+    let Some(url) = url else {
+        return local_events(&app, start_ts, end_ts);
     };
 
     let feed = calendar::fetch_feed(&url).await.map_err(AppError::from)?;
-    calendar::events_in_window(&feed, start_ts, end_ts).map_err(AppError::from)
+    let mut found = calendar::events_in_window(&feed, start_ts, end_ts).map_err(AppError::from)?;
+    found.extend(local_events(&app, start_ts, end_ts)?);
+    Ok(found)
+}
+
+/// Hand-added events, expanded into the same shape the feed produces.
+///
+/// Merged here rather than in a second command so that everything downstream — the
+/// timeline, the planner's commitments, the refusal to schedule over them — treats an
+/// event you typed and an event from your university identically. They are the same claim
+/// on the same hour.
+fn local_events(app: &AppHandle, start_ts: i64, end_ts: i64) -> CmdResult<Vec<calendar::CalendarEvent>> {
+    let state = app.state::<AppState>();
+    let rules = with_db(&state, queries::load_events)?;
+    Ok(rules
+        .iter()
+        .flat_map(|rule| events::occurrences(rule, start_ts, end_ts))
+        .collect())
 }
 
 /// Creates a plan and places its blocks in one transaction, so a plan never exists with

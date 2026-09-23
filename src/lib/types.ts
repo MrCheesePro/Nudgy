@@ -152,6 +152,30 @@ export interface ScheduleBlock {
   reminderLeadSeconds?: number | null;
 }
 
+/** How a hand-added event repeats. */
+export type Repeat = "none" | "daily" | "weekly" | "monthly";
+
+/**
+ * An event you added yourself — a class, a shift, a train.
+ *
+ * Stored as a rule, not as occurrences: a class three times a week for a term is one row.
+ * `events.rs` expands it, and the result is indistinguishable from a feed event, which is
+ * the point — the planner refuses to schedule over either.
+ */
+export interface LocalEvent {
+  id: number;
+  title: string;
+  kind: string | null;
+  location: string | null;
+  startTs: number;
+  endTs: number;
+  repeat: Repeat;
+  /** For a weekly rule; 0 is Sunday. Empty means the day the first one falls on. */
+  weekdays: number[];
+  /** Inclusive last day, or null for a rule with no end. */
+  untilTs: number | null;
+}
+
 export interface CalendarEvent {
   summary: string;
   startTs: number;

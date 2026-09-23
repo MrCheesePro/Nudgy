@@ -56,6 +56,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/nudge.rs` | Five-minute worker that announces a passed ceiling, once a day |
 | `src-tauri/src/reminder.rs` | Minute worker that warns before a block; owns the notifications switch |
 | `src-tauri/src/integrations/lms.rs` | Coursework from any LMS's iCal feed — no API key |
+| `src-tauri/src/events.rs` | Hand-added events and their repeat rules, expanded per window |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
@@ -173,9 +174,15 @@ wrong data.
     `useCurrentWork` decides membership by the clock alone, so alt-tabbing to Finder
     changes a dot from green to amber and never erases the course label. Verification
     still uses the process match — that is a different question, asked in `plans.rs`.
-18. **Calendar events are immovable.** Anything from the iCal feed becomes a commitment
-    the planner refuses to schedule over. All-day events are ignored on purpose: they
-    mark a day rather than occupy it.
+18. **Calendar events are immovable, whoever added them.** Anything from the iCal feed
+    becomes a commitment the planner refuses to schedule over, and an event added by hand
+    expands into exactly the same `CalendarEvent` — merged in `get_calendar_events`, so
+    nothing downstream can tell them apart or treat them differently. All-day events are
+    ignored on purpose: they mark a day rather than occupy it. **A repeat is a rule, not
+    rows**: a class three times a week for a term is one row expanded per window, so
+    moving the time moves every occurrence, and "every Tuesday, forever" is expressible at
+    all. Each occurrence keeps the first one's *wall-clock* time, so a nine o'clock class
+    is still at nine after the clocks change.
 19. **The category vocabulary is data, not a constant.** `categories` is a table, so
     "is this a real category?" is asked of the loaded `Registry` (`has_category`), never
     of a compiled list — including on the RPC path. `Neutral` and `Idle` are built in and

@@ -3,6 +3,7 @@ mod checkin;
 mod commands;
 mod db;
 mod error;
+mod events;
 mod integrations;
 mod models;
 mod nudge;
@@ -176,6 +177,9 @@ pub fn run() {
             commands::clear_secret,
             commands::get_tasks,
             commands::set_task_completed,
+            commands::create_event,
+            commands::list_events,
+            commands::delete_event,
             commands::get_dismissed_tasks,
             commands::set_task_dismissed,
             commands::sync_lms,

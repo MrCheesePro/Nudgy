@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AddEventDialog } from "./components/AddEventDialog";
 import { AddTaskDialog } from "./components/AddTaskDialog";
 import { CanvasSyncSidebar } from "./components/CanvasSyncSidebar";
 import { CheckinPrompt } from "./components/CheckinPrompt";
@@ -120,6 +121,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [planning, setPlanning] = useState<Plannable | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [addEventOpen, setAddEventOpen] = useState(false);
   const [canvasLinked, setCanvasLinked] = useState(false);
   const [calendarLinked, setCalendarLinked] = useState(false);
   /** Set by "Clear": everything finished before it stops showing, nothing is deleted. */
@@ -658,6 +660,7 @@ export default function App() {
                   note={schedule.note}
                   error={schedule.error}
                   onAddTask={() => setAddTaskOpen(true)}
+                  onAddEvent={() => setAddEventOpen(true)}
                 />
               </>
             )}
@@ -722,6 +725,13 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <AddEventDialog
+        open={addEventOpen}
+        onClose={() => setAddEventOpen(false)}
+        // The calendar is what holds commitments, so it is what has to look again.
+        onAdded={() => void calendar.refresh()}
+      />
 
       <AddTaskDialog
         open={addTaskOpen}

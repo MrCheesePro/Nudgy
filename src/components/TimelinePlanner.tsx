@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, CalendarPlus, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
 
 import { PlanTimeline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
@@ -28,6 +28,8 @@ interface Props {
   note: string | null;
   error: string | null;
   onAddTask: () => void;
+  /** Opens the event dialog — a commitment the planner will not schedule over. */
+  onAddEvent: () => void;
 }
 
 export function TimelinePlanner({
@@ -42,6 +44,7 @@ export function TimelinePlanner({
   note,
   error,
   onAddTask,
+  onAddEvent,
 }: Props) {
   const [filter, setFilter] = useState<Category | "All">("All");
   const categories = useAssignableCategories();
@@ -84,6 +87,16 @@ export function TimelinePlanner({
         >
           <Plus size={14} />
           Add task
+        </button>
+        {/* Beside Add task, because they are the two halves of the same question: what
+            you have to do, and what you have already promised. */}
+        <button
+          type="button"
+          onClick={onAddEvent}
+          className="flex items-center gap-1.5 rounded-full border border-edge px-3.5 py-1.5 text-sm font-medium text-ink-soft transition hover:border-edge-strong hover:text-ink"
+        >
+          <CalendarPlus size={14} />
+          Add event
         </button>
       </div>
 

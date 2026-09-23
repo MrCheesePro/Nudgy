@@ -11,6 +11,7 @@ import type {
   CheckinResponse,
   LiveStatus,
   LmsTask,
+  LocalEvent,
   Plan,
   PlanProgress,
   PermissionStatus,
@@ -132,6 +133,13 @@ export const getDismissedTasks = () => invoke<LmsTask[]>("get_dismissed_tasks");
 /** Sets a task aside, or brings it back. Nothing is deleted — the feed still lists it. */
 export const setTaskDismissed = (id: number, dismissed: boolean) =>
   invoke<void>("set_task_dismissed", { id, dismissed });
+
+export const createEvent = (event: Omit<LocalEvent, "id">) =>
+  invoke<number>("create_event", { event });
+
+export const listEvents = () => invoke<LocalEvent[]>("list_events");
+
+export const deleteEvent = (id: number) => invoke<void>("delete_event", { id });
 
 export const syncLms = () => invoke<SyncResult>("sync_lms");
 

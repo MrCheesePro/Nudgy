@@ -319,6 +319,30 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE tasks ADD COLUMN dismissed_at INTEGER;
     "#,
+    // 15 — events you add by hand: a class, a shift, a train.
+    //
+    //     The same thing the calendar feed produces, from a source you control, and the
+    //     planner treats them identically — invariant 18, immovable.
+    //
+    //     Recurrence is a rule, not rows. A class three times a week for a term is one row
+    //     and an expansion, rather than a hundred and twenty rows to regenerate when the
+    //     time moves; and "every Tuesday, forever" has no row count at all.
+    r#"
+    CREATE TABLE IF NOT EXISTS events (
+        id         INTEGER PRIMARY KEY,
+        title      TEXT    NOT NULL,
+        kind       TEXT,
+        location   TEXT,
+        start_ts   INTEGER NOT NULL,
+        end_ts     INTEGER NOT NULL,
+        repeat     TEXT    NOT NULL DEFAULT 'none',
+        -- Comma-separated, 0 = Sunday. Only read for a weekly rule.
+        weekdays   TEXT,
+        until_ts   INTEGER,
+        created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_ts);
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {
