@@ -389,35 +389,54 @@ pub async fn sync_lms(app: AppHandle) -> CmdResult<SyncResult> {
     // has been handed in, so it wins whenever it is available. Canvas only — the others
     // have no REST client here.
     let token = secrets::get(secrets::CANVAS_TOKEN).map_err(AppError::from)?;
-    let mut tasks = match (provider_name.as_str(), base_url.as_deref(), token.as_deref()) {
+
+    // The feed is the list; the token is what knows about it.
+    //
+    // These answer different questions and neither contains the other. The feed is
+    // everything on the calendar — every assignment, dated or not, plus events you added
+    // yourself. The API knows what has been handed in, and only ever returned a subset:
+    // one assignment where the feed had five. Preferring the API "unless it is empty"
+    // therefore lost four of them, because one is not empty.
+    //
+    // So both are read and merged. The feed supplies the list, the API supplies
+    // completion for anything it also knows about, and either alone still works.
+    let feed_tasks = match secrets::get(secrets::LMS_FEED_URL).map_err(AppError::from)? {
+        Some(url) => {
+            log::info!("reading the {provider_name} calendar feed");
+            let feed = calendar::fetch_feed(&url).await.map_err(AppError::from)?;
+            lms::feed_tasks(&feed, &provider_name).map_err(AppError::from)?
+        }
+        None => Vec::new(),
+    };
+
+    let api_tasks = match (provider_name.as_str(), base_url.as_deref(), token.as_deref()) {
         ("canvas", Some(url), Some(token)) if !url.trim().is_empty() => {
             let client = CanvasClient::new(url, token).map_err(AppError::from)?;
-            log::info!("syncing via the {} API", client.provider_id());
+            log::info!("reading the {} API", client.provider_id());
             client.fetch_tasks().await.map_err(AppError::from)?
         }
         _ => Vec::new(),
     };
 
-    // The API knows what has been handed in; the feed knows about everything on the
-    // calendar, including events that are not assignments at all. An empty answer from
-    // the API is not evidence there is nothing — a term with no graded work still has a
-    // calendar — so the feed is read whenever the API came back with nothing to show.
-    if tasks.is_empty() {
-        let tasks_from_feed = {
-            // The feed URL is a credential — anyone holding it reads your coursework —
-            // so it lives in the keychain beside the calendar one, never in `settings`.
-            let feed_url = secrets::get(secrets::LMS_FEED_URL)
-                .map_err(AppError::from)?
-                .ok_or_else(|| {
-                    AppError::msg(
-                        "No coursework source yet. Add your calendar feed URL in Settings.",
-                    )
-                })?;
-            log::info!("syncing {provider_name} from its calendar feed");
-            let feed = calendar::fetch_feed(&feed_url).await.map_err(AppError::from)?;
-            lms::feed_tasks(&feed, &provider_name).map_err(AppError::from)?
-        };
-        tasks = tasks_from_feed;
+    if feed_tasks.is_empty() && api_tasks.is_empty() {
+        return Err(AppError::msg(
+            "No coursework source yet. Add your calendar feed URL in Settings.",
+        ));
+    }
+
+    // Keyed on `external_id`, which both sources spell the same way since `canonical_id`.
+    let mut tasks = feed_tasks;
+    for from_api in api_tasks {
+        match tasks
+            .iter_mut()
+            .find(|task| task.external_id == from_api.external_id)
+        {
+            // The API's answer wins where they overlap: it is the one with a course code
+            // it did not have to read out of a title, and the only one that knows whether
+            // the work is done.
+            Some(existing) => *existing = from_api,
+            None => tasks.push(from_api),
+        }
     }
 
     let fetched = tasks.len();

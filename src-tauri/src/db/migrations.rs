@@ -289,6 +289,26 @@ const MIGRATIONS: &[&str] = &[
     CREATE UNIQUE INDEX IF NOT EXISTS idx_samples_tick
         ON activity_samples(ts, process_name);
     "#,
+    // 13 — one spelling per assignment.
+    //
+    //     The REST API calls an assignment `assignment:1121388`; the calendar feed's UID
+    //     for the same thing is `event-assignment-1121388`. `tasks` is
+    //     `UNIQUE(provider, external_id)`, so now that both sources are read, the two
+    //     spellings would be two rows — the same assignment listed twice, and ticking one
+    //     off leaving the other. `canonical_id` folds the feed's form to the API's; this
+    //     does the same to what is already stored, so completion survives the change.
+    //
+    //     `OR IGNORE` because an assignment already present under both spellings collapses
+    //     to one row here, and the row that loses is the one nothing else points at.
+    r#"
+    UPDATE OR IGNORE tasks
+       SET external_id = 'assignment:' || substr(external_id, 18)
+     WHERE external_id LIKE 'event-assignment-%';
+
+    UPDATE OR IGNORE tasks
+       SET external_id = 'event:' || substr(external_id, 22)
+     WHERE external_id LIKE 'event-calendar-event-%';
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

@@ -200,7 +200,7 @@ wrong data.
     limit is not finished until the day is, though going over ends the run there and then.
     An unobserved day breaks it — a ceiling on something you never do is satisfied by
     absence, so without that rule a new target would show a week-long streak instantly.
-24. **Coursework needs no API key.** Every LMS publishes a per-user iCal feed, and
+24. **Coursework needs no API key, and both sources are read.** Every LMS publishes a per-user iCal feed, and
     `calendar.rs` already parses iCal — so `lms.rs` is only the reading between a VEVENT
     and an `LmsTask`. `external_id` is the feed's own UID, because `tasks` is
     `UNIQUE(provider, external_id)` and anything generated would duplicate the whole list

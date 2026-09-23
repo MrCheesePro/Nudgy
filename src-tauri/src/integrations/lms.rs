@@ -76,7 +76,7 @@ fn task_from_event(event: &IcalEvent, provider: &str) -> Option<LmsTask> {
     // The feed's own UID, never a counter. `tasks` is UNIQUE(provider, external_id), so a
     // stable id makes every re-sync an update; anything generated would duplicate the
     // whole coursework list on each pass — and duplicates look like data.
-    let external_id = property(event, "UID")?;
+    let external_id = canonical_id(&property(event, "UID")?);
 
     let (title, course_code) = split_course_code(&summary);
 
@@ -91,6 +91,24 @@ fn task_from_event(event: &IcalEvent, provider: &str) -> Option<LmsTask> {
         completed: false,
         completed_at: None,
     })
+}
+
+/// The same assignment, named the same way whichever source it came from.
+///
+/// The REST API calls it `assignment:1121388`; the feed's UID for the same thing is
+/// `event-assignment-1121388`. `tasks` is `UNIQUE(provider, external_id)`, so two
+/// spellings of one id are two rows — the assignment appears twice, and ticking one off
+/// leaves the other. Both are folded to the API's form, which is the shorter and the one
+/// already in the table.
+fn canonical_id(uid: &str) -> String {
+    let trimmed = uid.trim();
+    if let Some(rest) = trimmed.strip_prefix("event-calendar-event-") {
+        return format!("event:{rest}");
+    }
+    if let Some(rest) = trimmed.strip_prefix("event-assignment-") {
+        return format!("assignment:{rest}");
+    }
+    trimmed.to_string()
 }
 
 /// Lifts a bracketed course code off either end of a summary.
@@ -128,14 +146,63 @@ fn split_course_code(summary: &str) -> (String, Option<String>) {
 /// Guards against treating a bracketed aside as a course code. `[MATH241]` is one;
 /// `[see the syllabus for details]` is not.
 fn plausible_code(candidate: &str) -> bool {
+    // 24, not 16: a real section code is `PHYS_040A_001_26F`, which is seventeen. The cap
+    // is only here to stop a parenthetical being mistaken for a code, and it was cutting
+    // off codes the API happily reports for the same assignment.
     !candidate.is_empty()
-        && candidate.len() <= 16
+        && candidate.len() <= 24
         && !candidate.contains(' ')
         && candidate.chars().any(|character| character.is_alphanumeric())
 }
 
 #[cfg(test)]
 mod tests {
+    /// The exact DTSTART shapes a real Canvas feed emits, including the duplicated
+    /// `VALUE=DATE;VALUE=DATE` parameter it writes for an assignment with no time on it.
+    const CANVAS_FEED: &str = "\
+BEGIN:VCALENDAR\r
+VERSION:2.0\r
+BEGIN:VEVENT\r
+UID:event-calendar-event-253951\r
+DTSTART:20260921T124500Z\r
+DTEND:20260921T134500Z\r
+SUMMARY:gaming\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:event-assignment-1121388\r
+DTSTART:20260929T150000Z\r
+DTEND:20260929T150000Z\r
+SUMMARY:Ch2 Prelecture Assignment [PHYS_040A_001_26F]\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:event-assignment-1121401\r
+DTSTART;VALUE=DATE;VALUE=DATE:20261002\r
+SUMMARY:HW1 1D motion Part 1 [PHYS_040A_001_26F]\r
+END:VEVENT\r
+BEGIN:VEVENT\r
+UID:event-assignment-1121400\r
+DTSTART:20261117T160000Z\r
+DTEND:20261117T160000Z\r
+SUMMARY:HW0 Physics Primer [PHYS_040A_001_26F]\r
+END:VEVENT\r
+END:VCALENDAR\r
+";
+
+    #[test]
+    fn a_real_canvas_feed_yields_every_assignment_on_it() {
+        let tasks = feed_tasks(CANVAS_FEED, "canvas").unwrap();
+        let titles: Vec<&str> = tasks.iter().map(|task| task.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            vec![
+                "gaming",
+                "Ch2 Prelecture Assignment",
+                "HW1 1D motion Part 1",
+                "HW0 Physics Primer",
+            ],
+        );
+    }
+
     use super::*;
 
     fn feed(events: &str) -> String {
