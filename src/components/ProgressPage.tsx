@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -13,7 +13,11 @@ import {
 } from "recharts";
 
 import { RANGES, useProgress, type Range } from "../hooks/useProgress";
+import { HabitDialog } from "./HabitDialog";
+import { HabitGrid } from "./HabitGrid";
+import { HabitStrip } from "./HabitStrip";
 import { TargetsPanel } from "./TargetsPanel";
+import { useHabits } from "../hooks/useHabits";
 import { categoryColor } from "../lib/categories";
 import { usePref } from "../lib/prefs";
 import { formatDuration } from "../lib/time";
@@ -48,13 +52,24 @@ type Ceiling = (typeof CEILINGS)[number];
  * to compare, so `memo` skips the render entirely and the page redraws only when its own
  * data changes.
  */
+/** How the days are drawn. */
+type Mode = "bars" | "lines" | "habits";
+
+const MODES: [Mode, string][] = [
+  ["bars", "Bars"],
+  ["lines", "Lines"],
+  ["habits", "Habits"],
+];
+
 export const ProgressPage = memo(function ProgressPage() {
   // Remembered across navigation: leaving the page and coming back should not undo a
   // choice you made about how to read it.
   const [range, setRange] = usePref<Range>("progress.range", 7);
-  const [mode, setMode] = usePref<"bars" | "lines">("progress.mode", "bars");
+  const [mode, setMode] = usePref<Mode>("progress.mode", "bars");
   const [ceiling, setCeiling] = usePref<Ceiling>("progress.ceiling", 12);
   const { series, targets, error, loading } = useProgress(range);
+  const habits = useHabits();
+  const [habitsOpen, setHabitsOpen] = useState(false);
 
   // Idle is tracked and worth seeing on the Overview, but a month of stacked bars is
   // dominated by it — the question here is what the *active* hours were spent on.
@@ -126,11 +141,13 @@ export const ProgressPage = memo(function ProgressPage() {
       <section className="flex min-h-[22rem] flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
         <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
-            Last {range} days
+            {mode === "habits" ? `Habits, last ${range} days` : `Last ${range} days`}
           </h2>
           <div className="flex items-center gap-2">
             <span className="mr-1 font-mono text-xs tabular-nums text-ink-mute">
-              {formatDuration(tracked)} active
+              {mode === "habits"
+                ? `${habits.perfect.days} perfect ${habits.perfect.days === 1 ? "day" : "days"}`
+                : `${formatDuration(tracked)} active`}
             </span>
             {RANGES.map((option) => (
               <button
@@ -146,6 +163,8 @@ export const ProgressPage = memo(function ProgressPage() {
                 {option}d
               </button>
             ))}
+            {/* Only the hours views have an hours axis. */}
+            {mode !== "habits" && (
             <select
               value={ceiling ?? "fit"}
               onChange={(event) =>
@@ -162,17 +181,40 @@ export const ProgressPage = memo(function ProgressPage() {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              onClick={() => setMode(mode === "bars" ? "lines" : "bars")}
-              className="rounded-lg border border-edge px-2 py-1 text-mini text-ink-soft transition hover:border-edge-strong"
-            >
-              {mode === "bars" ? "Lines" : "Bars"}
-            </button>
+            )}
+
+            {/* Three ways of reading the same days, named rather than cycled: with a
+                toggle you have to click to find out what is on the other side. */}
+            <span className="flex items-center rounded-lg border border-edge p-0.5">
+              {MODES.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMode(id)}
+                  aria-pressed={mode === id}
+                  className={`rounded-md px-2 py-0.5 text-mini transition ${
+                    mode === id
+                      ? "bg-rose-wash font-medium text-rose-deep"
+                      : "text-ink-mute hover:text-ink-soft"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </span>
           </div>
         </div>
 
-        {loading && series.length === 0 ? (
+        {mode === "habits" ? (
+          <div className="mt-5 flex min-h-0 flex-1 flex-col">
+            <HabitGrid
+              habits={habits.live}
+              ticks={habits.ticks}
+              streaks={habits.streaks}
+              days={range}
+            />
+          </div>
+        ) : loading && series.length === 0 ? (
           <p className="py-20 text-center text-sm text-ink-mute">Loading…</p>
         ) : tracked === 0 ? (
           <p className="py-20 text-center text-sm text-ink-mute">
@@ -278,9 +320,34 @@ export const ProgressPage = memo(function ProgressPage() {
         )}
       </section>
 
+      {/* The habits themselves, under the chart that draws them. Moved here from Today:
+          the daily tick is a small act, but *whether you are keeping it up* is a progress
+          question, and this is the page that asks those. */}
+      <div className="shrink-0">
+        <HabitStrip
+          habits={habits.live}
+          ticks={habits.ticks}
+          streaks={habits.streaks}
+          perfect={habits.perfect}
+          onToggle={(habit) => void habits.toggle(habit)}
+          onManage={() => setHabitsOpen(true)}
+        />
+      </div>
+
       <div className="shrink-0">
         <TargetsPanel />
       </div>
+
+      <HabitDialog
+        open={habitsOpen}
+        onClose={() => setHabitsOpen(false)}
+        habits={habits.habits}
+        streaks={habits.streaks}
+        onAdd={habits.add}
+        onEdit={habits.edit}
+        onArchive={habits.setArchived}
+        onDelete={habits.remove}
+      />
     </>
   );
 });

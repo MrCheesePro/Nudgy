@@ -67,7 +67,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/tray.rs` | Tray menu, pause plumbing, ordered shutdown |
 | `src-tauri/src/commands.rs` | Every `#[tauri::command]` |
 | `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits), `progress.ts` (streaks, averages, direction-aware trend) |
-| `src/components/ProgressPage.tsx` | Day-by-day history, targets, and whether it is getting better |
+| `src/components/ProgressPage.tsx` | Day-by-day history, habits, targets, and whether it is getting better |
+| `src/components/HabitGrid.tsx` | Every habit against every day — due, done, missed, three states |
 | `src/lib/ipc.ts` | One typed wrapper per command; components never call `invoke` directly |
 | `src/lib/types.ts` | Mirror of `models.rs` — keep the two in step |
 | `src/hooks/` | `useLiveActivity`, `useUsageStats`, `usePermissions`, `useTasks`, `useSchedule`, `useCalendar`, `usePlans`, `useCurrentWork` (which block, and which class, is running now) |
@@ -400,7 +401,12 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     arithmetic must not do: reach back before a habit existed, or let a habit added this
     morning spoil a day that was perfect at the time. **Archiving keeps the history and
     deleting destroys it**, which is why they are separate buttons and only one of them
-    asks.
+    asks. Habits live on **Progress**, not Today: the tick is a small act but "am I keeping
+    this up" is a progress question, and `HabitGrid` is the answer — a third chart mode
+    drawing every habit against every day. It has **three** cell states, not two: a day the
+    habit was not due looks different from one it was due and missed, or every rest day
+    reads as a failure. Today undone is dashed rather than hollow, because a day with hours
+    left in it has not been missed yet.
 44. **A syllabus is read, never trusted.** `syllabus.rs` understands one grammar — a day
     token, a time range, an optional room — and nothing else, because there is still no
     model in Nudgy. It will miss unusual layouts and will happily offer your own office
