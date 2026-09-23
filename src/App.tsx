@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AddEventDialog } from "./components/AddEventDialog";
+import { HabitDialog } from "./components/HabitDialog";
+import { HabitStrip } from "./components/HabitStrip";
 import { AddTaskDialog } from "./components/AddTaskDialog";
 import { CanvasSyncSidebar } from "./components/CanvasSyncSidebar";
 import { CheckinPrompt } from "./components/CheckinPrompt";
@@ -24,6 +26,7 @@ import { IconRail, type View } from "./components/shell/IconRail";
 import { TopBar } from "./components/shell/TopBar";
 import { useCalendar } from "./hooks/useCalendar";
 import { useCurrentWork, useNextWork } from "./hooks/useCurrentWork";
+import { useHabits } from "./hooks/useHabits";
 import { useLiveActivity } from "./hooks/useLiveActivity";
 import { usePermissions } from "./hooks/usePermissions";
 import { usePlans } from "./hooks/usePlans";
@@ -98,6 +101,7 @@ export default function App() {
   const tasks = useTasks();
   const schedule = useSchedule(calendar.commitmentsIn);
   const plans = usePlans();
+  const habits = useHabits();
   const currentWork = useCurrentWork(schedule.horizonBlocks, plans.plans, tasks.tasks, status);
   /** The block after this one, when the gap before it is the break the plan asked for. */
   const nextWork = useNextWork(schedule.horizonBlocks, plans.plans, tasks.tasks);
@@ -122,6 +126,7 @@ export default function App() {
   const [planning, setPlanning] = useState<Plannable | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addEventOpen, setAddEventOpen] = useState(false);
+  const [habitsOpen, setHabitsOpen] = useState(false);
   const [canvasLinked, setCanvasLinked] = useState(false);
   const [calendarLinked, setCalendarLinked] = useState(false);
   /** Set by "Clear": everything finished before it stops showing, nothing is deleted. */
@@ -633,6 +638,18 @@ export default function App() {
                   <UsageBreakdown breakdown={breakdown} />
                   <TopApps apps={apps} streaks={streaks} />
                 </div>
+
+                {/* Under the panels rather than beside them: ticking a habit is a
+                    one-second act, and it should be in reach without taking room from
+                    the two things you came to Today to read. */}
+                <HabitStrip
+                  habits={habits.live}
+                  ticks={habits.ticks}
+                  streaks={habits.streaks}
+                  perfect={habits.perfect}
+                  onToggle={(habit) => void habits.toggle(habit)}
+                  onManage={() => setHabitsOpen(true)}
+                />
               </>
             )}
 
@@ -725,6 +742,17 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <HabitDialog
+        open={habitsOpen}
+        onClose={() => setHabitsOpen(false)}
+        habits={habits.habits}
+        streaks={habits.streaks}
+        onAdd={habits.add}
+        onEdit={habits.edit}
+        onArchive={habits.setArchived}
+        onDelete={habits.remove}
+      />
 
       <AddEventDialog
         open={addEventOpen}

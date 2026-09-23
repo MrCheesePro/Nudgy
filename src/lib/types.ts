@@ -152,6 +152,23 @@ export interface ScheduleBlock {
   reminderLeadSeconds?: number | null;
 }
 
+/** A habit, and when it was created — `services/habits.ts` does the arithmetic. */
+export interface HabitRow {
+  id: number;
+  name: string;
+  /** 0 is Sunday. Empty means every day. */
+  weekdays: number[];
+  createdDay: string;
+  archivedDay: string | null;
+}
+
+/** Habits and their ticks together, because a streak needs both to mean anything. */
+export interface HabitsSnapshot {
+  habits: HabitRow[];
+  /** `[habit id, day]` pairs; the hook groups them into sets. */
+  ticks: [number, string][];
+}
+
 /** How a hand-added event repeats. */
 export type Repeat = "none" | "daily" | "weekly" | "monthly";
 

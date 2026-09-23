@@ -343,6 +343,38 @@ const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX IF NOT EXISTS idx_events_start ON events(start_ts);
     "#,
+    // 16 — habits: the things no watcher can measure.
+    //
+    //     Category streaks run on tracked seconds, which cannot answer "did you go to the
+    //     gym". A habit is declared rather than measured, so it needs its own store.
+    //
+    //     `day` is a local `YYYY-MM-DD`, matching `dayKey` in the frontend and the
+    //     `date(ts,'unixepoch','localtime')` grouping the rest of the schema uses: a tick
+    //     belongs to the day you were in, not to a UTC instant.
+    //
+    //     `PRIMARY KEY (habit_id, day)` is what makes ticking idempotent — two clicks in
+    //     the same second cannot make two rows, and unticking is a delete.
+    r#"
+    CREATE TABLE IF NOT EXISTS habits (
+        id          INTEGER PRIMARY KEY,
+        name        TEXT    NOT NULL,
+        -- Comma-separated, 0 = Sunday, the same convention as `events.weekdays`.
+        -- NULL or empty means every day.
+        weekdays    TEXT,
+        created_at  INTEGER NOT NULL,
+        -- Archived rather than deleted: a streak you kept for a month is still true, and
+        -- deleting the habit would take its history with it.
+        archived_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS habit_days (
+        habit_id INTEGER NOT NULL,
+        day      TEXT    NOT NULL,
+        done_at  INTEGER NOT NULL,
+        PRIMARY KEY (habit_id, day),
+        FOREIGN KEY(habit_id) REFERENCES habits(id) ON DELETE CASCADE
+    );
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

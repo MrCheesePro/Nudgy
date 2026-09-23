@@ -57,6 +57,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/reminder.rs` | Minute worker that warns before a block; owns the notifications switch |
 | `src-tauri/src/integrations/lms.rs` | Coursework from any LMS's iCal feed — no API key |
 | `src-tauri/src/events.rs` | Hand-added events and their repeat rules, expanded per window |
+| `src-tauri/src/habits.rs` | Habits and their ticks. Storage only — the streaks are in TS |
+| `src/services/habits.ts` | `habitStreak`, `perfectDayStreak`, `dueOn` — pure and tested |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
@@ -387,3 +389,14 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     have declined should not be offered an evening. Coursework is grouped by course code,
     the groups ordered by nearest deadline, because a term's feed is several courses and a
     flat list sorted by date makes you read thirty rows to find today's two.
+43. **A habit is declared; a category is measured.** No watcher can tell whether you went
+    to the gym, so habits are ticked by hand and live in their own tables — `habits` and
+    `habit_days`, keyed `(habit_id, day)` on a local `YYYY-MM-DD` so a tick belongs to the
+    day you were in and two clicks cannot make two rows. The streak rules are invariant
+    23's, restated in `services/habits.ts` rather than bent out of `streakOf`: **a day the
+    habit was not due is skipped**, not missed — that is the whole point of choosing
+    weekdays — and **today unticked holds the run without lighting it**. Two things the
+    arithmetic must not do: reach back before a habit existed, or let a habit added this
+    morning spoil a day that was perfect at the time. **Archiving keeps the history and
+    deleting destroys it**, which is why they are separate buttons and only one of them
+    asks.

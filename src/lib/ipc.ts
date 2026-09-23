@@ -10,6 +10,7 @@ import type {
   CategorySuggestion,
   CheckinResponse,
   LiveStatus,
+  HabitsSnapshot,
   LmsTask,
   LocalEvent,
   Plan,
@@ -133,6 +134,24 @@ export const getDismissedTasks = () => invoke<LmsTask[]>("get_dismissed_tasks");
 /** Sets a task aside, or brings it back. Nothing is deleted — the feed still lists it. */
 export const setTaskDismissed = (id: number, dismissed: boolean) =>
   invoke<void>("set_task_dismissed", { id, dismissed });
+
+export const listHabits = () => invoke<HabitsSnapshot>("list_habits");
+
+export const createHabit = (name: string, weekdays: number[]) =>
+  invoke<number>("create_habit", { name, weekdays });
+
+export const updateHabit = (id: number, name: string, weekdays: number[]) =>
+  invoke<void>("update_habit", { id, name, weekdays });
+
+/** Puts a habit away without losing what it recorded. */
+export const archiveHabit = (id: number, archived: boolean) =>
+  invoke<void>("archive_habit", { id, archived });
+
+/** The one that loses the history — always behind a confirmation. */
+export const deleteHabit = (id: number) => invoke<void>("delete_habit", { id });
+
+export const setHabitDone = (id: number, day: string, done: boolean) =>
+  invoke<void>("set_habit_done", { id, day, done });
 
 export const createEvent = (event: Omit<LocalEvent, "id">) =>
   invoke<number>("create_event", { event });

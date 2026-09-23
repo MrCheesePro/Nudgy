@@ -4,6 +4,7 @@ mod commands;
 mod db;
 mod error;
 mod events;
+mod habits;
 mod integrations;
 mod models;
 mod nudge;
@@ -177,6 +178,12 @@ pub fn run() {
             commands::clear_secret,
             commands::get_tasks,
             commands::set_task_completed,
+            commands::list_habits,
+            commands::create_habit,
+            commands::update_habit,
+            commands::archive_habit,
+            commands::delete_habit,
+            commands::set_habit_done,
             commands::create_event,
             commands::list_events,
             commands::delete_event,

@@ -4,6 +4,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::db::queries;
 use crate::error::{AppError, CmdResult};
 use crate::events;
+use crate::habits;
 use crate::integrations::canvas::CanvasClient;
 use crate::integrations::{calendar, lms, LmsProvider};
 use crate::categorize;
@@ -367,6 +368,58 @@ pub fn set_task_completed(state: State<'_, AppState>, id: i64, completed: bool) 
         queries::set_task_completed(conn, id, completed)
     })?;
     Ok(())
+}
+
+/// Habits and every tick worth drawing a streak from, in one answer.
+///
+/// The streak arithmetic is not here: it lives in `services/habits.ts`, where it is pure
+/// and tested. This command remembers what happened; working out what that adds up to is
+/// a different job with different failure modes.
+#[tauri::command]
+pub fn list_habits(state: State<'_, AppState>) -> CmdResult<habits::HabitsSnapshot> {
+    with_db(&state, habits::snapshot)
+}
+
+#[tauri::command]
+pub fn create_habit(
+    state: State<'_, AppState>,
+    name: String,
+    weekdays: Vec<u32>,
+) -> CmdResult<i64> {
+    with_db(&state, |conn| habits::create(conn, &name, &weekdays))
+}
+
+#[tauri::command]
+pub fn update_habit(
+    state: State<'_, AppState>,
+    id: i64,
+    name: String,
+    weekdays: Vec<u32>,
+) -> CmdResult<()> {
+    with_db(&state, |conn| habits::rename(conn, id, &name, &weekdays))
+}
+
+/// Puts a habit away, or brings it back. Keeps every day it recorded.
+#[tauri::command]
+pub fn archive_habit(state: State<'_, AppState>, id: i64, archived: bool) -> CmdResult<()> {
+    with_db(&state, |conn| habits::archive(conn, id, archived))
+}
+
+/// The one that loses the history, which is why it is separate from archiving.
+#[tauri::command]
+pub fn delete_habit(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    with_db(&state, |conn| habits::delete(conn, id))
+}
+
+/// Ticks or unticks one day of one habit.
+#[tauri::command]
+pub fn set_habit_done(
+    state: State<'_, AppState>,
+    id: i64,
+    day: String,
+    done: bool,
+) -> CmdResult<()> {
+    with_db(&state, |conn| habits::set_done(conn, id, &day, done))
 }
 
 /// Saves an event. Returns its id, so the caller can delete it without a refetch.
