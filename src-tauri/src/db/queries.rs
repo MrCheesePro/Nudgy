@@ -540,14 +540,26 @@ pub fn upsert_tasks(conn: &mut Connection, tasks: &[LmsTask]) -> Result<usize> {
     {
         let mut stmt = tx.prepare_cached(
             "INSERT INTO tasks
-                (provider, external_id, course_code, title, due_at, html_url, completed, synced_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)
+                (provider, external_id, course_code, title, due_at, html_url, completed,
+                 completed_locally_at, synced_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
              ON CONFLICT(provider, external_id) DO UPDATE SET
                 course_code = excluded.course_code,
                 title       = excluded.title,
                 due_at      = excluded.due_at,
                 html_url    = excluded.html_url,
-                synced_at   = excluded.synced_at",
+                synced_at   = excluded.synced_at,
+                -- One direction only. The provider saying an assignment is handed in
+                -- marks it done here; the provider not knowing — which is every task from
+                -- a calendar feed — must never un-tick something ticked by hand.
+                completed = CASE WHEN excluded.completed = 1 THEN 1 ELSE tasks.completed END,
+                -- When it was first seen as done, so the Completed list can date it. Kept
+                -- if it is already set, or re-syncing would reset the date every time.
+                completed_locally_at = CASE
+                    WHEN excluded.completed = 1
+                    THEN COALESCE(tasks.completed_locally_at, excluded.synced_at)
+                    ELSE tasks.completed_locally_at
+                END",
         )?;
         for task in tasks {
             stmt.execute(params![
@@ -557,6 +569,8 @@ pub fn upsert_tasks(conn: &mut Connection, tasks: &[LmsTask]) -> Result<usize> {
                 task.title,
                 task.due_at,
                 task.html_url,
+                task.completed as i64,
+                if task.completed { Some(now) } else { None },
                 now,
             ])?;
         }
@@ -655,6 +669,48 @@ mod tests {
             |row| row.get(0),
         )
         .unwrap()
+    }
+
+    // Handing something in on Canvas has to reach the Completed list; ticking something
+    // off here must survive a feed that has no idea either way.
+    #[test]
+    fn a_resync_can_complete_a_task_but_never_uncomplete_one() {
+        let mut conn = memory_db();
+
+        let task = |completed: bool| LmsTask {
+            id: 0,
+            provider: "canvas".to_string(),
+            external_id: "assignment:1".to_string(),
+            course_code: None,
+            title: "Ch2 Prelecture".to_string(),
+            due_at: Some(1_700_000_000),
+            html_url: None,
+            completed,
+            completed_at: None,
+        };
+
+        upsert_tasks(&mut conn, &[task(false)]).unwrap();
+        let done = |conn: &Connection| -> i64 {
+            conn.query_row("SELECT completed FROM tasks", [], |row| row.get(0))
+                .unwrap()
+        };
+        assert_eq!(done(&conn), 0);
+
+        // Canvas now reports it submitted.
+        upsert_tasks(&mut conn, &[task(true)]).unwrap();
+        assert_eq!(done(&conn), 1);
+        let dated: Option<i64> = conn
+            .query_row("SELECT completed_locally_at FROM tasks", [], |row| row.get(0))
+            .unwrap();
+        assert!(dated.is_some(), "the Completed list needs a date to sort by");
+
+        // And the calendar feed, which knows nothing about submissions, does not undo it.
+        upsert_tasks(&mut conn, &[task(false)]).unwrap();
+        assert_eq!(done(&conn), 1);
+        let still: Option<i64> = conn
+            .query_row("SELECT completed_locally_at FROM tasks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(still, dated, "and does not re-date it either");
     }
 
     // Two copies of Nudgy each wrote a sample for the same second, and the day added up

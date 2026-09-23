@@ -133,9 +133,17 @@ impl CanvasClient {
             .await
     }
 
-    async fn upcoming_assignments(&self, course_id: i64) -> Result<Vec<CanvasAssignment>> {
+    /// Assignments with their submission state, bounded to what is still worth showing.
+    ///
+    /// No `bucket=upcoming` any more: that filter is about due dates, and an assignment
+    /// submitted last week is exactly the one whose submission state we came for. Without
+    /// it a whole term arrives, so the window below throws away anything long past.
+    ///
+    /// `include[]=submission` is what carries "handed in" — the only thing the API knows
+    /// that the calendar feed cannot.
+    async fn assignments_with_submissions(&self, course_id: i64) -> Result<Vec<CanvasAssignment>> {
         self.get_paged(format!(
-            "{}/api/v1/courses/{course_id}/assignments?bucket=upcoming&per_page=50",
+            "{}/api/v1/courses/{course_id}/assignments?include[]=submission&per_page=50",
             self.base_url
         ))
         .await
@@ -174,13 +182,24 @@ impl LmsProvider for CanvasClient {
             }
         }
 
+        // Far enough back to catch work handed in recently, not so far that a term's
+        // history lands in a list of what is due.
+        let horizon = chrono::Utc::now().timestamp() - RECENT_WINDOW_SECONDS;
+
         for course in &courses {
-            match self.upcoming_assignments(course.id).await {
+            match self.assignments_with_submissions(course.id).await {
                 Ok(assignments) => {
                     for assignment in assignments {
-                        if let Some(task) = to_task(assignment, &course_codes) {
-                            merged.entry(task_key(&task)).or_insert(task);
+                        let Some(task) = to_task(assignment, &course_codes) else {
+                            continue;
+                        };
+                        // Undated work stays: it has no due date to be past.
+                        if task.due_at.is_some_and(|due| due < horizon) {
+                            continue;
                         }
+                        // `insert`, not `or_insert`: this one carries submission state and
+                        // the to-do list's copy does not.
+                        merged.insert(task_key(&task), task);
                     }
                 }
                 // One inaccessible course (concluded, restricted) must not sink the sync.
@@ -211,6 +230,11 @@ fn to_task(
         return None;
     }
 
+    let completed = assignment
+        .submission
+        .as_ref()
+        .is_some_and(CanvasSubmission::handed_in);
+
     Some(LmsTask {
         id: 0,
         provider: PROVIDER_ID.to_string(),
@@ -221,8 +245,9 @@ fn to_task(
         title,
         due_at: assignment.due_at.as_deref().and_then(parse_timestamp),
         html_url: assignment.html_url,
-        // Completion is local state; upsert_tasks deliberately leaves it alone on resync.
-        completed: false,
+        // What Canvas says, which `upsert_tasks` applies in one direction only: handing
+        // something in marks it done here, and nothing here un-hands it in.
+        completed,
         completed_at: None,
     })
 }
@@ -311,6 +336,8 @@ struct CanvasTodo {
 struct CanvasAssignment {
     id: i64,
     #[serde(default)]
+    submission: Option<CanvasSubmission>,
+    #[serde(default)]
     name: Option<String>,
     #[serde(default)]
     due_at: Option<String>,
@@ -319,6 +346,33 @@ struct CanvasAssignment {
     #[serde(default)]
     course_id: Option<i64>,
 }
+
+/// What `include[]=submission` adds. Only enough of it to answer "has this been handed
+/// in?" — a grade is a different question and not one this app asks.
+#[derive(Debug, Clone, serde::Deserialize)]
+struct CanvasSubmission {
+    #[serde(default)]
+    submitted_at: Option<String>,
+    #[serde(default)]
+    workflow_state: Option<String>,
+}
+
+impl CanvasSubmission {
+    /// Handed in, however Canvas phrases it.
+    ///
+    /// `submitted_at` is the plain answer; `workflow_state` covers the kinds of work that
+    /// are marked done without an upload — an on-paper assignment a marker graded, say.
+    fn handed_in(&self) -> bool {
+        self.submitted_at.is_some()
+            || matches!(
+                self.workflow_state.as_deref(),
+                Some("submitted") | Some("graded") | Some("pending_review") | Some("complete")
+            )
+    }
+}
+
+/// How far back a submitted assignment is still worth reporting.
+const RECENT_WINDOW_SECONDS: i64 = 30 * 24 * 3600;
 
 #[cfg(test)]
 mod tests {

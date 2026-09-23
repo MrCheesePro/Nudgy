@@ -4,11 +4,14 @@ import {
   ChevronRight,
   Circle,
   CircleCheckBig,
+  ExternalLink,
   Link2,
   PanelRightClose,
   RefreshCw,
   X,
 } from "lucide-react";
+
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { categoryColor } from "../lib/categories";
 import { formatDuration } from "../lib/time";
@@ -203,6 +206,23 @@ export function CanvasSyncSidebar({
                       {task.courseCode ?? "COURSE"}
                     </span>
                     <span className="ml-auto" />
+                    {/* Straight to the assignment, in a real browser. The row itself
+                        schedules, so this stops the click reaching it — and it is only
+                        offered when the source gave a link to offer. */}
+                    {task.htmlUrl && (
+                      <button
+                        type="button"
+                        aria-label={`Open ${task.title} on Canvas`}
+                        title="Open it on Canvas"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openUrl(task.htmlUrl as string).catch(() => undefined);
+                        }}
+                        className="shrink-0 text-ink-mute transition hover:text-rose-deep"
+                      >
+                        <ExternalLink size={12} />
+                      </button>
+                    )}
                   </div>
 
                   <div className="mt-2 flex items-start gap-2">
