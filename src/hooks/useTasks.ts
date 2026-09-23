@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getTasks, setTaskCompleted, syncLms } from "../lib/ipc";
+import {
+  getDismissedTasks,
+  getTasks,
+  setTaskCompleted,
+  setTaskDismissed,
+  syncLms,
+} from "../lib/ipc";
 import type { LmsTask } from "../lib/types";
 
 export function useTasks() {
   const [all, setAll] = useState<LmsTask[]>([]);
+  /** Kept apart because `get_tasks` deliberately excludes them — the planner reads it. */
+  const [dismissed, setDismissed] = useState<LmsTask[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
@@ -13,7 +21,9 @@ export function useTasks() {
     try {
       // Completed rows come back too — finishing something should not make it
       // unreachable. The backend already sorts them last.
-      setAll(await getTasks(true));
+      const [active, aside] = await Promise.all([getTasks(true), getDismissedTasks()]);
+      setAll(active);
+      setDismissed(aside);
     } catch (cause) {
       setError(String(cause));
     }
@@ -67,8 +77,38 @@ export function useTasks() {
     [refresh],
   );
 
+  /**
+   * Sets a task aside, or brings it back.
+   *
+   * A full refresh rather than a local edit, because the task moves between two lists
+   * that come from two different queries — patching one of them would leave the other
+   * holding a copy.
+   */
+  const setAside = useCallback(
+    async (task: LmsTask, aside: boolean) => {
+      try {
+        await setTaskDismissed(task.id, aside);
+      } catch (cause) {
+        setError(String(cause));
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
   const tasks = useMemo(() => all.filter((task) => !task.completed), [all]);
   const completedTasks = useMemo(() => all.filter((task) => task.completed), [all]);
 
-  return { tasks, completedTasks, sync, syncing, toggle, error, lastSync, refresh };
+  return {
+    tasks,
+    completedTasks,
+    dismissedTasks: dismissed,
+    sync,
+    syncing,
+    toggle,
+    setAside,
+    error,
+    lastSync,
+    refresh,
+  };
 }

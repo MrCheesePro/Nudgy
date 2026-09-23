@@ -124,6 +124,8 @@ export interface LmsTask {
   title: string;
   dueAt: number | null;
   htmlUrl: string | null;
+  /** When it was set aside, or null while it is still coursework you mean to do. */
+  dismissedAt: number | null;
   completed: boolean;
   /** When it was ticked off here. Canvas does not report this; it is local. */
   completedAt: number | null;

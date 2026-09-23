@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -37,6 +37,8 @@ interface CompletedEntry {
 interface Props {
   tasks: LmsTask[];
   completedTasks: LmsTask[];
+  /** Coursework you said you were not doing. Still synced, just not in the way. */
+  dismissedTasks: LmsTask[];
   goals: Goal[];
   plans: PlanProgress[];
   canvasLinked: boolean;
@@ -48,6 +50,8 @@ interface Props {
   onSync: () => void;
   onOpenSettings: () => void;
   onToggleTask: (task: LmsTask) => void;
+  /** Sets a task aside, or brings it back from the Set aside list. */
+  onSetAside: (task: LmsTask, aside: boolean) => void;
   onPlanTask: (task: LmsTask) => void;
   onPlanGoal: (goal: Goal) => void;
   onDeletePlan: (id: number) => void;
@@ -69,6 +73,7 @@ interface Props {
 export function CanvasSyncSidebar({
   tasks,
   completedTasks,
+  dismissedTasks,
   goals,
   plans,
   canvasLinked,
@@ -79,6 +84,7 @@ export function CanvasSyncSidebar({
   onSync,
   onOpenSettings,
   onToggleTask,
+  onSetAside,
   onPlanTask,
   onPlanGoal,
   onDeletePlan,
@@ -93,10 +99,35 @@ export function CanvasSyncSidebar({
     progress: true,
     coursework: true,
     inactive: true,
+    aside: false,
     completed: false,
   });
   const toggle = (key: string) =>
     setOpen((current) => ({ ...current, [key]: !current[key] }));
+
+  /**
+   * Coursework grouped by course, courses ordered by their nearest deadline.
+   *
+   * By deadline rather than alphabetically: the group you need is the one with something
+   * due tomorrow, and sorting by name puts that wherever the alphabet happens to put it.
+   * Work with no course code lands under one heading of its own rather than being hidden.
+   */
+  const byCourse = useMemo(() => {
+    const groups = new Map<string, LmsTask[]>();
+    for (const task of tasks) {
+      const key = task.courseCode ?? "No course";
+      const group = groups.get(key);
+      if (group) group.push(task);
+      else groups.set(key, [task]);
+    }
+
+    const soonest = (group: LmsTask[]) =>
+      Math.min(...group.map((task) => task.dueAt ?? Number.MAX_SAFE_INTEGER));
+
+    return [...groups.entries()].sort(
+      ([, left], [, right]) => soonest(left) - soonest(right),
+    );
+  }, [tasks]);
 
   const activePlans = plans.filter((entry) => entry.plan.status === "active");
 
@@ -193,8 +224,20 @@ export function CanvasSyncSidebar({
                 : "Add your LMS calendar URL in Settings to pull assignments in."}
             </p>
           ) : (
-            <ul className="mt-3 space-y-2.5">
-              {tasks.map((task) => (
+            /* One list per course, because a term's feed is several courses and a flat
+               list of thirty assignments sorted by date makes you read every one to find
+               the two that are yours today. Courses are ordered by their nearest
+               deadline, so whatever is due next is the group at the top. */
+            byCourse.map(([course, group]) => (
+              <div key={course} className="mt-3">
+                <div className="mb-1.5 flex items-baseline gap-2">
+                  <span className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft">
+                    {course}
+                  </span>
+                  <span className="text-tiny text-ink-mute">{group.length}</span>
+                </div>
+                <ul className="space-y-2.5">
+              {group.map((task) => (
                 <RowShell
                   key={task.id}
                   label={`Schedule ${task.title}`}
@@ -202,9 +245,6 @@ export function CanvasSyncSidebar({
                 >
                   <div className="flex items-center gap-2">
                     <StateChip state={stateForTask(plans, task)} />
-                    <span className="rounded bg-surface-sunken px-1.5 py-0.5 font-mono text-tiny font-medium text-ink-soft">
-                      {task.courseCode ?? "COURSE"}
-                    </span>
                     <span className="ml-auto" />
                     {/* Straight to the assignment, in a real browser. The row itself
                         schedules, so this stops the click reaching it — and it is only
@@ -223,6 +263,20 @@ export function CanvasSyncSidebar({
                         <ExternalLink size={12} />
                       </button>
                     )}
+                    {/* Set aside, not deleted: the feed still lists it, so a delete would
+                        be undone by the next sync and look like the app forgot. */}
+                    <button
+                      type="button"
+                      aria-label={`Set ${task.title} aside`}
+                      title="Not doing this one"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onSetAside(task, true);
+                      }}
+                      className="shrink-0 text-ink-mute transition hover:text-bad"
+                    >
+                      <X size={12} />
+                    </button>
                   </div>
 
                   <div className="mt-2 flex items-start gap-2">
@@ -250,7 +304,9 @@ export function CanvasSyncSidebar({
                   </div>
                 </RowShell>
               ))}
-            </ul>
+                </ul>
+              </div>
+            ))
           )}
         </Section>
 
@@ -358,6 +414,44 @@ export function CanvasSyncSidebar({
             </ul>
           )}
         </Section>
+
+        {/* Only when there is something in it. An empty section named for a thing you
+            have never done is a question nobody asked. */}
+        {dismissedTasks.length > 0 && (
+          <Section
+            title="Set aside"
+            count={dismissedTasks.length}
+            open={open.aside}
+            onToggle={() => toggle("aside")}
+          >
+            <ul className="mt-3 space-y-2">
+              {dismissedTasks.map((task) => (
+                <li
+                  key={task.id}
+                  className="flex items-center gap-2 rounded-lg border border-edge bg-canvas px-2.5 py-2"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-mini text-ink-soft">
+                      {task.title}
+                    </span>
+                    <span className="block truncate text-tiny text-ink-mute">
+                      {task.courseCode ?? "No course"}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onSetAside(task, false)}
+                    title="Put it back"
+                    aria-label={`Put ${task.title} back`}
+                    className="shrink-0 rounded-lg border border-edge px-2 py-1 text-tiny text-ink-mute transition hover:border-edge-strong hover:text-ink-soft"
+                  >
+                    Put back
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
 
         <Section
           title="Completed"

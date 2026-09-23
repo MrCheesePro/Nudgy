@@ -373,3 +373,10 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     targets panel mount two more, and all three want the same two months of the same
     table. An instance mounting into a warm cache renders with data on its first pass,
     which is the difference between opening a page and waiting for one.
+42. **Coursework you are not doing is set aside, never deleted.** The feed is the source
+    and still lists it, so a delete would be undone by the next sync and read as the app
+    forgetting. `tasks.dismissed_at` records when you said so; `load_tasks` excludes those
+    rows, which is what keeps them out of the planner queue as well as the list — work you
+    have declined should not be offered an evening. Coursework is grouped by course code,
+    the groups ordered by nearest deadline, because a term's feed is several courses and a
+    flat list sorted by date makes you read thirty rows to find today's two.

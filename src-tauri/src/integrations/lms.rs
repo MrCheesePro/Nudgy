@@ -90,6 +90,8 @@ fn task_from_event(event: &IcalEvent, provider: &str) -> Option<LmsTask> {
         html_url: property(event, "URL"),
         completed: false,
         completed_at: None,
+        // Set aside is a local decision; a sync never makes or unmakes one.
+        dismissed_at: None,
     })
 }
 

@@ -700,6 +700,7 @@ export default function App() {
               onCollapse={() => setSidebarHidden(true)}
               tasks={tasks.tasks}
               completedTasks={tasks.completedTasks}
+              dismissedTasks={tasks.dismissedTasks}
               clearedAt={clearedAt}
               canvasLinked={canvasLinked}
               syncing={tasks.syncing}
@@ -710,6 +711,7 @@ export default function App() {
               onSync={() => void tasks.sync()}
               onOpenSettings={() => setSettingsOpen(true)}
               onToggleTask={(task) => void tasks.toggle(task)}
+              onSetAside={(task, aside) => void tasks.setAside(task, aside)}
               onPlanTask={planTask}
               onPlanGoal={planGoal}
               onDeletePlan={askDropPlan}

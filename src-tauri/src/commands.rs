@@ -368,6 +368,22 @@ pub fn set_task_completed(state: State<'_, AppState>, id: i64, completed: bool) 
     Ok(())
 }
 
+/// Coursework set aside, for the section that lists it.
+#[tauri::command]
+pub fn get_dismissed_tasks(state: State<'_, AppState>) -> CmdResult<Vec<LmsTask>> {
+    with_db(&state, queries::load_dismissed_tasks)
+}
+
+/// Sets a task aside, or brings it back. Never deletes: the feed still lists it, so the
+/// next sync would fetch it again and it would look like the app forgot.
+#[tauri::command]
+pub fn set_task_dismissed(state: State<'_, AppState>, id: i64, dismissed: bool) -> CmdResult<()> {
+    with_db(&state, |conn| {
+        queries::set_task_dismissed(conn, id, dismissed)
+    })?;
+    Ok(())
+}
+
 /// Pulls Canvas deadlines into the local database. Credentials are read here, used, and
 /// dropped — they are never stored alongside the data they fetched.
 #[tauri::command]

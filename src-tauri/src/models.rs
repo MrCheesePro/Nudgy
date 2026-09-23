@@ -204,6 +204,9 @@ pub struct LmsTask {
     /// When it was ticked off here. Canvas does not tell us, so this is local.
     #[serde(default)]
     pub completed_at: Option<i64>,
+    /// When it was set aside, or `None` while it is still coursework you intend to do.
+    #[serde(default)]
+    pub dismissed_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -309,6 +309,16 @@ const MIGRATIONS: &[&str] = &[
        SET external_id = 'event:' || substr(external_id, 22)
      WHERE external_id LIKE 'event-calendar-event-%';
     "#,
+    // 14 — coursework you are not going to do.
+    //
+    //     A term's feed carries lab sections, orientation quizzes and work already handed
+    //     in elsewhere, and none of it can be deleted: the next sync would bring it
+    //     straight back, because the feed is the source and it still lists them. So a task
+    //     is set aside instead — a timestamp saying when you said you did not want it,
+    //     which survives every resync and is undone by clearing it.
+    r#"
+    ALTER TABLE tasks ADD COLUMN dismissed_at INTEGER;
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

@@ -249,6 +249,8 @@ fn to_task(
         // something in marks it done here, and nothing here un-hands it in.
         completed,
         completed_at: None,
+        // Set aside is a local decision; a sync never makes or unmakes one.
+        dismissed_at: None,
     })
 }
 

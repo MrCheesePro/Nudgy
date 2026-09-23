@@ -176,6 +176,8 @@ pub fn run() {
             commands::clear_secret,
             commands::get_tasks,
             commands::set_task_completed,
+            commands::get_dismissed_tasks,
+            commands::set_task_dismissed,
             commands::sync_lms,
             commands::get_lms_providers,
             commands::set_lms_provider,

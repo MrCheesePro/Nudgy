@@ -579,30 +579,65 @@ pub fn upsert_tasks(conn: &mut Connection, tasks: &[LmsTask]) -> Result<usize> {
     Ok(tasks.len())
 }
 
+/// Coursework, minus anything set aside.
+///
+/// Set-aside work is excluded here rather than filtered in the frontend, because this is
+/// what the planner queue reads too: work you have said you are not doing should not be
+/// offered a slot in your evening.
 pub fn load_tasks(conn: &Connection, include_completed: bool) -> Result<Vec<LmsTask>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, provider, external_id, course_code, title, due_at, html_url, completed,
-                completed_locally_at
+                completed_locally_at, dismissed_at
            FROM tasks
           WHERE (?1 = 1 OR completed = 0)
+            AND dismissed_at IS NULL
           ORDER BY completed ASC, COALESCE(due_at, 9223372036854775807) ASC, title ASC",
     )?;
     let rows = stmt
-        .query_map(params![include_completed as i64], |row| {
-            Ok(LmsTask {
-                id: row.get(0)?,
-                provider: row.get(1)?,
-                external_id: row.get(2)?,
-                course_code: row.get(3)?,
-                title: row.get(4)?,
-                due_at: row.get(5)?,
-                html_url: row.get(6)?,
-                completed: row.get::<_, i64>(7)? != 0,
-                completed_at: row.get(8)?,
-            })
-        })?
+        .query_map(params![include_completed as i64], task_row)?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
+}
+
+/// The column order both task queries select in, in one place so they cannot drift.
+fn task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LmsTask> {
+    Ok(LmsTask {
+        id: row.get(0)?,
+        provider: row.get(1)?,
+        external_id: row.get(2)?,
+        course_code: row.get(3)?,
+        title: row.get(4)?,
+        due_at: row.get(5)?,
+        html_url: row.get(6)?,
+        completed: row.get::<_, i64>(7)? != 0,
+        completed_at: row.get(8)?,
+        dismissed_at: row.get(9)?,
+    })
+}
+
+/// Only the set-aside ones, for the section that lists them.
+pub fn load_dismissed_tasks(conn: &Connection) -> Result<Vec<LmsTask>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, provider, external_id, course_code, title, due_at, html_url, completed,
+                completed_locally_at, dismissed_at
+           FROM tasks
+          WHERE dismissed_at IS NOT NULL
+          ORDER BY dismissed_at DESC",
+    )?;
+    let rows = stmt
+        .query_map([], task_row)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Sets a task aside, or brings it back. Nothing is deleted — the next sync would only
+/// fetch it again, since the feed still lists it.
+pub fn set_task_dismissed(conn: &Connection, id: i64, dismissed: bool) -> Result<usize> {
+    let now = chrono::Utc::now().timestamp();
+    Ok(conn.execute(
+        "UPDATE tasks SET dismissed_at = ?2 WHERE id = ?1",
+        params![id, if dismissed { Some(now) } else { None }],
+    )?)
 }
 
 pub fn set_task_completed(conn: &Connection, id: i64, completed: bool) -> Result<usize> {
@@ -687,6 +722,7 @@ mod tests {
             html_url: None,
             completed,
             completed_at: None,
+            dismissed_at: None,
         };
 
         upsert_tasks(&mut conn, &[task(false)]).unwrap();

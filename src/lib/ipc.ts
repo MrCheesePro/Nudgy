@@ -127,6 +127,12 @@ export const getTasks = (includeCompleted = false) =>
 export const setTaskCompleted = (id: number, completed: boolean) =>
   invoke<void>("set_task_completed", { id, completed });
 
+export const getDismissedTasks = () => invoke<LmsTask[]>("get_dismissed_tasks");
+
+/** Sets a task aside, or brings it back. Nothing is deleted — the feed still lists it. */
+export const setTaskDismissed = (id: number, dismissed: boolean) =>
+  invoke<void>("set_task_dismissed", { id, dismissed });
+
 export const syncLms = () => invoke<SyncResult>("sync_lms");
 
 export const getLmsProviders = () => invoke<string[]>("get_lms_providers");

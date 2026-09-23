@@ -43,6 +43,7 @@ function task(overrides: Partial<LmsTask> = {}): LmsTask {
     provider: "canvas",
     externalId: "1",
     courseCode: "MATH241",
+    dismissedAt: null,
     title: "Problem Set 4",
     dueAt: DAY_TWO,
     htmlUrl: null,
