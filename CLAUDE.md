@@ -182,7 +182,13 @@ wrong data.
     becomes a commitment the planner refuses to schedule over, and an event added by hand
     expands into exactly the same `CalendarEvent` — merged in `get_calendar_events`, so
     nothing downstream can tell them apart or treat them differently. All-day events are
-    ignored on purpose: they mark a day rather than occupy it. **A repeat is a rule, not
+    ignored on purpose: they mark a day rather than occupy it. The feed is re-fetched every
+    three minutes, **whenever the window regains focus** — switching back from the browser
+    is the moment most likely to follow a change — and on demand from the planner, which
+    says when it last actually fetched rather than implying it is current. The request
+    carries `Cache-Control: no-cache`, which defeats every cache between here and Google
+    but **not Google's own**: its iCal export can serve a stale copy for hours, and nothing
+    on this side reaches that. **A repeat is a rule, not
     rows**: a class three times a week for a term is one row expanded per window, so
     moving the time moves every occurrence, and "every Tuesday, forever" is expressible at
     all. Each occurrence keeps the first one's *wall-clock* time, so a nine o'clock class

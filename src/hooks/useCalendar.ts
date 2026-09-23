@@ -4,7 +4,15 @@ import { getCalendarEvents } from "../lib/ipc";
 import type { CalendarEvent } from "../lib/types";
 import type { Commitment } from "../services/slotFinder";
 
-const REFRESH_MS = 10 * 60 * 1000;
+/**
+ * How often to ask, when nothing has prompted it.
+ *
+ * Every few minutes rather than every ten: the request is one small file, and the cost of
+ * being slow is a class the planner did not know about. The real lag is Google's — its
+ * iCal export can serve a stale copy for hours after you change something, and no polling
+ * interval on this side reaches that.
+ */
+const REFRESH_MS = 3 * 60 * 1000;
 /** Wide enough that stepping a few weeks either way still has events. */
 const HORIZON_DAYS = 42;
 const LOOKBACK_DAYS = 7;
@@ -17,6 +25,8 @@ export function useCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /** When the feed was last actually fetched, so the UI can say rather than imply. */
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -34,6 +44,7 @@ export function useCalendar() {
           Math.floor(end.getTime() / 1000),
         ),
       );
+      setCheckedAt(Date.now());
       setError(null);
     } catch (cause) {
       setError(String(cause));
@@ -45,7 +56,21 @@ export function useCalendar() {
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), REFRESH_MS);
-    return () => window.clearInterval(timer);
+
+    /*
+     * Coming back to the app is the moment most likely to follow a change.
+     *
+     * You move an event in the browser and switch to Nudgy — that switch is the signal,
+     * and waiting out a timer afterwards is the difference between the calendar being
+     * right when you look at it and being right a few minutes later.
+     */
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [refresh]);
 
   /**
@@ -65,5 +90,5 @@ export function useCalendar() {
     [events],
   );
 
-  return { events, commitmentsIn, refresh, error, loading };
+  return { events, commitmentsIn, refresh, error, loading, checkedAt };
 }

@@ -664,6 +664,9 @@ export default function App() {
                   onAddTask={() => setAddTaskOpen(true)}
                   onAddEvent={() => setAddEventOpen(true)}
                   onImportSyllabus={() => setSyllabusOpen(true)}
+                  onRefreshCalendar={() => void calendar.refresh()}
+                  calendarLoading={calendar.loading}
+                  calendarCheckedAt={calendar.checkedAt}
                 />
               </>
             )}

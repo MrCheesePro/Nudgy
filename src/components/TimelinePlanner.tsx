@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarDays, CalendarPlus, FileText, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, CalendarPlus, FileText, RefreshCw, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
 
 import { PlanTimeline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
@@ -32,6 +32,11 @@ interface Props {
   onAddEvent: () => void;
   /** Reads class times out of a syllabus, proposing them for confirmation. */
   onImportSyllabus: () => void;
+  /** Fetches the calendar feed again, now. */
+  onRefreshCalendar: () => void;
+  calendarLoading: boolean;
+  /** When the feed was last fetched, in epoch milliseconds. */
+  calendarCheckedAt: number | null;
 }
 
 export function TimelinePlanner({
@@ -48,6 +53,9 @@ export function TimelinePlanner({
   onAddTask,
   onAddEvent,
   onImportSyllabus,
+  onRefreshCalendar,
+  calendarLoading,
+  calendarCheckedAt,
 }: Props) {
   const [filter, setFilter] = useState<Category | "All">("All");
   const categories = useAssignableCategories();
@@ -109,6 +117,19 @@ export function TimelinePlanner({
         >
           <FileText size={14} />
           Read a syllabus
+        </button>
+
+        {/* Because a calendar you cannot make look again is one you stop trusting. The
+            label says when it last actually fetched, not when the page rendered. */}
+        <button
+          type="button"
+          onClick={onRefreshCalendar}
+          disabled={calendarLoading}
+          title="Check the calendar feed now"
+          className="flex items-center gap-1.5 rounded-full border border-edge px-3 py-1.5 text-mini text-ink-mute transition hover:border-edge-strong hover:text-ink-soft disabled:opacity-50"
+        >
+          <RefreshCw size={12} className={calendarLoading ? "animate-spin" : undefined} />
+          {checkedLabel(calendarCheckedAt)}
         </button>
       </div>
 
@@ -174,4 +195,14 @@ export function TimelinePlanner({
       />
     </section>
   );
+}
+
+/** "Checked just now" / "Checked 4m ago" — a fetch, not a render. */
+function checkedLabel(at: number | null): string {
+  if (at === null) return "Check now";
+  const seconds = Math.floor((Date.now() - at) / 1000);
+  if (seconds < 60) return "Checked just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Checked ${minutes}m ago`;
+  return `Checked ${Math.floor(minutes / 60)}h ago`;
 }

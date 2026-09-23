@@ -57,8 +57,16 @@ pub async fn fetch_feed(url: &str) -> Result<String> {
         .build()
         .context("building HTTP client")?;
 
+    // Asked for fresh, every time.
+    //
+    // Nothing in this app caches the feed, but plenty between here and Google might, and a
+    // proxy handing back this morning's copy is indistinguishable from a calendar that has
+    // not changed. It does not fix Google's own export lag — that is on their side and no
+    // header reaches it — but it removes every cache this request can actually speak to.
     let response = http
         .get(trimmed)
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
         .send()
         .await
         .context("fetching the calendar feed")?;
