@@ -308,13 +308,33 @@ export function PlanAssignmentDialog({
         </div>
 
         <div className="mt-6">
-          <span className="text-xs font-medium text-ink-soft">
-            How long will it take?{" "}
-            <span className="font-normal text-ink-mute">
-              Nudgy checks in at the halfway mark and lets you revise it.
-            </span>
-          </span>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-ink-soft">How do you want to work?</span>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <ModeCard
+              active={mode === "pomodoro"}
+              onClick={() => setMode("pomodoro")}
+              icon={<Timer size={14} />}
+              title="Pomodoro"
+              detail={`${sessionMinutes}m sessions, ${breakMinutes}m breaks`}
+            />
+            <ModeCard
+              active={mode === "continuous"}
+              onClick={() => setMode("continuous")}
+              icon={<CalendarClock size={14} />}
+              title="One sitting"
+              detail="One session, no breaks"
+            />
+          </div>
+
+          {/*
+            The total, under the shape rather than above it.
+            It is one of three numbers that are all about time — how long the work is, how
+            long a sitting is, how long the break is — and having it in a section of its
+            own at the top separated it from the two it has to be read against. It applies
+            to both modes, so it sits outside the pomodoro panel below.
+          */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-ink-soft">How long will it take?</span>
             {ESTIMATE_PRESETS.map((minutes) => (
               <button
                 key={minutes}
@@ -341,34 +361,14 @@ export function PlanAssignmentDialog({
             />
             <span className="text-xs text-ink-mute">min</span>
           </div>
-          {/* Only the consequence of re-planning is worth a line here. What the work is
-              verified against is not something the estimate box can change. */}
-          {item.planId !== null && (
-            <p className="mt-1.5 text-xs text-ink-mute">
-              Saving replaces the existing blocks for this item, and restarts its
-              progress.
-            </p>
-          )}
-        </div>
 
-        <div className="mt-5">
-          <span className="text-xs font-medium text-ink-soft">How do you want to work?</span>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <ModeCard
-              active={mode === "pomodoro"}
-              onClick={() => setMode("pomodoro")}
-              icon={<Timer size={14} />}
-              title="Pomodoro"
-              detail={`${sessionMinutes}m sessions, ${breakMinutes}m breaks`}
-            />
-            <ModeCard
-              active={mode === "continuous"}
-              onClick={() => setMode("continuous")}
-              icon={<CalendarClock size={14} />}
-              title="One sitting"
-              detail="One session, no breaks"
-            />
-          </div>
+          {/* The estimate is what the halfway check-in measures against, so it is worth a
+              line saying so where the number is. */}
+          <p className="mt-1.5 text-xs text-ink-mute">
+            Nudgy checks in at the halfway mark and lets you revise it.
+            {item.planId !== null &&
+              " Saving replaces the existing blocks for this item, and restarts its progress."}
+          </p>
 
           {mode === "pomodoro" && (
             <div className="mt-2 rounded-xl border border-edge bg-canvas p-3">
