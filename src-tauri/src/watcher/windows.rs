@@ -54,16 +54,42 @@ pub fn idle_seconds() -> Result<u64> {
 }
 
 pub async fn foreground(_app: &AppHandle) -> Result<Option<Foreground>> {
+    let Some((hwnd, process_name, title)) = foreground_window() else {
+        return Ok(None);
+    };
+
+    // Windows has no Apple events, so the address is read off the address bar itself
+    // through UI Automation. Same contract as macOS: only the host survives, and a browser
+    // that will not answer leaves this None and the title rules take over.
+    let host = if crate::watcher::browser::is_browser(&process_name) {
+        crate::watcher::browser::active_host_for_window(hwnd, title.as_deref()).await
+    } else {
+        None
+    };
+
+    Ok(Some(Foreground {
+        app_name: Some(process_name.trim_end_matches(".exe").to_string()),
+        process_name,
+        title,
+        host,
+    }))
+}
+
+/// The focused window as a plain integer, its process name and its title.
+///
+/// Kept apart from `foreground` because an `HWND` is a raw pointer and not `Send`: one
+/// alive across the `.await` above makes the whole tick loop unspawnable.
+fn foreground_window() -> Option<(isize, String, Option<String>)> {
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.is_invalid() {
         // Nothing focused (lock screen, desktop switch) is a normal state, not an error.
-        return Ok(None);
+        return None;
     }
 
     let mut pid: u32 = 0;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     if pid == 0 {
-        return Ok(None);
+        return None;
     }
 
     let process_path = executable_path(pid);
@@ -79,26 +105,11 @@ pub async fn foreground(_app: &AppHandle) -> Result<Option<Foreground>> {
     // The Windows counterpart to the macOS activation-policy filter: shell surfaces that
     // take focus but are not apps the user chose to work in.
     if is_system_shell(&process_name) {
-        return Ok(None);
+        return None;
     }
 
     let title = window_title(hwnd);
-
-    // Windows has no Apple events, so the address is read off the address bar itself
-    // through UI Automation. Same contract as macOS: only the host survives, and a browser
-    // that will not answer leaves this None and the title rules take over.
-    let host = if crate::watcher::browser::is_browser(&process_name) {
-        crate::watcher::browser::active_host_for_window(hwnd.0 as isize, title.as_deref()).await
-    } else {
-        None
-    };
-
-    Ok(Some(Foreground {
-        app_name: Some(process_name.trim_end_matches(".exe").to_string()),
-        process_name,
-        title,
-        host,
-    }))
+    Some((hwnd.0 as isize, process_name, title))
 }
 
 /// Windows has no activation-policy equivalent, so these are named directly. All of them

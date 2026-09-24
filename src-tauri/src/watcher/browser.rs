@@ -233,7 +233,7 @@ mod windows_ui {
     use windows::Win32::System::Com::{
         CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
     };
-    use windows::Win32::System::Variant::VARIANT;
+    use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_I4};
     use windows::Win32::UI::Accessibility::{
         CUIAutomation, IUIAutomation, IUIAutomationValuePattern, TreeScope_Descendants,
         UIA_ControlTypePropertyId, UIA_EditControlTypeId, UIA_ValuePatternId,
@@ -304,13 +304,22 @@ mod windows_ui {
                 CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER).ok()?;
             let window = automation.ElementFromHandle(HWND(hwnd as *mut _)).ok()?;
 
+            // The Win32 VARIANT has no From<i32>, so the VT_I4 is spelled out.
+            let edit_type = VARIANT {
+                Anonymous: VARIANT_0 {
+                    Anonymous: std::mem::ManuallyDrop::new(VARIANT_0_0 {
+                        vt: VT_I4,
+                        Anonymous: VARIANT_0_0_0 {
+                            lVal: UIA_EditControlTypeId.0,
+                        },
+                        ..Default::default()
+                    }),
+                },
+            };
             let edit = automation
-                .CreatePropertyCondition(
-                    UIA_ControlTypePropertyId,
-                    &VARIANT::from(UIA_EditControlTypeId.0),
-                )
+                .CreatePropertyCondition(UIA_ControlTypePropertyId, &edit_type)
                 .ok()?;
-            let bar = automation.FindFirst(TreeScope_Descendants, &edit).ok()?;
+            let bar = window.FindFirst(TreeScope_Descendants, &edit).ok()?;
 
             let value = bar
                 .GetCurrentPattern(UIA_ValuePatternId)
