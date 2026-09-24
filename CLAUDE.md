@@ -47,7 +47,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/watcher/platform.rs` | The only place `#[cfg(target_os)]` appears in the watcher |
 | `src-tauri/src/watcher/macos.rs` | NSWorkspace + CoreGraphics probes |
 | `src-tauri/src/watcher/registry.rs` | Categorizer, redaction, seed loader |
-| `src-tauri/src/watcher/browser.rs` | Asks a macOS browser for the front tab's **host**, and keeps nothing else |
+| `src-tauri/src/watcher/browser.rs` | Asks the browser for the front tab's **host**, and keeps nothing else |
 | `src-tauri/src/watcher/flush.rs` | 45-second batch writer |
 | `src-tauri/src/watcher/windows.rs` | Win32 probes — **only compiled in CI**, never here |
 | `src-tauri/src/rpc/mod.rs` | Rich Presence listener, presence map, payload validation |
@@ -118,18 +118,22 @@ wrong data.
 5. **Explicit RPC presence outranks a guessed window title**, and expires 60 s after the
    client's last message.
 6. **No keystrokes, no mouse coordinates, no screenshots, no assignment descriptions.**
-   Only the OS idle counter, the foreground app, and — on macOS, from a browser that will
-   answer — **the host of the page in front. Never the URL.** `watcher/browser.rs` asks
-   over an Apple event and `host_of` throws the path and query away in the same expression
-   that produced them: `elearn.ucr.edu` survives, `/courses/237131/files/26333889` does
-   not, and a page's path says far more about somebody than its title ever did. A
-   `file://` or `chrome://` address yields nothing at all, because one is a path on this
-   machine and the other is not a site. Redaction runs *before* the sample is constructed,
-   so a private title is never in memory, never flushed, never recoverable — and a
-   redacted window is **not asked** what site it is on, because a private tab's address is
-   exactly as private as its title. A browser that refuses the permission is remembered as
-   refused and never asked again; site labels fall back to titles, which is what every
-   platform other than macOS does anyway.
+   Only the OS idle counter, the foreground app, and — from a browser that will answer —
+   **the host of the page in front. Never the URL.** `watcher/browser.rs` asks over an
+   Apple event on macOS and off the address bar through UI Automation on Windows, and
+   `host_of` throws the path and query away in the same expression that produced them:
+   `elearn.ucr.edu` survives, `/courses/237131/files/26333889` does not, and a page's path
+   says far more about somebody than its title ever did. A `file://` or `chrome://` address
+   yields nothing at all, because one is a path on this machine and the other is not a
+   site. The address bar is an **input** as well as a display, so without a scheme the bar
+   is higher: whitespace, a lone colon, or a last label that is not a plausible TLD all
+   mean somebody is typing rather than somewhere they are. Redaction runs *before* the
+   sample is constructed, so a private title is never in memory, never flushed, never
+   recoverable — and a redacted window is **not asked** what site it is on, because a
+   private tab's address is exactly as private as its title. A browser that refuses is
+   remembered as refused and never asked again; site labels fall back to titles. Windows
+   caches its answer against the **window title**, which changes on navigation — so the
+   automation tree is walked once per page rather than once every three seconds.
 7. **Migrations are append-only.** Add an entry to `MIGRATIONS`; never edit a shipped
    one. `PRAGMA user_version` tracks progress.
 8. **Only apps a person could click get tracked.** macOS filters on

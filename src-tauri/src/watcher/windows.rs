@@ -82,13 +82,22 @@ pub async fn foreground(_app: &AppHandle) -> Result<Option<Foreground>> {
         return Ok(None);
     }
 
+    let title = window_title(hwnd);
+
+    // Windows has no Apple events, so the address is read off the address bar itself
+    // through UI Automation. Same contract as macOS: only the host survives, and a browser
+    // that will not answer leaves this None and the title rules take over.
+    let host = if crate::watcher::browser::is_browser(&process_name) {
+        crate::watcher::browser::active_host_for_window(hwnd.0 as isize, title.as_deref()).await
+    } else {
+        None
+    };
+
     Ok(Some(Foreground {
         app_name: Some(process_name.trim_end_matches(".exe").to_string()),
         process_name,
-        title: window_title(hwnd),
-        // Windows has no equivalent of the Apple event a browser answers here, so sites are
-        // still read from the title. Nothing else changes.
-        host: None,
+        title,
+        host,
     }))
 }
 

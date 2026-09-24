@@ -41,15 +41,7 @@ pub struct Resolved {
     pub context: Option<String>,
 }
 
-/// Browsers show someone else's content, so the page decides the category. Matched on the
-/// stem so `chrome.exe`, `com.google.chrome` and `google chrome` all land here.
-fn is_browser(process: &str) -> bool {
-    const BROWSERS: &[&str] = &[
-        "chrome", "chromium", "safari", "firefox", "msedge", "edge", "arc", "brave", "opera",
-        "vivaldi", "zen", "orion",
-    ];
-    BROWSERS.iter().any(|name| process.contains(name))
-}
+use super::browser::is_browser;
 
 impl Registry {
     pub fn load(conn: &Connection) -> Result<Self> {
