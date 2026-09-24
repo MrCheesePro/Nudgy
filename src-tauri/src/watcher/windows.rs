@@ -86,6 +86,9 @@ pub async fn foreground(_app: &AppHandle) -> Result<Option<Foreground>> {
         app_name: Some(process_name.trim_end_matches(".exe").to_string()),
         process_name,
         title: window_title(hwnd),
+        // Windows has no equivalent of the Apple event a browser answers here, so sites are
+        // still read from the title. Nothing else changes.
+        host: None,
     }))
 }
 

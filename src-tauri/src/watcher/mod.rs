@@ -1,3 +1,4 @@
+pub mod browser;
 pub mod flush;
 pub mod platform;
 pub mod registry;

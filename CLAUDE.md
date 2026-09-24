@@ -47,6 +47,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/watcher/platform.rs` | The only place `#[cfg(target_os)]` appears in the watcher |
 | `src-tauri/src/watcher/macos.rs` | NSWorkspace + CoreGraphics probes |
 | `src-tauri/src/watcher/registry.rs` | Categorizer, redaction, seed loader |
+| `src-tauri/src/watcher/browser.rs` | Asks a macOS browser for the front tab's **host**, and keeps nothing else |
 | `src-tauri/src/watcher/flush.rs` | 45-second batch writer |
 | `src-tauri/src/watcher/windows.rs` | Win32 probes — **only compiled in CI**, never here |
 | `src-tauri/src/rpc/mod.rs` | Rich Presence listener, presence map, payload validation |
@@ -59,7 +60,8 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/events.rs` | Hand-added events and their repeat rules, expanded per window |
 | `src-tauri/src/habits.rs` | Habits and their ticks. Storage only — the streaks are in TS |
 | `src-tauri/src/syllabus.rs` | Reads meeting patterns out of a syllabus. Proposes; writes nothing |
-| `src/services/habits.ts` | `habitStreak`, `perfectDayStreak`, `dueOn` — pure and tested |
+| `src/services/habits.ts` | `habitStreak`, `dueOn` — pure and tested |
+| `src/services/commitments.ts` | Targets and habits read as one list: `stateOn`, `streakFor`, `perfectStreak` |
 | `src-tauri/src/categorize.rs` | Offline keyword guess for an unclassified app. No model, no key |
 | `src-tauri/src/scheduler.rs` | Schedule storage and the goal verifier |
 | `src-tauri/src/secrets.rs` | Keychain wrapper; the only place a token is read |
@@ -67,8 +69,10 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/tray.rs` | Tray menu, pause plumbing, ordered shutdown |
 | `src-tauri/src/commands.rs` | Every `#[tauri::command]` |
 | `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits), `progress.ts` (streaks, averages, direction-aware trend) |
-| `src/components/ProgressPage.tsx` | Day-by-day history, habits, targets, and whether it is getting better |
-| `src/components/HabitGrid.tsx` | Every habit against every day — due, done, missed, three states |
+| `src/components/ProgressPage.tsx` | Day-by-day history, commitments, and whether it is getting better |
+| `src/components/CommitmentGrid.tsx` | Every commitment against every day — kept, missed, open, not due, unwatched |
+| `src/components/CommitmentStrip.tsx` | What you owe today: habit chips you tick, target chips the watcher fills |
+| `src/components/CommitmentsDialog.tsx` | Adding and editing both kinds, behind one toggle |
 | `src/lib/ipc.ts` | One typed wrapper per command; components never call `invoke` directly |
 | `src/lib/types.ts` | Mirror of `models.rs` — keep the two in step |
 | `src/hooks/` | `useLiveActivity`, `useUsageStats`, `usePermissions`, `useTasks`, `useSchedule`, `useCalendar`, `usePlans`, `useCurrentWork` (which block, and which class, is running now) |
@@ -114,9 +118,18 @@ wrong data.
 5. **Explicit RPC presence outranks a guessed window title**, and expires 60 s after the
    client's last message.
 6. **No keystrokes, no mouse coordinates, no screenshots, no assignment descriptions.**
-   Only the OS idle counter and the foreground app. Redaction runs *before* the sample
-   is constructed, so a private title is never in memory, never flushed, never
-   recoverable.
+   Only the OS idle counter, the foreground app, and — on macOS, from a browser that will
+   answer — **the host of the page in front. Never the URL.** `watcher/browser.rs` asks
+   over an Apple event and `host_of` throws the path and query away in the same expression
+   that produced them: `elearn.ucr.edu` survives, `/courses/237131/files/26333889` does
+   not, and a page's path says far more about somebody than its title ever did. A
+   `file://` or `chrome://` address yields nothing at all, because one is a path on this
+   machine and the other is not a site. Redaction runs *before* the sample is constructed,
+   so a private title is never in memory, never flushed, never recoverable — and a
+   redacted window is **not asked** what site it is on, because a private tab's address is
+   exactly as private as its title. A browser that refuses the permission is remembered as
+   refused and never asked again; site labels fall back to titles, which is what every
+   platform other than macOS does anyway.
 7. **Migrations are append-only.** Add an entry to `MIGRATIONS`; never edit a shipped
    one. `PRAGMA user_version` tracks progress.
 8. **Only apps a person could click get tracked.** macOS filters on
@@ -203,10 +216,18 @@ wrong data.
     only applied going forward would leave every chart showing the answer you just
     corrected. An `exe` rule owns only its rows with no site label: re-filing Chrome must
     not drag an hour of YouTube along. Idle rows are never touched.
-21. **Title rules are ranked, not alphabetical.** `priority` decides which rule claims a
-    window — coursework (200) over media (100), and anything hand-written (300) over both.
-    This is what makes "Chrome is Neutral *unless* it is school work" deterministic
-    instead of a side effect of pattern ordering.
+21. **The host is fact; the title is a claim — and one list answers both.** Inside a
+    browser the rules are run against the **host first**, and a host match beats every
+    title rule whatever the priorities say: `elearn.ucr.edu` is Canvas even when the tab is
+    named after a PDF, and a video called "canvas painting tutorial" on `youtube.com` is
+    not coursework. The same `title_rules` list does both jobs, so a site is written down
+    once and cannot disagree with itself — `\bpollev\b` recognises the word in a title and
+    the host `pollev.com` alike. Below that, `priority` decides which rule claims a window:
+    coursework (200) over media (100), anything hand-written (300) over both, and 250 for
+    the handful that must outrank the catch-all `[a-z0-9-]+\.edu`. That last number is not
+    cosmetic — rules load `ORDER BY priority DESC, pattern`, so inside one tier the pattern
+    *string* breaks the tie, and `[` sorts ahead of every `\b`-anchored pattern. A rule that
+    needs to win needs a higher number, not a luckier spelling.
 22. **A number moving is not news until you know which way the target points.** `trend`
     in `services/progress.ts` is direction-aware: less Gaming is `better`, less Development
     is `worse`. It also **excludes today**, because a partial morning measured against
@@ -408,11 +429,8 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     morning spoil a day that was perfect at the time. **Archiving keeps the history and
     deleting destroys it**, which is why they are separate buttons and only one of them
     asks. Habits live on **Progress**, not Today: the tick is a small act but "am I keeping
-    this up" is a progress question, and `HabitGrid` is the answer — a third chart mode
-    drawing every habit against every day. It has **three** cell states, not two: a day the
-    habit was not due looks different from one it was due and missed, or every rest day
-    reads as a failure. Today undone is dashed rather than hollow, because a day with hours
-    left in it has not been missed yet.
+    this up" is a progress question, and the grid is the answer — a third chart mode drawing
+    every commitment against every day.
 44. **A syllabus is read, never trusted.** `syllabus.rs` understands one grammar — a day
     token, a time range, an optional room — and nothing else, because there is still no
     model in Nudgy. It will miss unusual layouts and will happily offer your own office
@@ -424,3 +442,22 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     half of a range applies to both, so `8–8:50 AM` is fifty minutes. And a scanned PDF is
     reported as having no text rather than as having no classes: one is fixed by pasting,
     the other by checking the format, and saying the wrong one sends people the wrong way.
+45. **One list, two sources of truth.** A target and a habit are the same shape — something
+    owed most days, a run of days you kept it, a flame that goes out at midnight — so they
+    are read as one list of `Commitment`s and drawn in one grid, one strip and one dialog.
+    What is *not* merged is the store: merging them would mean writing declared ticks into
+    `activity_samples` or invented seconds into `habit_days`, and the rest of the app
+    believes both tables. So `commitments.ts` dispatches to `streakOf` and `habitStreak`
+    rather than replacing either, and the only place the split stays visible is the one
+    place it must be — the kind toggle on the add form, and the fact that a measured chip
+    **cannot be ticked**. A commitment you could click your way past would not be measuring
+    anything, so clicking one opens it for editing instead.
+    A day has **five** states, not the grid's three. `not-due` is a rest day. `unobserved`
+    is a day the watcher wrote nothing: it still ends a streak — invariant 23, absence must
+    not bank itself — but it is drawn like a rest day, because a fortnight away from the
+    machine is not a fortnight of failures. `open` is today, dashed: a day with hours left
+    in it has not been missed yet.
+    **A ceiling is judged in the past only.** Staying under a limit is never finished before
+    midnight, so requiring every ceiling to *pass* would mean a perfect-day flame that is
+    never lit while anybody is looking at it. Today lights when every habit is ticked and
+    every floor is met; going *over* a ceiling still takes the run away there and then.

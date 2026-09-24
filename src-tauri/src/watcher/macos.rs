@@ -68,10 +68,15 @@ pub async fn foreground(app: &AppHandle) -> Result<Option<Foreground>> {
     // is a supported state, not an error.
     let title = window_title_for_pid(front.pid);
 
+    // Same contract for the host: a browser that refuses the question, or is not one of the
+    // ones that can be asked, leaves this None and the title rules answer instead.
+    let host = crate::watcher::browser::active_host(&front.process_name).await;
+
     Ok(Some(Foreground {
         process_name: front.process_name,
         app_name: front.app_name,
         title,
+        host,
     }))
 }
 

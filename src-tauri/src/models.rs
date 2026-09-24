@@ -72,6 +72,10 @@ pub struct Foreground {
     pub process_name: String,
     pub app_name: Option<String>,
     pub title: Option<String>,
+    /// The host of the page in front, when the app is a browser that will say — never a
+    /// full URL. See `watcher/browser.rs`: the path and query are dropped before this
+    /// field exists.
+    pub host: Option<String>,
 }
 
 /// Pushed to the frontend on every tick via the `nudgy://tick` event.

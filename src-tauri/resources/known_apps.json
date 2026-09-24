@@ -780,6 +780,34 @@
     },
     {
       "matchType": "title_regex",
+      "pattern": "(?i)\\bpoll ?everywhere\\b|\\bpollev\\b|\\bpolleverywhere\\.com\\b",
+      "displayName": "Poll Everywhere",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\belearn\\.ucr\\.edu\\b|\\binstructure\\.com\\b|\\b[a-z]{2,5}_\\d{2,4}[a-z]?_\\d{3}_\\d{2}[a-z]\\b",
+      "displayName": "Canvas",
+      "category": "Productivity",
+      "priority": 250
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bpearson\\b|\\bmylab\\b|\\bmathxl\\b|\\bmastering (physics|chemistry|biology|astronomy|geology)\\b",
+      "displayName": "Pearson",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
+      "pattern": "(?i)\\bedstem\\b|\\bed discussion\\b|\\bed lessons\\b",
+      "displayName": "Edstem",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
       "pattern": "(?i)\\bcoursera\\b",
       "displayName": "Coursera",
       "category": "Productivity",

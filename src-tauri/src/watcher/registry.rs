@@ -124,6 +124,23 @@ impl Registry {
         let process = foreground.process_name.to_lowercase();
 
         if is_browser(&process) {
+            // The host first, and it beats every title rule whatever their priorities say.
+            // A title rule is a guess at what a page calls itself; a host is what the page
+            // *is*. `elearn.ucr.edu` is Canvas even when the tab is named after a PDF, and
+            // a video titled "canvas painting tutorial" on youtube.com is not coursework.
+            //
+            // Skipped for a redacted window: a private tab's host is exactly as private as
+            // its title, and invariant 6 wants that decided before anything is built.
+            if !self.is_redacted(foreground) {
+                if let Some(rule) = self.matching_host_rule(foreground) {
+                    return Resolved {
+                        display_name: self.display_name_for(&process, foreground),
+                        category: rule.category.clone(),
+                        context: Some(rule.display_name.clone()),
+                    };
+                }
+            }
+
             if let Some(rule) = self.matching_title_rule(foreground) {
                 return Resolved {
                     display_name: self.display_name_for(&process, foreground),
@@ -161,6 +178,16 @@ impl Registry {
     fn matching_title_rule(&self, foreground: &Foreground) -> Option<&TitleRule> {
         let title = foreground.title.as_deref()?;
         self.title_rules.iter().find(|rule| rule.regex.is_match(title))
+    }
+
+    /// The same rules, run against the host instead.
+    ///
+    /// One list, not two: a rule saying "pollev" should recognise the site whether that
+    /// word turns up in the title or in the address, and keeping a separate table of host
+    /// rules would mean every site had to be written down twice and could disagree.
+    fn matching_host_rule(&self, foreground: &Foreground) -> Option<&TitleRule> {
+        let host = foreground.host.as_deref()?;
+        self.title_rules.iter().find(|rule| rule.regex.is_match(host))
     }
 
     /// The browser keeps its own name even when a site rule set the category — the header
@@ -293,6 +320,15 @@ mod tests {
             process_name: process.to_string(),
             app_name: None,
             title: title.map(str::to_string),
+            host: None,
+        }
+    }
+
+    /// The same window, plus the host the browser gave up.
+    fn on_host(process: &str, title: Option<&str>, host: &str) -> Foreground {
+        Foreground {
+            host: Some(host.to_string()),
+            ..foreground(process, title)
         }
     }
 
@@ -391,6 +427,201 @@ mod tests {
     #[test]
     fn an_unmatched_page_keeps_nothing_of_its_title() {
         let resolved = registry().resolve(&foreground("chrome.exe", Some("Bank statement Q3")));
+        assert_eq!(resolved.context, None);
+    }
+
+    /// The registry built from the file that actually ships, rather than a hand-made one.
+    ///
+    /// A seeded pattern is only ever exercised through this file, so a typo in it compiles,
+    /// passes every test above, and then quietly never matches anything on a real machine.
+    fn shipped() -> Registry {
+        let raw = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/known_apps.json"),
+        )
+        .expect("reading the shipped seed registry");
+        let seed: SeedFile = serde_json::from_str(&raw).expect("parsing the shipped seed registry");
+
+        let mut registry = Registry::default();
+        // Exactly `load_app_rules`'s `ORDER BY priority DESC, pattern` — including the
+        // alphabetical tiebreak, which is load-bearing: inside one priority tier the
+        // pattern string decides, so a rule that needs to outrank a peer needs a higher
+        // number rather than a luckier spelling.
+        let mut apps = seed.apps;
+        apps.sort_by(|left, right| {
+            right
+                .priority
+                .cmp(&left.priority)
+                .then_with(|| left.pattern.cmp(&right.pattern))
+        });
+
+        for rule in apps {
+            match rule.match_type.as_str() {
+                MATCH_EXE => {
+                    registry
+                        .exact
+                        .insert(rule.pattern.to_lowercase(), (rule.display_name, rule.category));
+                }
+                MATCH_TITLE_REGEX => registry.title_rules.push(TitleRule {
+                    regex: Regex::new(&rule.pattern).expect("a shipped pattern must compile"),
+                    display_name: rule.display_name,
+                    category: rule.category,
+                }),
+                other => panic!("unknown match_type `{other}` in the shipped registry"),
+            }
+        }
+        registry
+    }
+
+    /// A class poll is a site, not "Google Chrome" for forty minutes.
+    ///
+    /// Poll Everywhere puts its own name in the tab on the presenter side and a bare
+    /// `pollev.com/<presenter>` on the responder side, which is the one a student sees —
+    /// so the short host has to match on its own, without the full domain being spelled.
+    #[test]
+    fn poll_everywhere_is_recognised_however_it_is_written() {
+        let registry = shipped();
+        for title in [
+            "Poll Everywhere",
+            "PollEverywhere",
+            "pollev.com/profsmith123",
+            "PollEv",
+            "Respond to PHYS 040A - Poll Everywhere",
+        ] {
+            let resolved = registry.resolve(&foreground("chrome.exe", Some(title)));
+            assert_eq!(
+                resolved.context.as_deref(),
+                Some("Poll Everywhere"),
+                "title {title:?} should have been read as the site"
+            );
+            assert_eq!(resolved.category, "Productivity");
+        }
+    }
+
+    /// Every seeded regex compiles, and the ones sharing a word do not shadow each other.
+    #[test]
+    fn the_shipped_registry_still_reads_the_sites_it_names() {
+        let registry = shipped();
+        for (title, site) in [
+            ("YouTube", "YouTube"),
+            ("Canvas", "Canvas"),
+            ("Kahoot!", "Kahoot"),
+            ("Gradescope", "Gradescope"),
+            ("MyLab Math", "Pearson"),
+            ("Pearson MyLab and Mastering", "Pearson"),
+            ("Ed Discussion", "Edstem"),
+            ("CS010C - edstem.org", "Edstem"),
+        ] {
+            let resolved = registry.resolve(&foreground("chrome.exe", Some(title)));
+            assert_eq!(
+                resolved.context.as_deref(),
+                Some(site),
+                "title {title:?} landed on the wrong site"
+            );
+        }
+    }
+
+    /// A Canvas instance that never says "Canvas" in a window title.
+    ///
+    /// Only the title is visible — `kCGWindowName` is the page title and the URL is not in
+    /// it — so a school whose Canvas lives at its own host is invisible to a rule written
+    /// against the host. What *is* in the title is the course Canvas appends after a colon:
+    /// `... .pdf: PHYS_040A_001_26F - GENERAL PHYSICS`. The SIS code is the signal, and it
+    /// is specific enough to be safe: nothing else puts `LETTERS_NNNN_NNN_NNL` in a title.
+    ///
+    /// The priority is 250 rather than 200 because inside one tier the pattern string
+    /// breaks the tie alphabetically, and `[a-z0-9-]+\.edu` sorts ahead of every
+    /// `\b`-anchored pattern — at 200 this would silently resolve to "School site".
+    #[test]
+    fn a_schools_own_canvas_is_read_from_the_course_it_names() {
+        let registry = shipped();
+        for title in [
+            "PHYS 40A Lec 1 QL.pdf: PHYS_040A_001_26F - GENERAL PHYSICS",
+            "Modules: CS_010C_001_26F - INTRO TO DATA STRUCTURES",
+            "Dashboard | elearn.ucr.edu",
+        ] {
+            let resolved = registry.resolve(&foreground("chrome.exe", Some(title)));
+            assert_eq!(
+                resolved.context.as_deref(),
+                Some("Canvas"),
+                "title {title:?} should have been read as Canvas"
+            );
+            assert_eq!(resolved.category, "Productivity");
+        }
+    }
+
+    /// The whole point of asking the browser: a page that never says what site it is on.
+    ///
+    /// This title matches nothing in the registry — no "canvas", no "elearn", not even one
+    /// of the coursework words. The host is the only thing that identifies it.
+    #[test]
+    fn a_host_names_a_site_the_title_never_mentions() {
+        let resolved = shipped().resolve(&on_host(
+            "com.google.Chrome",
+            Some("PHYS 40A Lec 1 QL.pdf"),
+            "elearn.ucr.edu",
+        ));
+        assert_eq!(resolved.context.as_deref(), Some("Canvas"));
+        assert_eq!(resolved.category, "Productivity");
+        assert_eq!(resolved.display_name, "Google Chrome");
+    }
+
+    /// A host is what a page *is*; a title is what it calls itself. Fact outranks claim,
+    /// whatever the two rules' priorities happen to be.
+    #[test]
+    fn the_host_wins_over_a_title_that_says_otherwise() {
+        let resolved = shipped().resolve(&on_host(
+            "com.google.Chrome",
+            Some("canvas painting for beginners"),
+            "youtube.com",
+        ));
+        assert_eq!(resolved.context.as_deref(), Some("YouTube"));
+        assert_eq!(resolved.category, "Free Time");
+    }
+
+    /// A private window's address is exactly as private as its title.
+    #[test]
+    fn a_redacted_window_is_never_asked_what_site_it_is_on() {
+        let registry = registry();
+        let resolved = registry.resolve(&on_host(
+            "chrome.exe",
+            Some("Incognito - Google"),
+            "youtube.com",
+        ));
+        assert!(registry.is_redacted(&on_host(
+            "chrome.exe",
+            Some("Incognito - Google"),
+            "youtube.com"
+        )));
+        assert_eq!(resolved.context, None);
+    }
+
+    /// Seeded site rules have to recognise a host, not only a word in a title.
+    #[test]
+    fn the_shipped_rules_read_hosts_too() {
+        let registry = shipped();
+        for (host, site) in [
+            ("pollev.com", "Poll Everywhere"),
+            ("edstem.org", "Edstem"),
+            ("mathxl.com", "Pearson"),
+            ("ucr.instructure.com", "Canvas"),
+            ("gradescope.com", "Gradescope"),
+        ] {
+            let resolved = registry.resolve(&on_host("com.google.Chrome", None, host));
+            assert_eq!(
+                resolved.context.as_deref(),
+                Some(site),
+                "host {host:?} landed on the wrong site"
+            );
+        }
+    }
+
+    /// The course-code pattern must not swallow an ordinary file name.
+    #[test]
+    fn a_plain_download_is_not_a_course() {
+        let resolved = shipped().resolve(&foreground(
+            "chrome.exe",
+            Some("IMG_2024_001.heic — Preview"),
+        ));
         assert_eq!(resolved.context, None);
     }
 
