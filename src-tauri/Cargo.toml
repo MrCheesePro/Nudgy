@@ -1,6 +1,6 @@
 [package]
 name = "nudgy"
-version = "0.3.0"
+version = "0.4.0"
 description = "Productivity and activity daemon"
 authors = ["Joshua Yamamoto-Kim"]
 edition = "2021"
