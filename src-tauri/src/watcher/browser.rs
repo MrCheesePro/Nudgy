@@ -23,6 +23,7 @@
 /// An unlisted browser returns `None` and keeps the title-matching path, which is also what
 /// happens when the answer is refused — a site label is a nicety, not something worth
 /// falling over.
+#[cfg(any(target_os = "macos", test))]
 pub fn script_for(bundle_id: &str) -> Option<String> {
     let id = bundle_id.to_lowercase();
 
