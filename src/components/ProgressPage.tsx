@@ -13,15 +13,22 @@ import {
 } from "recharts";
 
 import { RANGES, useProgress, type Range } from "../hooks/useProgress";
-import { HabitDialog } from "./HabitDialog";
-import { HabitGrid } from "./HabitGrid";
-import { HabitStrip } from "./HabitStrip";
-import { TargetsPanel } from "./TargetsPanel";
+import { CommitmentGrid } from "./CommitmentGrid";
+import { CommitmentStrip } from "./CommitmentStrip";
+import { CommitmentsDialog } from "./CommitmentsDialog";
 import { useHabits } from "../hooks/useHabits";
 import { categoryColor } from "../lib/categories";
 import { usePref } from "../lib/prefs";
 import { formatDuration } from "../lib/time";
-import { categoriesInSeries, IDLE, secondsOn } from "../services/progress";
+import {
+  fromHabit,
+  fromTarget,
+  ledgerOf,
+  perfectStreak,
+  streakFor,
+  type Commitment,
+} from "../services/commitments";
+import { categoriesInSeries, IDLE, secondsOn, type StreakState } from "../services/progress";
 
 /**
  * Whether it is actually getting better.
@@ -53,12 +60,12 @@ type Ceiling = (typeof CEILINGS)[number];
  * data changes.
  */
 /** How the days are drawn. */
-type Mode = "bars" | "lines" | "habits";
+type Mode = "bars" | "lines" | "commitments";
 
 const MODES: [Mode, string][] = [
   ["bars", "Bars"],
   ["lines", "Lines"],
-  ["habits", "Habits"],
+  ["commitments", "Kept"],
 ];
 
 export const ProgressPage = memo(function ProgressPage() {
@@ -67,9 +74,39 @@ export const ProgressPage = memo(function ProgressPage() {
   const [range, setRange] = usePref<Range>("progress.range", 7);
   const [mode, setMode] = usePref<Mode>("progress.mode", "bars");
   const [ceiling, setCeiling] = usePref<Ceiling>("progress.ceiling", 12);
-  const { series, targets, error, loading } = useProgress(range);
+  const { series, full, targets, error, loading, saveTarget, removeTarget } =
+    useProgress(range);
   const habits = useHabits();
-  const [habitsOpen, setHabitsOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  /** The row the dialog was opened on, so a measured chip can be clicked to edit it. */
+  const [managing, setManaging] = useState<Commitment | null>(null);
+
+  /*
+   * The two kinds, read as one list.
+   *
+   * Habits first because they are the ones you act on here — a tick is a click, and a
+   * target moves only when the watcher says so. `full` rather than `series` is what the
+   * ledger is built on: the chart shows a week but a streak should not be capped by it.
+   */
+  const commitments = useMemo<Commitment[]>(
+    () => [...habits.live.map(fromHabit), ...targets.map(fromTarget)],
+    [habits.live, targets],
+  );
+  const ledger = useMemo(() => ledgerOf(full, habits.ticks), [full, habits.ticks]);
+
+  const streaks = useMemo(
+    () =>
+      Object.fromEntries(
+        commitments.map((commitment) => [commitment.key, streakFor(commitment, ledger)]),
+      ) as Record<string, StreakState>,
+    [commitments, ledger],
+  );
+  const perfect = useMemo(() => perfectStreak(commitments, ledger), [commitments, ledger]);
+
+  const openManage = (commitment?: Commitment) => {
+    setManaging(commitment ?? null);
+    setManageOpen(true);
+  };
 
   // Idle is tracked and worth seeing on the Overview, but a month of stacked bars is
   // dominated by it — the question here is what the *active* hours were spent on.
@@ -141,12 +178,14 @@ export const ProgressPage = memo(function ProgressPage() {
       <section className="flex min-h-[22rem] flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
         <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
-            {mode === "habits" ? `Habits, last ${range} days` : `Last ${range} days`}
+            {mode === "commitments"
+              ? `What you kept, last ${range} days`
+              : `Last ${range} days`}
           </h2>
           <div className="flex items-center gap-2">
             <span className="mr-1 font-mono text-xs tabular-nums text-ink-mute">
-              {mode === "habits"
-                ? `${habits.perfect.days} perfect ${habits.perfect.days === 1 ? "day" : "days"}`
+              {mode === "commitments"
+                ? `${perfect.days} perfect ${perfect.days === 1 ? "day" : "days"}`
                 : `${formatDuration(tracked)} active`}
             </span>
             {RANGES.map((option) => (
@@ -164,7 +203,7 @@ export const ProgressPage = memo(function ProgressPage() {
               </button>
             ))}
             {/* Only the hours views have an hours axis. */}
-            {mode !== "habits" && (
+            {mode !== "commitments" && (
             <select
               value={ceiling ?? "fit"}
               onChange={(event) =>
@@ -205,12 +244,12 @@ export const ProgressPage = memo(function ProgressPage() {
           </div>
         </div>
 
-        {mode === "habits" ? (
+        {mode === "commitments" ? (
           <div className="mt-5 flex min-h-0 flex-1 flex-col">
-            <HabitGrid
-              habits={habits.live}
-              ticks={habits.ticks}
-              streaks={habits.streaks}
+            <CommitmentGrid
+              commitments={commitments}
+              ledger={ledger}
+              streaks={streaks}
               days={range}
             />
           </div>
@@ -320,33 +359,38 @@ export const ProgressPage = memo(function ProgressPage() {
         )}
       </section>
 
-      {/* The habits themselves, under the chart that draws them. Moved here from Today:
-          the daily tick is a small act, but *whether you are keeping it up* is a progress
-          question, and this is the page that asks those. */}
+      {/* Today's row, under the chart that draws its history. Both kinds together: they
+          are the same question asked of the same day, and two panels with two flame
+          columns made them look like two subjects. */}
       <div className="shrink-0">
-        <HabitStrip
-          habits={habits.live}
-          ticks={habits.ticks}
-          streaks={habits.streaks}
-          perfect={habits.perfect}
-          onToggle={(habit) => void habits.toggle(habit)}
-          onManage={() => setHabitsOpen(true)}
+        <CommitmentStrip
+          commitments={commitments}
+          ledger={ledger}
+          streaks={streaks}
+          perfect={perfect}
+          onTick={(commitment) =>
+            commitment.kind === "declared" && void habits.toggle(commitment.habit)
+          }
+          onManage={openManage}
         />
       </div>
 
-      <div className="shrink-0">
-        <TargetsPanel />
-      </div>
-
-      <HabitDialog
-        open={habitsOpen}
-        onClose={() => setHabitsOpen(false)}
+      <CommitmentsDialog
+        open={manageOpen}
+        onClose={() => {
+          setManageOpen(false);
+          setManaging(null);
+        }}
+        initial={managing}
         habits={habits.habits}
-        streaks={habits.streaks}
-        onAdd={habits.add}
-        onEdit={habits.edit}
-        onArchive={habits.setArchived}
-        onDelete={habits.remove}
+        targets={targets}
+        streaks={streaks}
+        onAddHabit={habits.add}
+        onEditHabit={habits.edit}
+        onArchiveHabit={habits.setArchived}
+        onDeleteHabit={habits.remove}
+        onSaveTarget={saveTarget}
+        onRemoveTarget={removeTarget}
       />
     </>
   );

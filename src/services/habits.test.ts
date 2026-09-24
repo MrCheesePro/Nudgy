@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dueOn, habitStreak, perfectDayStreak, remainingToday, type Habit } from "./habits";
+import { dueOn, habitStreak, remainingToday, type Habit } from "./habits";
 
 /** A Wednesday, so weekday rules have somewhere unambiguous to stand. */
 const WEDNESDAY = new Date(2026, 8, 23, 12, 0, 0);
@@ -79,64 +79,6 @@ describe("dueOn", () => {
     expect(dueOn(gym, new Date(2026, 8, 21, 12))).toBe(false);
     expect(dueOn(gym, new Date(2026, 8, 22, 12))).toBe(true);
     expect(dueOn(gym, new Date(2026, 8, 23, 12))).toBe(false);
-  });
-});
-
-describe("perfectDayStreak", () => {
-  const journal = habit({ id: 1 });
-  const gym = habit({ id: 2, name: "Gym", weekdays: [1, 3, 5] });
-
-  it("counts a day where everything due was done", () => {
-    const streak = perfectDayStreak(
-      [journal, gym],
-      {
-        1: days("2026-09-23", "2026-09-22"),
-        2: days("2026-09-23", "2026-09-21"),
-      },
-      WEDNESDAY,
-    );
-    // Wednesday: both due, both done. Tuesday: only the journal is due, and it was done.
-    expect(streak).toEqual({ days: 2, lit: true });
-  });
-
-  it("ends at a day where one of them was missed", () => {
-    const streak = perfectDayStreak(
-      [journal, gym],
-      { 1: days("2026-09-23"), 2: days("2026-09-23") },
-      WEDNESDAY,
-    );
-    // The journal was missed on the 22nd.
-    expect(streak.days).toBe(1);
-  });
-
-  /**
-   * The check that stops history being rewritten: a habit added this morning must not
-   * reach back and spoil a day that was perfect at the time.
-   */
-  it("does not let a new habit spoil yesterday", () => {
-    const fresh = habit({ id: 3, name: "Stretch", createdDay: "2026-09-23" });
-    const streak = perfectDayStreak(
-      [journal, fresh],
-      { 1: days("2026-09-23", "2026-09-22", "2026-09-21"), 3: days("2026-09-23") },
-      WEDNESDAY,
-    );
-    expect(streak.days).toBe(3);
-  });
-
-  // A day you owed nothing is not an achievement — one Sunday habit must not bank a week.
-  it("skips a day with nothing due rather than counting it", () => {
-    const sunday = habit({ id: 4, name: "Call home", weekdays: [0] });
-    const streak = perfectDayStreak([sunday], { 4: days("2026-09-20") }, WEDNESDAY);
-    expect(streak).toEqual({ days: 1, lit: false });
-  });
-
-  it("is zero with no habits at all", () => {
-    expect(perfectDayStreak([], {}, WEDNESDAY)).toEqual({ days: 0, lit: false });
-  });
-
-  it("holds while today is still unfinished", () => {
-    const streak = perfectDayStreak([journal], { 1: days("2026-09-22", "2026-09-21") }, WEDNESDAY);
-    expect(streak).toEqual({ days: 2, lit: false });
   });
 });
 

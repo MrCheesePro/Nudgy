@@ -95,54 +95,10 @@ export function habitStreak(
 }
 
 /**
- * The run of days on which everything due was done.
- *
- * "All completed", as asked for. A day counts when **every habit that was due that day and
- * already existed** was ticked. The existence check is load-bearing: adding a habit this
- * morning must not reach back and spoil yesterday, which was perfect at the time and has
- * not changed since.
- *
- * A day with nothing due is skipped rather than counted. A day you owed nothing is not an
- * achievement, and counting it would let somebody with one Sunday habit run up a streak by
- * doing nothing all week.
+ * The whole-day run — "everything due was done" — lives in
+ * [commitments.ts](./commitments.ts), because it now has to cover targets as well as
+ * habits and a day is only perfect if *both* kinds were kept.
  */
-export function perfectDayStreak(
-  habits: Habit[],
-  ticks: Ticks,
-  today = new Date(),
-): StreakState {
-  const cursor = new Date(today);
-  cursor.setHours(0, 0, 0, 0);
-
-  const earliest = habits.reduce<string | null>(
-    (oldest, habit) => (oldest === null || habit.createdDay < oldest ? habit.createdDay : oldest),
-    null,
-  );
-  if (earliest === null) return { days: 0, lit: false };
-
-  let days = 0;
-  let lit = false;
-
-  for (let step = 0; step < MAX_WALK_DAYS; step += 1) {
-    const key = dayKey(cursor);
-    if (key < earliest) break;
-
-    const due = habits.filter((habit) => dueOn(habit, cursor));
-    if (due.length > 0) {
-      const all = due.every((habit) => ticks[habit.id]?.has(key) ?? false);
-      if (all) {
-        days += 1;
-        if (step === 0) lit = true;
-      } else if (step > 0) {
-        break;
-      }
-    }
-
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return { days, lit };
-}
 
 /** Everything due today that is not yet ticked — what the strip is really asking about. */
 export function remainingToday(habits: Habit[], ticks: Ticks, today = new Date()): Habit[] {

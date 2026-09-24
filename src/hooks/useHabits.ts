@@ -9,13 +9,7 @@ import {
   updateHabit,
 } from "../lib/ipc";
 import { dayKey } from "../services/progress";
-import {
-  habitStreak,
-  perfectDayStreak,
-  type Habit,
-  type Ticks,
-} from "../services/habits";
-import type { StreakState } from "../services/progress";
+import type { Habit, Ticks } from "../services/habits";
 
 /**
  * The habits, their history, and what that adds up to.
@@ -118,27 +112,18 @@ export function useHabits() {
     [habits],
   );
 
-  /** Per-habit runs, keyed by id, so the strip does no arithmetic of its own. */
-  const streaks = useMemo(
-    () =>
-      Object.fromEntries(
-        live.map((habit) => [
-          habit.id,
-          habitStreak(ticks[habit.id] ?? new Set(), habit.weekdays, habit.createdDay),
-        ]),
-      ) as Record<number, StreakState>,
-    [live, ticks],
-  );
-
-  /** Days on which everything due was done — the "all completed" run. */
-  const perfect = useMemo(() => perfectDayStreak(live, ticks), [live, ticks]);
+  /*
+   * No streaks here.
+   *
+   * A run is now computed over *commitments* rather than habits, because a perfect day has
+   * to account for targets too — see `perfectStreak` in
+   * [commitments.ts](../services/commitments.ts). This hook is the store and nothing else.
+   */
 
   return {
     habits,
     live,
     ticks,
-    streaks,
-    perfect,
     toggle,
     add,
     edit,
