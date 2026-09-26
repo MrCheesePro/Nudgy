@@ -28,6 +28,7 @@ import {
   streakFor,
   type Commitment,
 } from "../services/commitments";
+import { runByDay } from "../services/habits";
 import { categoriesInSeries, IDLE, secondsOn, type StreakState } from "../services/progress";
 
 /**
@@ -115,19 +116,53 @@ export const ProgressPage = memo(function ProgressPage() {
     [series],
   );
 
+  /*
+   * Each live habit as a line of its running streak, on its own axis. A habit has no
+   * hours — it is ticked, not measured — so the line is the run as it stood each day:
+   * climbing while it is kept, back to zero the day after a miss.
+   */
+  const habitLines = useMemo(() => {
+    const days = series.map((entry) => entry.day);
+    return habits.live.map((habit, position) => ({
+      key: `habit:${habit.id}`,
+      name: habit.name,
+      color: HABIT_COLORS[position % HABIT_COLORS.length],
+      values: runByDay(habit, habits.ticks[habit.id] ?? new Set<string>(), days),
+    }));
+  }, [series, habits.live, habits.ticks]);
+
   const chartData = useMemo(
     () =>
-      series.map((entry) => ({
+      series.map((entry, position) => ({
         label: shortDay(entry.day),
         day: entry.day,
         ...Object.fromEntries(
           categories.map((category) => [category, secondsOn(entry, category) / 3600]),
         ),
+        ...Object.fromEntries(habitLines.map((line) => [line.key, line.values[position]])),
       })),
-    [series, categories],
+    [series, categories, habitLines],
   );
 
   const tracked = series.reduce((sum, entry) => sum + entry.activeSeconds, 0);
+
+  /*
+   * Lines draws only what you have committed to — every target's category and every
+   * habit. With nothing committed yet there is nothing to single out, so it falls back to
+   * every category rather than drawing an empty chart.
+   */
+  const lineCategories =
+    commitments.length > 0 ? targets.map((target) => target.category) : categories;
+  const trackingLabel =
+    commitments.length === 0
+      ? "Tracking: every category"
+      : `Tracking: ${[
+          ...targets.map(
+            (target) =>
+              `${target.category} ${target.direction === "at_least" ? "≥" : "≤"} ${formatDuration(target.secondsPerDay)}`,
+          ),
+          ...habitLines.map((line) => line.name),
+        ].join(", ")}`;
 
   /** The tallest stack in view, so `Fit` has something to fit to. */
   const busiestHours = useMemo(
@@ -183,10 +218,15 @@ export const ProgressPage = memo(function ProgressPage() {
               : `Last ${range} days`}
           </h2>
           <div className="flex items-center gap-2">
-            <span className="mr-1 font-mono text-xs tabular-nums text-ink-mute">
+            <span
+              title={mode === "lines" ? trackingLabel : undefined}
+              className="mr-1 max-w-[28rem] truncate font-mono text-xs tabular-nums text-ink-mute"
+            >
               {mode === "commitments"
                 ? `${perfect.days} perfect ${perfect.days === 1 ? "day" : "days"}`
-                : `${formatDuration(tracked)} active`}
+                : mode === "lines"
+                  ? trackingLabel
+                  : `${formatDuration(tracked)} total`}
             </span>
             {RANGES.map((option) => (
               <button
@@ -300,9 +340,15 @@ export const ProgressPage = memo(function ProgressPage() {
                 </BarChart>
               ) : (
                 <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
-                  <CartesianGrid vertical={false} stroke="currentColor" className="text-edge" />
+                  <CartesianGrid
+                    yAxisId="hours"
+                    vertical={false}
+                    stroke="currentColor"
+                    className="text-edge"
+                  />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="var(--text-tiny)" />
                   <YAxis
+                    yAxisId="hours"
                     domain={[0, top]}
                     ticks={ticks}
                     interval={0}
@@ -312,28 +358,57 @@ export const ProgressPage = memo(function ProgressPage() {
                     width={34}
                     tickFormatter={(value: number) => `${value}h`}
                   />
+                  {/* Streaks are days, not hours, so they get their own scale on the right —
+                      at least a week tall, so a two-day run does not fill the chart. */}
+                  {habitLines.length > 0 && (
+                    <YAxis
+                      yAxisId="streak"
+                      orientation="right"
+                      allowDecimals={false}
+                      domain={[0, (most: number) => Math.max(7, most)]}
+                      tickLine={false}
+                      axisLine={false}
+                      fontSize="var(--text-tiny)"
+                      width={30}
+                      tickFormatter={(value: number) => `${value}d`}
+                    />
+                  )}
                   <Tooltip content={<HoursTooltip />} isAnimationActive={false} />
                   {/* In line mode the targets are the point, so each one gets a rule it
                       can be read against. */}
                   {targets.map((target) => (
                     <ReferenceLine
                       key={`rule-${target.category}`}
+                      yAxisId="hours"
                       y={target.secondsPerDay / 3600}
                       stroke={categoryColor(target.category)}
                       strokeDasharray="4 4"
                       strokeOpacity={0.7}
                     />
                   ))}
-                  {(targets.length > 0
-                    ? targets.map((target) => target.category)
-                    : categories
-                  ).map((category) => (
+                  {lineCategories.map((category) => (
                     <Line
                       key={category}
+                      yAxisId="hours"
                       type="monotone"
                       dataKey={category}
                       stroke={categoryColor(category)}
                       strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                  {/* Stepped, because a streak moves a whole day at a time. */}
+                  {habitLines.map((line) => (
+                    <Line
+                      key={line.key}
+                      yAxisId="streak"
+                      type="stepAfter"
+                      dataKey={line.key}
+                      name={line.name}
+                      stroke={line.color}
+                      strokeWidth={2}
+                      strokeDasharray="6 3"
                       dot={false}
                       isAnimationActive={false}
                     />
@@ -344,9 +419,10 @@ export const ProgressPage = memo(function ProgressPage() {
           </div>
         )}
 
-        {categories.length > 0 && (
+        {/* What is drawn, and nothing else: in Lines that is the commitments. */}
+        {mode !== "commitments" && categories.length > 0 && (
           <ul className="mt-4 flex shrink-0 flex-wrap gap-x-4 gap-y-1.5">
-            {categories.map((category) => (
+            {(mode === "lines" ? lineCategories : categories).map((category) => (
               <li key={category} className="flex items-center gap-1.5 text-mini text-ink-soft">
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
@@ -355,6 +431,17 @@ export const ProgressPage = memo(function ProgressPage() {
                 {category}
               </li>
             ))}
+            {mode === "lines" &&
+              habitLines.map((line) => (
+                <li key={line.key} className="flex items-center gap-1.5 text-mini text-ink-soft">
+                  <span
+                    className="h-0.5 w-3 shrink-0 rounded-full"
+                    style={{ background: line.color }}
+                  />
+                  {line.name}
+                  <span className="text-ink-mute">streak</span>
+                </li>
+              ))}
           </ul>
         )}
       </section>
@@ -407,7 +494,13 @@ interface TooltipEntry {
   name?: string;
   value?: number;
   color?: string;
+  dataKey?: string | number;
 }
+
+/** Habits have no category colour of their own, so their lines take one of these. */
+const HABIT_COLORS = ["var(--color-rose-deep)", "#7c6fd6", "#3a9e96", "#d49a2e", "#5b8def"];
+
+const isStreak = (entry: TooltipEntry) => String(entry.dataKey ?? "").startsWith("habit:");
 
 function HoursTooltip({
   active,
@@ -423,15 +516,20 @@ function HoursTooltip({
   if (rows.length === 0) return null;
 
   // The stack's own height, which the segments make you add up in your head otherwise.
-  const total = rows.reduce((sum, entry) => sum + (entry.value ?? 0), 0);
+  // Streaks are days, not hours, and stay out of it.
+  const total = rows
+    .filter((entry) => !isStreak(entry))
+    .reduce((sum, entry) => sum + (entry.value ?? 0), 0);
 
   return (
     <div className="rounded-xl border border-edge bg-surface px-3 py-2 shadow-lg">
       <div className="flex items-baseline justify-between gap-4">
         <span className="text-mini font-semibold text-ink">{label}</span>
-        <span className="font-mono text-mini tabular-nums text-ink-soft">
-          {formatDuration(total * 3600)}
-        </span>
+        {total > 0 && (
+          <span className="font-mono text-mini tabular-nums text-ink-soft">
+            {formatDuration(total * 3600)}
+          </span>
+        )}
       </div>
       <ul className="mt-1 space-y-0.5">
         {rows.map((entry) => (
@@ -442,7 +540,9 @@ function HoursTooltip({
             />
             <span className="text-ink-soft">{entry.name}</span>
             <span className="ml-auto font-mono tabular-nums text-ink-mute">
-              {formatDuration((entry.value ?? 0) * 3600)}
+              {isStreak(entry)
+                ? `${entry.value}d streak`
+                : formatDuration((entry.value ?? 0) * 3600)}
             </span>
           </li>
         ))}

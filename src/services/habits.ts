@@ -95,6 +95,27 @@ export function habitStreak(
 }
 
 /**
+ * The run as it stood at the end of each of `days` (`YYYY-MM-DD`, local) — the habit's
+ * line on the Lines chart. `habitStreak` holds an unticked *today* open, and that is right
+ * for today; a past due day left unticked was missed, so there the line drops to zero.
+ */
+export function runByDay(
+  habit: Habit,
+  done: Set<string>,
+  days: string[],
+  today = new Date(),
+): number[] {
+  const todayKey = dayKey(today);
+  return days.map((key) => {
+    if (key < habit.createdDay) return 0;
+    const [year, month, day] = key.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    if (key < todayKey && isDue(habit.weekdays, date) && !done.has(key)) return 0;
+    return habitStreak(done, habit.weekdays, habit.createdDay, date).days;
+  });
+}
+
+/**
  * The whole-day run — "everything due was done" — lives in
  * [commitments.ts](./commitments.ts), because it now has to cover targets as well as
  * habits and a day is only perfect if *both* kinds were kept.

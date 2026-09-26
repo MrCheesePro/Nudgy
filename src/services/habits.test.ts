@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dueOn, habitStreak, remainingToday, type Habit } from "./habits";
+import { dueOn, habitStreak, remainingToday, runByDay, type Habit } from "./habits";
 
 /** A Wednesday, so weekday rules have somewhere unambiguous to stand. */
 const WEDNESDAY = new Date(2026, 8, 23, 12, 0, 0);
@@ -90,5 +90,33 @@ describe("remainingToday", () => {
 
     const left = remainingToday([journal, gym, sunday], { 2: days("2026-09-23") }, WEDNESDAY);
     expect(left.map((entry) => entry.name)).toEqual(["Journal"]);
+  });
+});
+
+describe("runByDay", () => {
+  const habit: Habit = {
+    id: 1,
+    name: "Gym",
+    weekdays: [],
+    createdDay: "2020-01-01",
+    archivedDay: null,
+  };
+  const days = ["2019-12-31", "2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"];
+
+  it("climbs on ticked days and drops to zero on a missed one", () => {
+    const done = new Set(["2020-01-01", "2020-01-02", "2020-01-04"]);
+    expect(runByDay(habit, done, days, new Date(2020, 0, 10))).toEqual([0, 1, 2, 0, 1]);
+  });
+
+  it("holds today open rather than calling it missed", () => {
+    const done = new Set(["2020-01-01", "2020-01-02", "2020-01-03"]);
+    expect(runByDay(habit, done, days, new Date(2020, 0, 4))).toEqual([0, 1, 2, 3, 3]);
+  });
+
+  it("skips a day the habit was not due", () => {
+    // 2020-01-03 was a Friday; weekdays only Wed and Thu.
+    const weekly: Habit = { ...habit, weekdays: [3, 4] };
+    const done = new Set(["2020-01-01", "2020-01-02"]);
+    expect(runByDay(weekly, done, days, new Date(2020, 0, 10))).toEqual([0, 1, 2, 2, 2]);
   });
 });
