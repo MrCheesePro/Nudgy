@@ -307,7 +307,7 @@ export function PlanAssignmentDialog({
           </button>
         </div>
 
-        <div className="mt-6">
+        <div data-tour="plan-how" className="mt-6">
           <span className="text-xs font-medium text-ink-soft">How do you want to work?</span>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <ModeCard
@@ -545,7 +545,7 @@ export function PlanAssignmentDialog({
           </p>
         )}
 
-        <div className="mt-5 rounded-xl border border-edge bg-canvas p-3">
+        <div data-tour="plan-proposed" className="mt-5 rounded-xl border border-edge bg-canvas p-3">
           <div className="flex items-baseline justify-between">
             <span className="text-xs font-medium text-ink-soft">Proposed</span>
             <span className="text-xs text-ink-mute">
@@ -583,7 +583,7 @@ export function PlanAssignmentDialog({
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <div data-tour="plan-confirm" className="mt-6 flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}

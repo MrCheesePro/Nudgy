@@ -64,6 +64,7 @@ export function TopBar({
           watcher is actually running, which is the thing worth glancing at. */}
       <button
         type="button"
+        data-tour="tracking"
         onClick={onTogglePause}
         className="flex shrink-0 items-center gap-1.5 rounded-full border border-edge bg-surface px-3 py-1 text-mini font-medium text-ink-soft transition hover:border-edge-strong"
       >

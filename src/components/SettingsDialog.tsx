@@ -298,7 +298,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
         </div>
 
         <div className="mt-6 space-y-5">
-          <div>
+          <div data-tour="appearance">
             <span className="text-xs font-medium tracking-wide text-ink-soft">
               Size, panels and type
             </span>
@@ -426,7 +426,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
 
           </div>
 
-          <div className="border-t border-edge pt-5">
+          <div data-tour="colours" className="border-t border-edge pt-5">
             <span className="text-xs font-medium tracking-wide text-ink-soft">Colours</span>
             <ul className="mt-2.5 flex flex-wrap gap-2">
               {THEMES.map((entry) => (
@@ -510,6 +510,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
           </label>
 
           <SecretField
+            tour="feeds"
             label={`Your ${LMS_LABELS[form.lmsProvider].name} calendar URL`}
             stored={lmsFeedStored}
             value={lmsFeed}
@@ -831,15 +832,18 @@ function SecretField({
   value,
   onChange,
   onForget,
+  tour,
 }: {
   label: string;
   stored: boolean;
   value: string;
   onChange: (next: string) => void;
   onForget: () => void;
+  /** The guided tour's handle on this field. */
+  tour?: string;
 }) {
   return (
-    <label className="block">
+    <label data-tour={tour} className="block">
       <span className="flex items-center justify-between text-xs font-medium tracking-wide text-ink-soft">
         <span className="flex items-center gap-1.5">
           {label}

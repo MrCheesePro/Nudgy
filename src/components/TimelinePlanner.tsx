@@ -88,8 +88,11 @@ export function TimelinePlanner({
   };
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <section
+      data-tour="planner"
+      className="flex min-h-0 flex-1 flex-col rounded-2xl border border-edge bg-surface p-6"
+    >
+      <div data-tour="planner-actions" className="flex flex-wrap items-center gap-3">
         <h2 className="text-2xl font-semibold text-ink">Planner</h2>
         <button
           type="button"

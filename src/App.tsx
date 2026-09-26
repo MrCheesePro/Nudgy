@@ -19,6 +19,7 @@ import { SessionTimer } from "./components/SessionTimer";
 import { AppearanceBar } from "./components/AppearanceBar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { TimelinePlanner } from "./components/TimelinePlanner";
+import { DEMO_PLAN, DEMO_PLAN_DRAFT, Tour, type TourStep } from "./components/Tour";
 import { TopApps } from "./components/TopApps";
 import { UsageBreakdown } from "./components/UsageBreakdown";
 import { IconRail, type View } from "./components/shell/IconRail";
@@ -53,7 +54,7 @@ import {
 } from "./lib/chime";
 import { PanelRightOpen } from "lucide-react";
 
-import { readPref, usePref } from "./lib/prefs";
+import { clearPref, readPref, usePref } from "./lib/prefs";
 import { DEFAULT_THEME, SETTING_ACCENT, SETTING_THEME, applyAccent, applyTheme } from "./lib/theme";
 import {
   enable as enableAutostart,
@@ -69,6 +70,7 @@ import {
   SETTING_AUTOSTART_ASKED,
   SETTING_COMPLETED_CLEARED_AT,
   SETTING_NOTIFICATIONS,
+  SETTING_TOUR_SEEN,
   type Category,
   type Goal,
   type LmsTask,
@@ -120,6 +122,7 @@ export default function App() {
   const [view, setView] = useState<View>("overview");
   const [paused, setPausedState] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [planning, setPlanning] = useState<Plannable | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addEventOpen, setAddEventOpen] = useState(false);
@@ -193,6 +196,10 @@ export default function App() {
           })();
         }
         setNotifications(settings.get(SETTING_NOTIFICATIONS) !== "0");
+        // Shown once, on the first launch that has it. Closing it at any step counts as
+        // seen: somebody who pressed Esc on card two has decided, and the ? on the rail
+        // is where it lives after that.
+        if (settings.get(SETTING_TOUR_SEEN) !== "1") setTourOpen(true);
         const raw = settings.get(SETTING_COMPLETED_CLEARED_AT);
         const value = Number(raw);
         if (Number.isFinite(value) && value > 0) setClearedAt(value);
@@ -558,7 +565,12 @@ export default function App() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <IconRail view={view} onChange={setView} onOpenSettings={() => setSettingsOpen(true)} />
+        <IconRail
+          view={view}
+          onChange={setView}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenTour={() => setTourOpen(true)}
+        />
 
         {/* Everything from here in is content, and can be made translucent. The top bar
             above and the rail beside it are the app's frame and stay solid — a chrome you
@@ -599,6 +611,7 @@ export default function App() {
                 should not flicker when you move between views. */}
             <div
               key={view}
+              data-tour="page"
               // `min-h-0 flex-1` for every view, because this stands where the views
               // used to sit as direct children of `main`. A view whose panels claim the
               // viewport with `flex-1` — the progress graph does — collapses to its
@@ -610,7 +623,7 @@ export default function App() {
                 {/* The timer is always here. Driven by the block when one is running,
                     and a plain pomodoro you start by hand when none is — wanting to work
                     in twenty-five minute stretches does not depend on having planned. */}
-                <div className="flex shrink-0 items-stretch gap-5">
+                <div data-tour="status" className="flex shrink-0 items-stretch gap-5">
                   <div className="min-w-0 flex-1">
                     <LiveStatusHeader
                       status={status}
@@ -631,7 +644,10 @@ export default function App() {
                 {/* The grid takes whatever the header and the targets leave, and
                     "Where the time went" is the only thing inside it allowed to scroll —
                     it is the one panel whose length depends on how many apps you used. */}
-                <div className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[1.25fr_1fr]">
+                <div
+                  data-tour="breakdown"
+                  className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[1.25fr_1fr]"
+                >
                   <UsageBreakdown breakdown={breakdown} />
                   <TopApps apps={apps} streaks={streaks} />
                 </div>
@@ -701,6 +717,7 @@ export default function App() {
               // Still in the tree while folded, so `inert` is what stops the keyboard
               // tabbing into a column nobody can see.
               inert={sidebarHidden}
+              data-tour="sidebar"
               className={`flex shrink-0 overflow-hidden transition-[width] duration-200 ease-out ${
                 sidebarHidden ? "w-0" : "w-90"
               }`}
@@ -820,6 +837,26 @@ export default function App() {
       />
 
       <AppearanceBar open={scalingText} onClose={() => setScalingText(false)} />
+
+      <Tour
+        open={tourOpen}
+        onStep={(step: TourStep) => {
+          setSettingsOpen(step.settings === true);
+          if (step.view) setView(step.view);
+          if (step.sidebar) setSidebarHidden(false);
+          // Only ever closes the example — a plan somebody had open before the tour is
+          // theirs, and the first step does not throw it away.
+          setPlanning((current) =>
+            step.demoPlan ? DEMO_PLAN : current === DEMO_PLAN ? null : current,
+          );
+        }}
+        onClose={() => {
+          setTourOpen(false);
+          setPlanning((current) => (current === DEMO_PLAN ? null : current));
+          clearPref(DEMO_PLAN_DRAFT);
+          void setSetting(SETTING_TOUR_SEEN, "1").catch(() => undefined);
+        }}
+      />
     </div>
   );
 }

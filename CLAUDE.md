@@ -90,6 +90,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
 | `src/lib/theme.ts` | The presets, and a whole theme derived from one picked colour |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
+| `src/components/Tour.tsx` | First-launch guided tour: spotlights `data-tour` elements, replayed from the rail's ? |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
 `watcher/platform.rs`, which re-exports `foreground`, `idle_seconds`,

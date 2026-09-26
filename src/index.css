@@ -281,3 +281,35 @@ html {
     transparent 1px 7px
   );
 }
+
+/* The tour's spotlight and card glide to where the next step is, once it has stopped
+   moving. Transform rather than left/top so the move is composited, not laid out. */
+.tour-glide {
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 240ms ease-out;
+  will-change: transform, width, height;
+}
+
+.touring .page-enter > *,
+.touring .fade-in,
+.touring .page-flash {
+  animation: none !important;
+}
+
+.tour-copy {
+  animation: tour-copy 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes tour-copy {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

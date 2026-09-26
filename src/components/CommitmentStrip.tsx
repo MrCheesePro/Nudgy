@@ -151,6 +151,7 @@ export function CommitmentStrip({
         <button
           type="button"
           onClick={() => onManage()}
+          data-tour="commitments"
           title="Add or edit commitments"
           aria-label="Add or edit commitments"
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-edge text-ink-mute transition hover:border-edge-strong hover:text-ink ${

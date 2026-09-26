@@ -351,6 +351,8 @@ export const LMS_LABELS: Record<LmsProvider, { name: string; where: string }> = 
 
 /** Set once the first launch has decided about starting at login. */
 export const SETTING_AUTOSTART_ASKED = "autostart_initialised";
+/** "1" once the guided tour has been closed, at whatever step. */
+export const SETTING_TOUR_SEEN = "tour_seen";
 
 
 export interface PermissionStatus {

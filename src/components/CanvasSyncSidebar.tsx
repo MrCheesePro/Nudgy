@@ -196,7 +196,7 @@ export function CanvasSyncSidebar({
       </div>
 
       <div className="scroll-area min-h-0 flex-1 space-y-5 px-5 py-4">
-        <div className="flex items-center gap-3 rounded-xl bg-rose-wash p-3">
+        <div data-tour="sync-card" className="flex items-center gap-3 rounded-xl bg-rose-wash p-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface text-rose-deep">
             <Link2 size={15} />
           </span>
@@ -226,6 +226,7 @@ export function CanvasSyncSidebar({
         )}
 
         <Section
+          tour="coursework"
           title="Coursework"
           count={tasks.length}
           hint={tasks.length > 0 ? "upcoming" : undefined}
@@ -395,6 +396,7 @@ export function CanvasSyncSidebar({
         {/* Everything with an active plan is already listed under In progress, so this
             is the other half: intentions with nothing scheduled against them yet. */}
         <Section
+          tour="own-tasks"
           title="Inactive"
           count={inactiveGoals.length}
           open={open.inactive}
@@ -557,6 +559,7 @@ function Section({
   open,
   onToggle,
   action,
+  tour,
   children,
 }: {
   title: string;
@@ -567,10 +570,12 @@ function Section({
   onToggle: () => void;
   /** Shown beside the header, and only while the section is open. */
   action?: React.ReactNode;
+  /** The guided tour's handle on this section. */
+  tour?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section data-tour={tour}>
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
