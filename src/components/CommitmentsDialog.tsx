@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Archive, Check, Flame, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Archive, Check, Flame, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 
 import { ConfirmDialog } from "./ConfirmDialog";
 import { categoryColor, useAssignableCategories } from "../lib/categories";
@@ -46,7 +46,8 @@ type Kind = "declared" | "measured";
  * Archiving and deleting stay deliberately different, and only habits have both. Archiving
  * stops a habit being asked for and keeps every day it recorded — a month you kept
  * something up happened, whether or not you are still doing it. Deleting takes the history
- * with it, so it goes behind a confirmation that says so. A target has no history of its
+ * with it, so it lives inside the edit form rather than on the row, and goes behind a
+ * confirmation that says so. A target has no history of its
  * own to lose: the seconds belong to `activity_samples` and removing the target leaves
  * every one of them where it was.
  */
@@ -305,6 +306,19 @@ export function CommitmentsDialog({
           )}
 
           <div className="mt-2.5 flex items-center justify-end gap-2">
+            {editingHabit !== null && (
+              <button
+                type="button"
+                onClick={() =>
+                  setConfirming(habits.find((habit) => habit.id === editingHabit) ?? null)
+                }
+                title="Delete it and everything it recorded"
+                className="mr-auto flex items-center gap-1 text-mini text-ink-mute transition hover:text-bad"
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+            )}
             {editing && (
               <button
                 type="button"
@@ -368,12 +382,12 @@ export function CommitmentsDialog({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfirming(habit)}
-                  title="Delete it and everything it recorded"
-                  aria-label={`Delete ${habit.name}`}
-                  className="shrink-0 text-ink-mute transition hover:text-bad"
+                  onClick={() => loadHabit(habit)}
+                  title="Edit"
+                  aria-label={`Edit ${habit.name}`}
+                  className="shrink-0 text-ink-mute transition hover:text-ink-soft"
                 >
-                  <Trash2 size={13} />
+                  <Pencil size={13} />
                 </button>
               </li>
             );
@@ -463,8 +477,12 @@ export function CommitmentsDialog({
         confirmLabel="Delete it"
         onCancel={() => setConfirming(null)}
         onConfirm={() => {
-          if (confirming) void onDeleteHabit(confirming.id);
+          const doomed = confirming;
           setConfirming(null);
+          if (!doomed) return;
+          // The form was holding it, so it goes back to adding rather than editing nothing.
+          reset();
+          onDeleteHabit(doomed.id).catch((cause) => setError(String(cause)));
         }}
       />
     </div>
