@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Archive, Check, Flame, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -156,7 +157,9 @@ export function CommitmentsDialog({
   const live = habits.filter((habit) => habit.archivedDay === null);
   const archived = habits.filter((habit) => habit.archivedDay !== null);
 
-  return (
+  // Portalled to <body>: rendered inside a page, the dialog would sit under
+  // `.panels-see-through` and inherit its translucent surface (invariant 39).
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20 p-6">
       <div className="scroll-area max-h-full w-full max-w-md rounded-2xl border border-edge bg-surface p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
@@ -485,7 +488,8 @@ export function CommitmentsDialog({
           onDeleteHabit(doomed.id).catch((cause) => setError(String(cause)));
         }}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -10,7 +10,7 @@ pub const SOURCE_PASSIVE: &str = "passive";
 pub const SOURCE_RPC: &str = "rpc";
 
 /// Seconds of no input after which a tick counts as idle.
-pub const IDLE_THRESHOLD_SECONDS: u64 = 180;
+pub const IDLE_THRESHOLD_SECONDS: u64 = 900;
 
 /// How often the watcher samples system state.
 ///

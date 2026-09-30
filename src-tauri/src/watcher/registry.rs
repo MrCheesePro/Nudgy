@@ -597,6 +597,7 @@ mod tests {
             ("mathxl.com", "Pearson"),
             ("ucr.instructure.com", "Canvas"),
             ("gradescope.com", "Gradescope"),
+            ("learn.zybooks.com", "zyBooks"),
         ] {
             let resolved = registry.resolve(&on_host("com.google.Chrome", None, host));
             assert_eq!(

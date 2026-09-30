@@ -53,8 +53,8 @@ export const TOUR_STEPS: TourStep[] = [
   {
     target: "rail",
     view: "overview",
-    title: "Four pages",
-    body: "Today, Planner, Progress and the App registry. Everything else lives inside one of these.",
+    title: "Five pages",
+    body: "Today, Planner, Classes, Progress and the App registry. Everything else lives inside one of these.",
   },
   {
     target: "tracking",
@@ -120,6 +120,12 @@ export const TOUR_STEPS: TourStep[] = [
     view: "timeline",
     title: "The planner",
     body: "One day, top to bottom, where a block's height is its real length. Your calendar sits beside your plan, and the strip on top moves between days.",
+  },
+  {
+    target: "page",
+    view: "classes",
+    title: "Your classes",
+    body: "Every class from your coursework feed, with its grade, its grading breakdown and your notes. No Canvas token needed: copy a class's Grades page in Canvas and paste it here. Set a target and Nudgy works out the average you need on everything left. Your term GPA is at the top.",
   },
   {
     target: "commitments",

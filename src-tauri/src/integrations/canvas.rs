@@ -280,7 +280,9 @@ fn normalize_base_url(raw: &str) -> Result<String> {
     if trimmed.is_empty() {
         return Err(anyhow!("Canvas base URL is not set"));
     }
-    if !trimmed.starts_with("https://") && !trimmed.starts_with("http://") {
+    // HTTPS only: the API token rides on every request, and over plain http anyone on the
+    // same network could read it and act as you in Canvas.
+    if !trimmed.starts_with("https://") {
         return Err(anyhow!("Canvas base URL must start with https://"));
     }
     Ok(trimmed.to_string())
@@ -387,6 +389,7 @@ mod tests {
             "https://canvas.school.edu"
         );
         assert!(normalize_base_url("canvas.school.edu").is_err());
+        assert!(normalize_base_url("http://canvas.school.edu").is_err());
         assert!(normalize_base_url("   ").is_err());
     }
 

@@ -218,6 +218,8 @@ export interface CalendarEvent {
   location: string | null;
   /** Only when the feed carries one. Google's iCal export does not. */
   color: string | null;
+  /** The hand-added event this came from, so it can be edited. Null for a feed event. */
+  localId: number | null;
 }
 
 /**
@@ -258,6 +260,8 @@ export interface Goal {
   category?: string;
   /** When it is due, in epoch seconds. Null means no deadline, which is the default. */
   dueAt?: number | null;
+  /** When it was marked done by hand, in epoch seconds. Absent or null while it is open. */
+  completedAt?: number | null;
 }
 
 export interface Plan {
@@ -360,4 +364,53 @@ export interface PermissionStatus {
   screenRecording: boolean;
   /** False on platforms where these permissions do not exist. */
   applicable: boolean;
+}
+
+/** A class. `code` is the same string coursework carries in `courseCode`. */
+export interface Course {
+  id: number;
+  code: string;
+  name: string | null;
+  credits: number;
+  targetPercent: number | null;
+  notes: string | null;
+}
+
+export interface GradeCategory {
+  /** Zero for one not saved yet. */
+  id: number;
+  courseId: number;
+  name: string;
+  /** Percent of the final grade. */
+  weight: number;
+}
+
+export interface GradeItem {
+  id: number;
+  courseId: number;
+  categoryId: number | null;
+  title: string;
+  taskId: number | null;
+  /** Null until it is graded. */
+  score: number | null;
+  points: number | null;
+  source: "paste" | "manual";
+}
+
+export interface GradesSnapshot {
+  courses: Course[];
+  categories: GradeCategory[];
+  items: GradeItem[];
+}
+
+/** One announcement from a class's Canvas feed. Read fresh each time; never stored. */
+export interface Announcement {
+  title: string;
+  author: string | null;
+  /** Epoch seconds. */
+  postedAt: number | null;
+  /** Its page on Canvas. */
+  url: string | null;
+  /** Plain text, paragraphs kept. */
+  text: string;
 }

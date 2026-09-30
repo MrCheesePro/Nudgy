@@ -56,6 +56,10 @@ interface Props {
   onPlanGoal: (goal: Goal) => void;
   onDeletePlan: (id: number) => void;
   onRemoveGoal: (index: number) => void;
+  /** Marks a goal done by hand, or reopens it from Completed. */
+  onCompleteGoal: (index: number, done: boolean) => void;
+  /** Finishes an in-progress plan, exactly as "done" on the check-in does. */
+  onFinishPlan: (id: number) => void;
   onClearCompleted: () => void;
   /** Folds the column away; the caller renders the tab that brings it back. */
   onCollapse: () => void;
@@ -89,6 +93,8 @@ export function CanvasSyncSidebar({
   onPlanGoal,
   onDeletePlan,
   onRemoveGoal,
+  onCompleteGoal,
+  onFinishPlan,
   onClearCompleted,
   onCollapse,
 }: Props) {
@@ -151,6 +157,7 @@ export function CanvasSyncSidebar({
   const inactiveGoals = goals
     .map((goal, index) => ({ goal, index }))
     .filter(({ goal }) => {
+      if (goal.completedAt) return false;
       const state = stateForGoal(plans, goal);
       return state !== "Active" && state !== "Done";
     });
@@ -172,6 +179,16 @@ export function CanvasSyncSidebar({
         subtitle: formatDuration(entry.workedSeconds),
         finishedAt: entry.plan.completedAt,
         onUndo: null,
+      })),
+    ...goals
+      .map((goal, index) => ({ goal, index }))
+      .filter(({ goal }) => goal.completedAt)
+      .map(({ goal, index }) => ({
+        key: `goal-${index}-${goal.label}`,
+        title: goal.label,
+        subtitle: goal.category ?? null,
+        finishedAt: goal.completedAt ?? null,
+        onUndo: () => onCompleteGoal(index, false),
       })),
   ]
     .filter((entry) => (entry.finishedAt ?? 0) > clearedAt)
@@ -366,6 +383,19 @@ export function CanvasSyncSidebar({
                   className="cursor-pointer rounded-xl border border-edge p-3 transition hover:border-edge-strong hover:bg-canvas"
                 >
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label={`Mark ${entry.plan.title} done`}
+                      title="Mark done"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onFinishPlan(entry.plan.id);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      className="shrink-0 text-ink-mute transition hover:text-ok"
+                    >
+                      <Circle size={13} />
+                    </button>
                     <StateChip state="Active" />
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
                       {entry.plan.title}
@@ -429,8 +459,23 @@ export function CanvasSyncSidebar({
                       />
                     </div>
 
-                    <div className="mt-2 truncate text-xs font-semibold text-ink">
-                      {goal.label}
+                    <div className="mt-2 flex items-start gap-2">
+                      <button
+                        type="button"
+                        aria-label={`Mark ${goal.label} done`}
+                        title="Mark done"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onCompleteGoal(index, true);
+                        }}
+                        onKeyDown={(event) => event.stopPropagation()}
+                        className="mt-0.5 shrink-0 text-ink-mute transition hover:text-ok"
+                      >
+                        <Circle size={13} />
+                      </button>
+                      <div className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
+                        {goal.label}
+                      </div>
                     </div>
                     <div className="mt-0.5 text-mini text-ink-mute">
                       {goal.targetSeconds > 0

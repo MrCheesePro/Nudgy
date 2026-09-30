@@ -356,6 +356,13 @@ pub fn respond(conn: &Connection, response: &CheckinResponse) -> Result<PlanProg
             params![plan.id, now],
         )?;
 
+        // A plan for an assignment is that assignment's work, so finishing one finishes
+        // the other — otherwise "done" on the check-in left the coursework sitting in the
+        // list as if nothing had happened, and it never reached Completed.
+        if let Some(task_id) = plan.task_id {
+            crate::db::queries::set_task_completed(conn, task_id, true)?;
+        }
+
         // Sittings it never reached are work that is not going to happen, so they stop
         // being time the day is holding open. Blocks already behind us stay — they are
         // the record of the work that *did* happen, which is what invariant 12 protects.
@@ -405,6 +412,53 @@ pub fn respond(conn: &Connection, response: &CheckinResponse) -> Result<PlanProg
     plan.next_checkin_seconds = Some(next);
     plan.checkin_count += 1;
     progress(conn, &plan)
+}
+
+/// How close a new sitting must start to the end of the last one to be the same sitting.
+const CONTIGUOUS_SECONDS: i64 = 5 * 60;
+
+/// Puts the extra time from "needs longer" on the calendar.
+///
+/// Raising the estimate alone was not enough: the timer and the timeline both read the
+/// blocks, so when the original ones ran out the work stopped being shown as running while
+/// the plan itself stayed active. A one-sitting plan whose new time starts where its last
+/// block ends is **stretched** rather than given a second block, so the countdown carries
+/// on instead of restarting. Labels are renumbered afterwards, so `(2/2)` becomes `(2/3)`.
+pub fn extend_blocks(
+    conn: &Connection,
+    plan_id: i64,
+    blocks: &[crate::scheduler::ScheduleBlock],
+) -> Result<usize> {
+    let Some(plan) = load(conn, plan_id)? else {
+        return Err(anyhow::anyhow!("plan {plan_id} is not active"));
+    };
+    let tx = conn.unchecked_transaction()?;
+    let mut written = 0;
+
+    for block in blocks {
+        if block.end_ts <= block.start_ts {
+            continue;
+        }
+        if plan.mode == MODE_CONTINUOUS {
+            let stretched = tx.execute(
+                "UPDATE schedule_blocks
+                    SET end_ts = ?3, target_seconds = ?3 - start_ts
+                  WHERE id = (SELECT id FROM schedule_blocks
+                               WHERE plan_id = ?1 AND end_ts BETWEEN ?2 - ?4 AND ?2
+                               ORDER BY end_ts DESC LIMIT 1)",
+                params![plan_id, block.start_ts, block.end_ts, CONTIGUOUS_SECONDS],
+            )?;
+            if stretched > 0 {
+                written += 1;
+                continue;
+            }
+        }
+        written += crate::scheduler::append_day(&tx, &block.day, std::slice::from_ref(block), Some(plan_id))?;
+    }
+
+    renumber_sessions(&tx, plan_id)?;
+    tx.commit()?;
+    Ok(written)
 }
 
 /// Removes a plan and the blocks it put on the timeline. Detaching them instead would
@@ -566,6 +620,92 @@ mod tests {
     // Sittings that never happened are not a record of anything. Saying "done" at the
     // second of six takes the other four off the day — the time is free now, and a block
     // nothing will ever work on is a lie the calendar keeps telling.
+    fn block(start: i64, end: i64, label: &str) -> crate::scheduler::ScheduleBlock {
+        crate::scheduler::ScheduleBlock {
+            id: 0,
+            day: "2026-09-18".to_string(),
+            start_ts: start,
+            end_ts: end,
+            label: label.to_string(),
+            category: "Productivity".to_string(),
+            target_process: None,
+            target_seconds: Some(end - start),
+            verified_state: "pending".to_string(),
+            source: "manual".to_string(),
+            reminder_lead_seconds: None,
+            plan_id: None,
+        }
+    }
+
+    fn spans(conn: &Connection, id: i64) -> Vec<(i64, i64, String)> {
+        conn.prepare("SELECT start_ts, end_ts, label FROM schedule_blocks WHERE plan_id = ?1 ORDER BY start_ts")
+            .unwrap()
+            .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn needing_longer_in_one_sitting_stretches_the_sitting() {
+        let conn = memory_db();
+        let id = create(&conn, &Plan { mode: MODE_CONTINUOUS.to_string(), ..plan(1) }).unwrap();
+        crate::scheduler::append_day(&conn, "2026-09-18", &[block(0, 3_600, "Lab")], Some(id)).unwrap();
+
+        extend_blocks(&conn, id, &[block(3_600, 5_400, "Lab")]).unwrap();
+
+        assert_eq!(spans(&conn, id), vec![(0, 5_400, "Lab".to_string())]);
+    }
+
+    #[test]
+    fn needing_longer_in_sessions_adds_a_session_and_renumbers() {
+        let conn = memory_db();
+        let id = create(&conn, &plan(1)).unwrap();
+        crate::scheduler::append_day(
+            &conn,
+            "2026-09-18",
+            &[block(0, 1_500, "Lab (1/2)"), block(1_800, 3_300, "Lab (2/2)")],
+            Some(id),
+        )
+        .unwrap();
+
+        extend_blocks(&conn, id, &[block(3_600, 5_100, "Lab")]).unwrap();
+
+        let labels: Vec<String> = spans(&conn, id).into_iter().map(|(_, _, label)| label).collect();
+        assert_eq!(labels, vec!["Lab (1/3)", "Lab (2/3)", "Lab (3/3)"]);
+    }
+
+    #[test]
+    fn finishing_a_plan_for_an_assignment_completes_the_assignment() {
+        let conn = memory_db();
+        conn.execute(
+            "INSERT INTO tasks (id, provider, external_id, title) VALUES (7, 'canvas', 'a-7', 'Lab')",
+            [],
+        )
+        .unwrap();
+        let id = create(&conn, &Plan { task_id: Some(7), ..plan(2) }).unwrap();
+
+        respond(
+            &conn,
+            &CheckinResponse {
+                plan_id: id,
+                action: "done".to_string(),
+                extra_seconds: 0,
+            },
+        )
+        .unwrap();
+
+        let (completed, at): (i64, Option<i64>) = conn
+            .query_row(
+                "SELECT completed, completed_locally_at FROM tasks WHERE id = 7",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(completed, 1);
+        assert!(at.is_some());
+    }
+
     #[test]
     fn finishing_early_clears_the_sittings_it_never_reached() {
         let mut conn = memory_db();

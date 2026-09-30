@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, CircleCheckBig } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleCheckBig, ExternalLink } from "lucide-react";
 
 import { stripCourseCode } from "../../hooks/useCurrentWork";
 import { weekDaysAt } from "../../hooks/useSchedule";
 import { categoryColor } from "../../lib/categories";
+import { openUrl } from "@tauri-apps/plugin-opener";
+
 import { formatClock } from "../../lib/time";
 import {
   eventColor,
@@ -16,9 +18,20 @@ import {
   type VerificationResult,
 } from "../../lib/types";
 
+/** Something due at a moment — drawn as a line on its day, never as time taken. */
+export interface Deadline {
+  key: string;
+  title: string;
+  dueAt: number;
+  /** Where it lives on Canvas (or wherever it came from). None for your own tasks. */
+  url: string | null;
+}
+
 interface Props {
   blocks: ScheduleBlock[];
   events: CalendarEvent[];
+  /** Open coursework and goals with a due time. Marked on the day; they block nothing. */
+  deadlines?: Deadline[];
   plans: PlanProgress[];
   /** Only to name the class a block's plan belongs to. */
   tasks: LmsTask[];
@@ -27,6 +40,8 @@ interface Props {
   /** 0 is this week; the parent reloads blocks when this changes. */
   weekOffset: number;
   onWeekOffset: (offset: number) => void;
+  /** Opens a hand-added event for editing. Feed events are the feed's, and do not. */
+  onEditEvent?: (localId: number) => void;
 }
 
 const START_HOUR = 0;
@@ -66,6 +81,8 @@ export function PlanTimeline({
   verifications,
   weekOffset,
   onWeekOffset,
+  onEditEvent,
+  deadlines = [],
 }: Props) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
   const [selected, setSelected] = useState(() => new Date());
@@ -113,6 +130,27 @@ export function PlanTimeline({
     }
     return marked;
   }, [events]);
+
+  /** Days with something due, for a red dot on the day strip. */
+  const daysWithDeadlines = useMemo(
+    () => new Set(deadlines.map((entry) => new Date(entry.dueAt * 1000).toDateString())),
+    [deadlines],
+  );
+
+  /**
+   * The selected day's deadlines, grouped by the minute they fall on. A week's worth of
+   * coursework is often all due at 11:59, and five labels stacked on one line are five
+   * labels nobody can read — one line saying "3 due" with the names on hover is.
+   */
+  const dayDeadlines = useMemo(() => {
+    const groups = new Map<number, Deadline[]>();
+    for (const entry of deadlines) {
+      if (new Date(entry.dueAt * 1000).toDateString() !== selected.toDateString()) continue;
+      const minute = Math.floor(entry.dueAt / 60) * 60;
+      groups.set(minute, [...(groups.get(minute) ?? []), entry]);
+    }
+    return [...groups.entries()].sort(([left], [right]) => left - right);
+  }, [deadlines, selected]);
 
   const dayEvents = useMemo(
     () =>
@@ -228,6 +266,7 @@ export function PlanTimeline({
           const active = dayKeyOf(date) === selectedKey;
           const today = date.toDateString() === new Date().toDateString();
           const hasEvents = daysWithEvents.has(date.toDateString());
+          const hasDeadline = daysWithDeadlines.has(date.toDateString());
           return (
             <button
               key={date.toISOString()}
@@ -244,12 +283,17 @@ export function PlanTimeline({
                 <span className="font-mono">{date.getDate()}</span>
                 {today && <span className="h-1.5 w-1.5 rounded-full bg-ink" />}
               </span>
-              <span
-                title={hasEvents ? "Has calendar events" : undefined}
-                className={`h-1 w-1 rounded-full ${
-                  hasEvents ? "bg-edge-strong" : "bg-transparent"
-                }`}
-              />
+              <span className="flex items-center gap-1">
+                <span
+                  title={hasEvents ? "Has calendar events" : undefined}
+                  className={`h-1 w-1 rounded-full ${
+                    hasEvents ? "bg-edge-strong" : "bg-transparent"
+                  }`}
+                />
+                {hasDeadline && (
+                  <span title="Something is due" className="h-1 w-1 rounded-full bg-bad" />
+                )}
+              </span>
             </button>
           );
         })}
@@ -300,17 +344,102 @@ export function PlanTimeline({
               </>
             )}
 
+            {/* Deadlines: a line across both columns at the minute something is due. A
+                deadline is a moment, not a stretch of time, so it takes nothing out of the
+                day — the planner still sees that hour as free. */}
+            {dayDeadlines.map(([minute, due]) => {
+              const first = due[0];
+              const single = due.length === 1;
+              const label = single
+                ? first.title
+                : `${due.length} due · ${first.title} +${due.length - 1}`;
+              return (
+                <div
+                  key={`due-${minute}`}
+                  className="pointer-events-none absolute inset-x-0 z-30 border-t-2 border-dashed border-bad/70"
+                  style={{ top: toY(minute) }}
+                >
+                  {/* One thing due: the label is the link. Several: hovering opens the
+                      list, and each row is its own link. The list hangs from the label
+                      with no gap between them, so moving the pointer down onto it does
+                      not pass through empty space and close it. */}
+                  <div className="group pointer-events-auto absolute right-1 max-w-[60%] -translate-y-1/2">
+                    <button
+                      type="button"
+                      disabled={single && first.url === null}
+                      onClick={() => {
+                        if (single && first.url) void openUrl(first.url).catch(() => undefined);
+                      }}
+                      title={single && first.url ? "Open it on Canvas" : undefined}
+                      className="block max-w-full truncate rounded-full bg-bad px-2 py-0.5 text-micro font-semibold text-white shadow-sm transition enabled:hover:brightness-110 disabled:cursor-default"
+                    >
+                      Due {formatClock(minute)} · {label}
+                    </button>
+                    {!single && (
+                      // Upward after noon: most things are due at 11:59 PM, the bottom
+                      // edge of the day, where a list opening downward is cut off.
+                      <div
+                        className={`absolute right-0 z-40 hidden group-hover:block ${
+                          new Date(minute * 1000).getHours() >= 12
+                            ? "bottom-full pb-1"
+                            : "top-full pt-1"
+                        }`}
+                      >
+                        <ul className="w-64 overflow-hidden rounded-xl border border-edge bg-surface py-1 shadow-xl">
+                          {due.map((entry) => (
+                            <li key={entry.key}>
+                              <button
+                                type="button"
+                                disabled={entry.url === null}
+                                onClick={() => {
+                                  if (entry.url) void openUrl(entry.url).catch(() => undefined);
+                                }}
+                                title={entry.url ? "Open it on Canvas" : "Your own task — nothing to open"}
+                                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-mini text-ink-soft transition enabled:hover:bg-rose-wash enabled:hover:text-rose-deep disabled:cursor-default disabled:text-ink-mute"
+                              >
+                                <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+                                {entry.url && <ExternalLink size={11} className="shrink-0" />}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
             {/* Calendar column */}
             <div className="absolute inset-y-0 left-0 w-[38%]">
               {dayEvents.map((event) => {
                 const color = eventColor(event);
                 const top = Math.max(0, toY(event.startTs));
                 const height = Math.max(MIN_BLOCK_HEIGHT, toY(event.endTs) - top);
+                // Only an event added here can be changed here; a feed event is edited
+                // wherever it came from, and the next fetch would undo anything else.
+                const localId = event.localId;
+                const editable = localId !== null && onEditEvent !== undefined;
                 return (
                   <article
                     key={`${event.summary}-${event.startTs}`}
-                    title={`${event.summary} · ${formatClock(event.startTs)}–${formatClock(event.endTs)}`}
-                    className="absolute inset-x-1 overflow-hidden rounded-lg border py-1 pr-1.5 pl-2.5"
+                    title={`${event.summary} · ${formatClock(event.startTs)}–${formatClock(event.endTs)}${editable ? " · click to edit" : ""}`}
+                    role={editable ? "button" : undefined}
+                    tabIndex={editable ? 0 : undefined}
+                    onClick={editable ? () => onEditEvent(localId) : undefined}
+                    onKeyDown={
+                      editable
+                        ? (keyEvent) => {
+                            if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+                              keyEvent.preventDefault();
+                              onEditEvent(localId);
+                            }
+                          }
+                        : undefined
+                    }
+                    className={`absolute inset-x-1 overflow-hidden rounded-lg border py-1 pr-1.5 pl-2.5 ${
+                      editable ? "cursor-pointer transition hover:brightness-95" : ""
+                    }`}
                     style={{
                       top,
                       height,
@@ -429,7 +558,7 @@ export function PlanTimeline({
         </div>
       </div>
 
-      {bars.length === 0 && dayEvents.length === 0 && (
+      {bars.length === 0 && dayEvents.length === 0 && dayDeadlines.length === 0 && (
         <p className="pt-3 text-center text-sm text-ink-mute">
           Nothing scheduled for{" "}
           {selected.toLocaleDateString([], {

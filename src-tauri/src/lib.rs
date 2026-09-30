@@ -4,6 +4,7 @@ mod commands;
 mod db;
 mod error;
 mod events;
+mod grades;
 mod habits;
 mod integrations;
 mod models;
@@ -189,6 +190,19 @@ pub fn run() {
             commands::set_habit_done,
             commands::create_event,
             commands::list_events,
+            commands::list_grades,
+            commands::create_course,
+            commands::save_course,
+            commands::delete_course,
+            commands::has_announcements_feed,
+            commands::set_announcements_feed,
+            commands::clear_announcements_feed,
+            commands::get_announcements,
+            commands::save_grade_categories,
+            commands::upsert_grade_items,
+            commands::update_grade_item,
+            commands::delete_grade_item,
+            commands::update_event,
             commands::delete_event,
             commands::get_dismissed_tasks,
             commands::set_task_dismissed,
@@ -204,6 +218,7 @@ pub fn run() {
             commands::create_plan,
             commands::get_plans,
             commands::respond_checkin,
+            commands::extend_plan,
             commands::delete_plan,
             commands::get_paused,
             commands::set_paused,

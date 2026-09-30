@@ -1,6 +1,14 @@
-import { CalendarDays, CircleHelp, LayoutGrid, Settings, Sparkles, TrendingUp } from "lucide-react";
+import {
+  CalendarDays,
+  CircleHelp,
+  GraduationCap,
+  LayoutGrid,
+  Settings,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 
-export type View = "overview" | "timeline" | "progress" | "apps";
+export type View = "overview" | "timeline" | "classes" | "progress" | "apps";
 
 interface Props {
   view: View;
@@ -12,6 +20,7 @@ interface Props {
 const ITEMS: { id: View; icon: typeof LayoutGrid; label: string }[] = [
   { id: "overview", icon: LayoutGrid, label: "Overview" },
   { id: "timeline", icon: CalendarDays, label: "Planner" },
+  { id: "classes", icon: GraduationCap, label: "Classes" },
   { id: "progress", icon: TrendingUp, label: "Progress" },
   { id: "apps", icon: Sparkles, label: "App registry" },
 ];

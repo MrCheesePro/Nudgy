@@ -1,16 +1,31 @@
 import { useEffect, useState } from "react";
-import { CalendarPlus, X } from "lucide-react";
+import { CalendarPlus, Pencil, Trash2, X } from "lucide-react";
 
+import { ConfirmDialog } from "./ConfirmDialog";
 import { DateField } from "./DateField";
 import { TimeField } from "./TimeField";
-import { createEvent } from "../lib/ipc";
-import type { Repeat } from "../lib/types";
+import { createEvent, deleteEvent, updateEvent } from "../lib/ipc";
+import type { LocalEvent, Repeat } from "../lib/types";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Called after a save, so the calendar can pick the new event up. */
+  /** Called after a save or a delete, so the calendar can pick the change up. */
   onAdded: () => void;
+  /** The event being edited. Absent means a new one. */
+  editing?: LocalEvent | null;
+}
+
+const pad = (value: number) => String(value).padStart(2, "0");
+
+/** `YYYY-MM-DD` and `HH:MM` for an epoch-seconds instant, in local time. */
+function dayOf(ts: number): string {
+  const at = new Date(ts * 1000);
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+}
+function clockOf(ts: number): string {
+  const at = new Date(ts * 1000);
+  return `${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
 /** Suggestions, not a fixed list — the field takes anything typed into it. */
@@ -36,7 +51,7 @@ const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
  * Recurrence is asked for as a rule and stored as one. "Every Tuesday and Thursday until
  * December" is a row, not sixty rows, so moving the time later moves all of them.
  */
-export function AddEventDialog({ open, onClose, onAdded }: Props) {
+export function AddEventDialog({ open, onClose, onAdded, editing = null }: Props) {
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState("");
   const [location, setLocation] = useState("");
@@ -48,9 +63,26 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
   const [until, setUntil] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setConfirmingDelete(false);
+    // Editing loads the rule itself — its first occurrence and its repeat — because that
+    // is what gets saved. Changing a weekly class moves every week of it.
+    if (editing) {
+      setTitle(editing.title);
+      setKind(editing.kind ?? "");
+      setLocation(editing.location ?? "");
+      setDate(dayOf(editing.startTs));
+      setFrom(clockOf(editing.startTs));
+      setTo(clockOf(editing.endTs));
+      setRepeat(editing.repeat);
+      setWeekdays(editing.weekdays);
+      setUntil(editing.untilTs === null ? "" : dayOf(editing.untilTs));
+      setError(null);
+      return;
+    }
     // A fresh sheet each time. An event dialog remembering last week's class is a way to
     // create a duplicate by pressing Save twice on different days.
     const today = new Date();
@@ -68,7 +100,7 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
     setWeekdays([]);
     setUntil("");
     setError(null);
-  }, [open]);
+  }, [open, editing]);
 
   if (!open) return null;
 
@@ -88,7 +120,7 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
     if (!ready || startTs === null || endTs === null) return;
     setSaving(true);
     try {
-      await createEvent({
+      const fields = {
         title: title.trim(),
         kind: kind.trim() || null,
         location: location.trim() || null,
@@ -98,7 +130,9 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
         weekdays: repeat === "weekly" ? weekdays : [],
         // The end of the chosen day, so an event on the last day still happens.
         untilTs: repeat === "none" ? null : stamp(until, "23:59"),
-      });
+      };
+      if (editing) await updateEvent({ ...fields, id: editing.id });
+      else await createEvent(fields);
       onAdded();
       onClose();
     } catch (cause) {
@@ -113,8 +147,8 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
       <div className="scroll-area max-h-full w-full max-w-md rounded-2xl border border-edge bg-surface p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
-            <CalendarPlus size={15} />
-            Add an event
+            {editing ? <Pencil size={15} /> : <CalendarPlus size={15} />}
+            {editing ? "Edit event" : "Add an event"}
           </h2>
           <button
             type="button"
@@ -256,6 +290,16 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
         {error && <p className="mt-3 text-xs text-bad">{error}</p>}
 
         <div className="mt-6 flex items-center justify-end gap-3">
+          {editing && (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="mr-auto flex items-center gap-1 text-xs text-ink-mute transition hover:text-bad"
+            >
+              <Trash2 size={12} />
+              Delete
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -269,10 +313,32 @@ export function AddEventDialog({ open, onClose, onAdded }: Props) {
             onClick={() => void save()}
             className="rounded-lg bg-rose px-4 py-2 text-xs font-semibold text-white transition hover:bg-rose-deep disabled:opacity-40"
           >
-            Add to calendar
+            {editing ? "Save changes" : "Add to calendar"}
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={`Delete “${editing?.title ?? ""}”?`}
+        body={
+          editing && editing.repeat !== "none"
+            ? "It repeats, and every occurrence goes with it — past and future. The planner will be free to use that time again."
+            : "It comes off the calendar, and the planner will be free to use that time again."
+        }
+        confirmLabel="Delete it"
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={() => {
+          setConfirmingDelete(false);
+          if (!editing) return;
+          deleteEvent(editing.id)
+            .then(() => {
+              onAdded();
+              onClose();
+            })
+            .catch((cause) => setError(String(cause)));
+        }}
+      />
     </div>
   );
 }

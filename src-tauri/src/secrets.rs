@@ -23,8 +23,20 @@ pub const KNOWN_KEYS: &[&str] = &[
     LMS_FEED_URL,
 ];
 
+/// One class's Canvas announcements feed. Per course, because Canvas gives each enrolment
+/// its own; a credential like the others, because the link alone reads the announcements.
+pub fn announcements_key(course_id: i64) -> String {
+    format!("{ANNOUNCEMENTS_PREFIX}{course_id}")
+}
+const ANNOUNCEMENTS_PREFIX: &str = "announcements_feed:";
+
+fn is_announcements_key(key: &str) -> bool {
+    key.strip_prefix(ANNOUNCEMENTS_PREFIX)
+        .is_some_and(|id| !id.is_empty() && id.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 fn entry(key: &str) -> Result<Entry> {
-    if !KNOWN_KEYS.contains(&key) {
+    if !KNOWN_KEYS.contains(&key) && !is_announcements_key(key) {
         return Err(anyhow!("unknown secret `{key}`"));
     }
     Entry::new(SERVICE, key).map_err(|error| anyhow!("opening keychain entry: {error}"))

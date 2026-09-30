@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { TriangleAlert } from "lucide-react";
 
 interface Props {
@@ -42,7 +43,9 @@ export function ConfirmDialog({
 
   if (!open) return null;
 
-  return (
+  // Portalled to <body>: rendered inside a page, the dialog would sit under
+  // `.panels-see-through` and inherit its translucent surface (invariant 39).
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/25 p-8 backdrop-blur-sm"
       onMouseDown={(event) => {
@@ -87,6 +90,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

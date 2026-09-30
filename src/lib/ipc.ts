@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type {
+  Announcement,
   AppRule,
   AppTotal,
   CalendarEvent,
@@ -9,6 +10,10 @@ import type {
   DailyTotal,
   CategorySuggestion,
   CheckinResponse,
+  Course,
+  GradeCategory,
+  GradeItem,
+  GradesSnapshot,
   LiveStatus,
   HabitsSnapshot,
   LmsTask,
@@ -166,6 +171,8 @@ export const createEvent = (event: Omit<LocalEvent, "id">) =>
 
 export const listEvents = () => invoke<LocalEvent[]>("list_events");
 
+export const updateEvent = (event: LocalEvent) => invoke<void>("update_event", { event });
+
 export const deleteEvent = (id: number) => invoke<void>("delete_event", { id });
 
 export const syncLms = () => invoke<SyncResult>("sync_lms");
@@ -219,6 +226,10 @@ export const respondCheckin = (response: CheckinResponse) =>
 
 export const deletePlan = (id: number) => invoke<void>("delete_plan", { id });
 
+/** Puts the extra time from "needs longer" on the calendar. One sitting is stretched. */
+export const extendPlan = (planId: number, blocks: Omit<ScheduleBlock, "id" | "planId">[]) =>
+  invoke<number>("extend_plan", { planId, blocks });
+
 export const getPaused = () => invoke<boolean>("get_paused");
 
 export const setPaused = (paused: boolean) => invoke<void>("set_paused", { paused });
@@ -235,3 +246,39 @@ export const getDatabasePath = () => invoke<string>("get_database_path");
 
 export const openPrivacySettings = (pane: "accessibility" | "screen_recording") =>
   invoke<void>("open_privacy_settings", { pane });
+
+/** Every class with its grading breakdown and grades. Feed courses get a row on first load. */
+export const listGrades = () => invoke<GradesSnapshot>("list_grades");
+
+export const createCourse = (code: string, name: string | null) =>
+  invoke<number>("create_course", { code, name });
+
+export const saveCourse = (course: Course) => invoke<void>("save_course", { course });
+
+export const deleteCourse = (id: number) => invoke<void>("delete_course", { id });
+
+/** Replaces a class's categories; returns them with their ids. */
+export const saveGradeCategories = (courseId: number, categories: GradeCategory[]) =>
+  invoke<GradeCategory[]>("save_grade_categories", { courseId, categories });
+
+/** Writes rows by title: the same assignment twice is an update. */
+export const upsertGradeItems = (courseId: number, items: GradeItem[]) =>
+  invoke<number>("upsert_grade_items", { courseId, items });
+
+export const updateGradeItem = (item: GradeItem) => invoke<void>("update_grade_item", { item });
+
+export const deleteGradeItem = (id: number) => invoke<void>("delete_grade_item", { id });
+
+/** Whether a class has an announcements feed saved. The link itself never comes back. */
+export const hasAnnouncementsFeed = (courseId: number) =>
+  invoke<boolean>("has_announcements_feed", { courseId });
+
+/** Reads the feed once to check it, then keeps the link in the keychain. */
+export const setAnnouncementsFeed = (courseId: number, url: string) =>
+  invoke<void>("set_announcements_feed", { courseId, url });
+
+export const clearAnnouncementsFeed = (courseId: number) =>
+  invoke<void>("clear_announcements_feed", { courseId });
+
+export const getAnnouncements = (courseId: number) =>
+  invoke<Announcement[]>("get_announcements", { courseId });

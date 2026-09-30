@@ -43,11 +43,17 @@ pub struct CalendarEvent {
     /// The feed's own `LOCATION`, verbatim and trimmed — a room, a building, an address,
     /// whatever the organiser typed. Shown as-is; nothing is inferred from it.
     pub location: Option<String>,
+    /// The hand-added rule this occurrence came from, so the planner can open it for
+    /// editing. Always None for a feed event: those belong to the feed, not to Nudgy.
+    #[serde(default)]
+    pub local_id: Option<i64>,
 }
 
 pub async fn fetch_feed(url: &str) -> Result<String> {
     let trimmed = url.trim();
-    if !trimmed.starts_with("https://") && !trimmed.starts_with("http://") {
+    // HTTPS only: the secret in the link is the whole of its protection, and over plain
+    // http the full link crosses the network in the clear.
+    if !trimmed.starts_with("https://") {
         return Err(anyhow!("calendar URL must start with https://"));
     }
 
@@ -187,6 +193,7 @@ fn expand_event(
             all_day: start_all_day,
             color: color.clone(),
             location: location.clone(),
+            local_id: None,
         })
         // Overlap, not containment: a lecture that began before the window still blocks it.
         .filter(|event| event.end_ts > window_start && event.start_ts < window_end)

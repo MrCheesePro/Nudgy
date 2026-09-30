@@ -14,6 +14,7 @@ import {
   type Plannable,
 } from "./components/PlanAssignmentDialog";
 import { AppRegistry } from "./components/AppRegistry";
+import { ClassesPage } from "./components/ClassesPage";
 import { ProgressPage } from "./components/ProgressPage";
 import { SessionTimer } from "./components/SessionTimer";
 import { AppearanceBar } from "./components/AppearanceBar";
@@ -35,9 +36,11 @@ import { useUsageStats } from "./hooks/useUsageStats";
 import {
   createPlan,
   deletePlan,
+  extendPlan,
   getPaused,
   getSettings,
   hasSecret,
+  listEvents,
   setPaused as setPausedCommand,
   setSetting,
 } from "./lib/ipc";
@@ -74,13 +77,16 @@ import {
   type Category,
   type Goal,
   type LmsTask,
+  type LocalEvent,
 } from "./lib/types";
 import { planQueue, type QueueItem } from "./services/dayPlanner";
-import type {
-  PlacedBlock,
-  PlanMode,
-  PomodoroStyle,
+import {
+  placeWork,
+  type PlacedBlock,
+  type PlanMode,
+  type PomodoroStyle,
 } from "./services/workPlanner";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 /** A destructive action waiting for a yes, and what to run if it gets one. */
 interface ConfirmRequest {
@@ -126,6 +132,10 @@ export default function App() {
   const [planning, setPlanning] = useState<Plannable | null>(null);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addEventOpen, setAddEventOpen] = useState(false);
+  /** Something the app did on its own that is worth a sentence — dismissed by clicking. */
+  const [notice, setNotice] = useState<string | null>(null);
+  /** The hand-added event open for editing, or null when the dialog is adding one. */
+  const [editingEvent, setEditingEvent] = useState<LocalEvent | null>(null);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
   const [canvasLinked, setCanvasLinked] = useState(false);
   const [calendarLinked, setCalendarLinked] = useState(false);
@@ -355,6 +365,103 @@ export default function App() {
     [plans, schedule],
   );
 
+  /** Marks a typed goal done by hand — or reopens it — without touching anything else. */
+  const completeGoal = useCallback(
+    async (index: number, done: boolean) => {
+      await schedule.saveGoals(
+        schedule.goals.map((goal, at) =>
+          at === index
+            ? { ...goal, completedAt: done ? Math.floor(Date.now() / 1000) : null }
+            : goal,
+        ),
+      );
+    },
+    [schedule],
+  );
+
+  /**
+   * Puts "needs longer" on the calendar. The extra time starts where the plan's last
+   * block ends — after a break, for sessions — so it follows on from the work rather than
+   * landing in some earlier gap, and a one-sitting plan is stretched rather than split.
+   */
+  const extendSchedule = useCallback(
+    async (planId: number, extraSeconds: number) => {
+      const entry = plans.plans.find((candidate) => candidate.plan.id === planId);
+      if (!entry || extraSeconds <= 0) return;
+      const plan = entry.plan;
+      const own = schedule.horizonBlocks
+        .filter((block) => block.planId === planId)
+        .sort((left, right) => left.endTs - right.endTs);
+      const last = own[own.length - 1];
+
+      const now = Math.floor(Date.now() / 1000);
+      const sessions = plan.mode === "pomodoro";
+      const from = Math.max(now, (last?.endTs ?? now) + (sessions ? plan.breakSeconds : 0));
+      const placement = placeWork({
+        estimateSeconds: extraSeconds,
+        mode: plan.mode,
+        focusSeconds: plan.focusSeconds,
+        breakSeconds: plan.breakSeconds,
+        days: schedule.plannerDays(from),
+        dueAt: plan.dueAt,
+        now: from,
+      });
+
+      if (placement.blocks.length === 0) {
+        setNotice(
+          `Added the extra time to “${plan.title}”, but there is no free time for it before the deadline. Make room on the planner and re-plan it.`,
+        );
+        return;
+      }
+      try {
+        await extendPlan(
+          planId,
+          placement.blocks.map((block) => ({
+            day: block.day,
+            startTs: block.startTs,
+            endTs: block.endTs,
+            label: plan.title,
+            category: last?.category ?? "Productivity",
+            targetProcess: last?.targetProcess ?? null,
+            targetSeconds: block.endTs - block.startTs,
+            verifiedState: "pending" as const,
+            source: "manual" as const,
+            reminderLeadSeconds: last?.reminderLeadSeconds ?? null,
+          })),
+        );
+        if (placement.shortfallSeconds > 0) {
+          setNotice(
+            `Only ${Math.round(placement.placedSeconds / 60)} of the extra ${Math.round(extraSeconds / 60)} minutes fitted before the deadline.`,
+          );
+        }
+      } catch (cause) {
+        setNotice(`Could not schedule the extra time: ${String(cause)}`);
+      }
+      await schedule.refresh();
+    },
+    [plans.plans, schedule],
+  );
+
+  /** A break has started: bring the dashboard up where the countdown is. */
+  const raiseDashboard = useCallback(() => {
+    setView("overview");
+    const window = getCurrentWindow();
+    void window
+      .unminimize()
+      .then(() => window.show())
+      .then(() => window.setFocus())
+      .catch(() => undefined);
+  }, []);
+
+  /** The same "done" the check-in sends, from the In progress row itself. */
+  const finishPlan = useCallback(
+    async (id: number) => {
+      await plans.answer({ planId: id, action: "done", extraSeconds: 0 });
+      await Promise.all([schedule.refresh(), tasks.refresh()]);
+    },
+    [plans, schedule, tasks],
+  );
+
   /**
    * Destructive actions state what they will take with them before they take it. Deleting
    * a goal silently dropped its plan and every block on the timeline that plan owned,
@@ -483,6 +590,32 @@ export default function App() {
   );
 
   /** What the planner has left to ask about: anything real with no plan behind it yet. */
+  /**
+   * Everything open that has a due time, for the red lines on the planner: coursework
+   * not yet done, and your own tasks not yet marked done.
+   */
+  const deadlines = useMemo(
+    () => [
+      ...tasks.tasks
+        .filter((task) => !task.completed && task.dueAt !== null)
+        .map((task) => ({
+          key: `task-${task.id}`,
+          title: task.courseCode ? `${task.courseCode} ${task.title}` : task.title,
+          dueAt: task.dueAt as number,
+          url: task.htmlUrl,
+        })),
+      ...schedule.goals
+        .filter((goal) => !goal.completedAt && goal.dueAt)
+        .map((goal, index) => ({
+          key: `goal-${index}-${goal.label}`,
+          title: goal.label,
+          dueAt: goal.dueAt as number,
+          url: null,
+        })),
+    ],
+    [tasks.tasks, schedule.goals],
+  );
+
   const queue = useMemo(
     () =>
       planQueue(
@@ -598,6 +731,17 @@ export default function App() {
 
             <PermissionBanner status={permissions} onRefresh={refreshPermissions} />
 
+            {notice && (
+              <button
+                type="button"
+                onClick={() => setNotice(null)}
+                title="Dismiss"
+                className="rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-left text-sm text-ink-soft"
+              >
+                {notice}
+              </button>
+            )}
+
             {error && (
               <p className="rounded-xl border border-bad/20 bg-bad/10 px-4 py-3 text-sm text-bad">
                 {error}
@@ -636,6 +780,7 @@ export default function App() {
                     work={currentWork}
                     next={nextWork}
                     category={status?.category ?? "Neutral"}
+                    onBreak={raiseDashboard}
                   />
                 </div>
                 {/* Fills what is left of the viewport rather than growing past it, so
@@ -669,6 +814,7 @@ export default function App() {
                 <TimelinePlanner
                   weekBlocks={schedule.weekBlocks}
                   weekEvents={calendar.events}
+                  deadlines={deadlines}
                   plans={plans.plans}
                   tasks={tasks.tasks}
                   live={status}
@@ -680,11 +826,30 @@ export default function App() {
                   onAddTask={() => setAddTaskOpen(true)}
                   onAddEvent={() => setAddEventOpen(true)}
                   onImportSyllabus={() => setSyllabusOpen(true)}
+                  onEditEvent={(localId) => {
+                    // The occurrence only carries the id; the rule is what gets edited.
+                    void listEvents()
+                      .then((rules) => {
+                        const rule = rules.find((entry) => entry.id === localId);
+                        if (!rule) return;
+                        setEditingEvent(rule);
+                        setAddEventOpen(true);
+                      })
+                      .catch(() => undefined);
+                  }}
                   onRefreshCalendar={() => void calendar.refresh()}
                   calendarLoading={calendar.loading}
                   calendarCheckedAt={calendar.checkedAt}
                 />
               </>
+            )}
+
+            {view === "classes" && (
+              <ClassesPage
+                tasks={tasks.tasks}
+                completedTasks={tasks.completedTasks}
+                onToggleTask={tasks.toggle}
+              />
             )}
 
             {view === "progress" && <ProgressPage />}
@@ -742,6 +907,8 @@ export default function App() {
               onPlanGoal={planGoal}
               onDeletePlan={askDropPlan}
               onRemoveGoal={askRemoveGoal}
+              onCompleteGoal={(index, done) => void completeGoal(index, done)}
+              onFinishPlan={(id) => void finishPlan(id)}
               onClearCompleted={askClearCompleted}
             />
             </div>
@@ -757,7 +924,11 @@ export default function App() {
 
       <AddEventDialog
         open={addEventOpen}
-        onClose={() => setAddEventOpen(false)}
+        editing={editingEvent}
+        onClose={() => {
+          setAddEventOpen(false);
+          setEditingEvent(null);
+        }}
         // The calendar is what holds commitments, so it is what has to look again.
         onAdded={() => void calendar.refresh()}
       />
@@ -802,7 +973,14 @@ export default function App() {
       <CheckinPrompt
         checkin={plans.checkin}
         onAnswer={(response) => {
-          void plans.answer(response).then(() => schedule.refresh());
+          void plans.answer(response).then(() => {
+            if (response.action === "extend") {
+              void extendSchedule(response.planId, response.extraSeconds);
+            }
+            void schedule.refresh();
+            // "Done" on an assignment's plan completes the assignment as well.
+            void tasks.refresh();
+          });
         }}
       />
 

@@ -766,6 +766,13 @@
     },
     {
       "matchType": "title_regex",
+      "pattern": "(?i)\\bzybooks?\\b",
+      "displayName": "zyBooks",
+      "category": "Productivity",
+      "priority": 200
+    },
+    {
+      "matchType": "title_regex",
       "pattern": "(?i)\\bdesmos\\b",
       "displayName": "Desmos",
       "category": "Productivity",

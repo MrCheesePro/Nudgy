@@ -375,6 +375,52 @@ const MIGRATIONS: &[&str] = &[
         FOREIGN KEY(habit_id) REFERENCES habits(id) ON DELETE CASCADE
     );
     "#,
+    // 17 — classes and grades.
+    //
+    //     A course is keyed by the same code `tasks.course_code` carries, so a feed's
+    //     classes line up with it without a join key of their own. Grades are pasted from
+    //     Canvas's Grades page or typed, never fetched on their own authority — see
+    //     invariant 46.
+    //
+    //     `UNIQUE(course_id, title)` is what makes pasting the same grades page twice an
+    //     update rather than a second copy of every assignment. `score` NULL is work not
+    //     graded yet; with `points` set it is the remaining work the needed-grade
+    //     calculator solves over.
+    r#"
+    CREATE TABLE IF NOT EXISTS courses (
+        id             INTEGER PRIMARY KEY,
+        code           TEXT    NOT NULL UNIQUE,
+        name           TEXT,
+        credits        REAL    NOT NULL DEFAULT 4,
+        target_percent REAL,
+        notes          TEXT,
+        created_at     INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS grade_categories (
+        id        INTEGER PRIMARY KEY,
+        course_id INTEGER NOT NULL,
+        name      TEXT    NOT NULL,
+        weight    REAL    NOT NULL DEFAULT 0,
+        FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS grade_items (
+        id          INTEGER PRIMARY KEY,
+        course_id   INTEGER NOT NULL,
+        category_id INTEGER,
+        title       TEXT    NOT NULL,
+        task_id     INTEGER,
+        score       REAL,
+        points      REAL,
+        source      TEXT    NOT NULL DEFAULT 'manual',
+        updated_at  INTEGER NOT NULL,
+        UNIQUE(course_id, title),
+        FOREIGN KEY(course_id)   REFERENCES courses(id)          ON DELETE CASCADE,
+        FOREIGN KEY(category_id) REFERENCES grade_categories(id) ON DELETE SET NULL,
+        FOREIGN KEY(task_id)     REFERENCES tasks(id)            ON DELETE SET NULL
+    );
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

@@ -156,6 +156,7 @@ fn at(
         all_day: false,
         location: event.location.clone(),
         color: None,
+        local_id: Some(event.id),
     })
 }
 

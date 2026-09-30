@@ -72,6 +72,14 @@ fn announce(app: &AppHandle, progress: &PlanProgress) {
         log::warn!("could not show check-in notification: {error}");
     }
 
+    // Brought to the front, not just notified: the question is on the dashboard, and a
+    // notification that slides away unread leaves it waiting behind whatever is in front.
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+
     let _ = app.emit("nudgy://checkin", progress);
     log::info!(
         "check-in for plan {} at {worked}/{estimate}",

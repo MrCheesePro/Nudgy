@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CalendarDays, CalendarPlus, FileText, RefreshCw, Eye, EyeOff, Plus, SlidersHorizontal } from "lucide-react";
 
-import { PlanTimeline } from "./timeline/PlanTimeline";
+import { PlanTimeline, type Deadline } from "./timeline/PlanTimeline";
 import { weekDaysAt, weekStart } from "../hooks/useSchedule";
 import { useAssignableCategories } from "../lib/categories";
 import type { Category } from "../lib/types";
@@ -18,6 +18,8 @@ interface Props {
   /** Every block in the current week. */
   weekBlocks: ScheduleBlock[];
   weekEvents: CalendarEvent[];
+  /** Due times to mark on the planner. */
+  deadlines: Deadline[];
   plans: PlanProgress[];
   /** Only to name the class a block's plan belongs to. */
   tasks: LmsTask[];
@@ -32,6 +34,7 @@ interface Props {
   onAddEvent: () => void;
   /** Reads class times out of a syllabus, proposing them for confirmation. */
   onImportSyllabus: () => void;
+  onEditEvent: (localId: number) => void;
   /** Fetches the calendar feed again, now. */
   onRefreshCalendar: () => void;
   calendarLoading: boolean;
@@ -42,6 +45,7 @@ interface Props {
 export function TimelinePlanner({
   weekBlocks,
   weekEvents,
+  deadlines,
   plans,
   tasks,
   live,
@@ -53,6 +57,7 @@ export function TimelinePlanner({
   onAddTask,
   onAddEvent,
   onImportSyllabus,
+  onEditEvent,
   onRefreshCalendar,
   calendarLoading,
   calendarCheckedAt,
@@ -189,12 +194,14 @@ export function TimelinePlanner({
       <PlanTimeline
         blocks={visibleBlocks}
         events={weekEvents}
+        deadlines={deadlines}
         plans={plans}
         tasks={tasks}
         live={live}
         verifications={verifications}
         weekOffset={weekOffset}
         onWeekOffset={onWeekOffset}
+        onEditEvent={onEditEvent}
       />
     </section>
   );

@@ -495,6 +495,110 @@ pub fn list_events(state: State<'_, AppState>) -> CmdResult<Vec<events::LocalEve
     with_db(&state, queries::load_events)
 }
 
+/// Every class with its grading breakdown and grades. See `grades.rs`.
+#[tauri::command]
+pub fn list_grades(state: State<'_, AppState>) -> CmdResult<crate::grades::GradesSnapshot> {
+    with_db(&state, crate::grades::snapshot)
+}
+
+#[tauri::command]
+pub fn create_course(
+    state: State<'_, AppState>,
+    code: String,
+    name: Option<String>,
+) -> CmdResult<i64> {
+    with_db(&state, |conn| crate::grades::create_course(conn, &code, name.as_deref()))
+}
+
+#[tauri::command]
+pub fn save_course(state: State<'_, AppState>, course: crate::grades::Course) -> CmdResult<()> {
+    with_db(&state, |conn| crate::grades::save_course(conn, &course))
+}
+
+#[tauri::command]
+pub fn delete_course(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    with_db(&state, |conn| crate::grades::delete_course(conn, id))?;
+    // The class is gone, so its announcements link should not outlive it in the keychain.
+    secrets::clear(&secrets::announcements_key(id)).map_err(AppError::from)
+}
+
+/// Whether a class has an announcements feed saved. The link itself never leaves Rust.
+#[tauri::command]
+pub fn has_announcements_feed(course_id: i64) -> bool {
+    secrets::has(&secrets::announcements_key(course_id))
+}
+
+/// Saves a class's announcements feed — after reading it once, so a wrong link is refused
+/// here rather than discovered as an empty section later.
+#[tauri::command]
+pub async fn set_announcements_feed(course_id: i64, url: String) -> CmdResult<()> {
+    crate::integrations::announcements::fetch(&url)
+        .await
+        .map_err(AppError::from)?;
+    secrets::set(&secrets::announcements_key(course_id), &url).map_err(AppError::from)
+}
+
+#[tauri::command]
+pub fn clear_announcements_feed(course_id: i64) -> CmdResult<()> {
+    secrets::clear(&secrets::announcements_key(course_id)).map_err(AppError::from)
+}
+
+/// A class's announcements, read fresh from its feed and never stored.
+#[tauri::command]
+pub async fn get_announcements(
+    course_id: i64,
+) -> CmdResult<Vec<crate::integrations::announcements::Announcement>> {
+    let Some(url) = secrets::get(&secrets::announcements_key(course_id)).map_err(AppError::from)?
+    else {
+        return Ok(Vec::new());
+    };
+    crate::integrations::announcements::fetch(&url)
+        .await
+        .map_err(AppError::from)
+}
+
+#[tauri::command]
+pub fn save_grade_categories(
+    state: State<'_, AppState>,
+    course_id: i64,
+    categories: Vec<crate::grades::GradeCategory>,
+) -> CmdResult<Vec<crate::grades::GradeCategory>> {
+    with_db(&state, |conn| crate::grades::save_categories(conn, course_id, &categories))
+}
+
+#[tauri::command]
+pub fn upsert_grade_items(
+    state: State<'_, AppState>,
+    course_id: i64,
+    items: Vec<crate::grades::GradeItem>,
+) -> CmdResult<usize> {
+    with_db(&state, |conn| crate::grades::upsert_items(conn, course_id, &items))
+}
+
+#[tauri::command]
+pub fn update_grade_item(
+    state: State<'_, AppState>,
+    item: crate::grades::GradeItem,
+) -> CmdResult<()> {
+    with_db(&state, |conn| crate::grades::update_item(conn, &item))
+}
+
+#[tauri::command]
+pub fn delete_grade_item(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    with_db(&state, |conn| crate::grades::delete_item(conn, id))
+}
+
+/// Saves changes to an existing event, by the id carried inside it.
+#[tauri::command]
+pub fn update_event(state: State<'_, AppState>, event: events::LocalEvent) -> CmdResult<()> {
+    let clean = events::sanitize(event).map_err(AppError::from)?;
+    let changed = with_db(&state, |conn| queries::update_event(conn, &clean))?;
+    if changed == 0 {
+        return Err(AppError::msg("that event no longer exists"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn delete_event(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     with_db(&state, |conn| queries::delete_event(conn, id))?;
@@ -875,6 +979,16 @@ pub fn respond_checkin(
     response: plans::CheckinResponse,
 ) -> CmdResult<plans::PlanProgress> {
     with_db(&state, |conn| plans::respond(conn, &response))
+}
+
+/// Schedules the extra time a "needs longer" answer asked for. See `plans::extend_blocks`.
+#[tauri::command]
+pub fn extend_plan(
+    state: State<'_, AppState>,
+    plan_id: i64,
+    blocks: Vec<ScheduleBlock>,
+) -> CmdResult<usize> {
+    with_db(&state, |conn| plans::extend_blocks(conn, plan_id, &blocks))
 }
 
 #[tauri::command]

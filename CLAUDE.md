@@ -90,6 +90,13 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
 | `src/lib/theme.ts` | The presets, and a whole theme derived from one picked colour |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
+| `src-tauri/src/grades.rs` | Classes, grade categories and grade items. Storage only — the grade is in TS |
+| `src/services/grades.ts` | `currentGrade`, `letterFor`, `gpa`, `neededAverage` — pure and tested |
+| `src/services/gradeImport.ts` | Reads a pasted Canvas Grades page and a syllabus's weights. Proposes; writes nothing |
+| `src/components/ClassesPage.tsx` | Each class: grade, what-you-need, breakdown, assignments, notes; term GPA on top |
+| `src-tauri/src/integrations/announcements.rs` | A class's Canvas announcements Atom feed: fetched when viewed, never stored |
+| `src/components/AnnouncementsPanel.tsx` | Per-class announcements on the Classes page; connect by pasting the feed link |
+| `src/components/GradesImportDialog.tsx` | Paste, preview with checkboxes, confirm — the only way pasted grades are written |
 | `src/components/Tour.tsx` | First-launch guided tour: spotlights `data-tour` elements, replayed from the rail's ? |
 
 The tick loop contains no `cfg` blocks. Platform differences are resolved in
@@ -108,7 +115,7 @@ wrong data.
 2. **Rust owns every SQLite write.** One writer connection, one migration runner. The
    frontend reads through commands only — no `tauri-plugin-sql`, no second pool.
 3. **Idle time is never attributed to the foreground app.** Over
-   `IDLE_THRESHOLD_SECONDS` (180) the tick records the `__idle__` sentinel in category
+   `IDLE_THRESHOLD_SECONDS` (900 — fifteen minutes; three minutes of reading or thinking was being filed as idle) the tick records the `__idle__` sentinel in category
    `Idle`. Goal verification filters on `is_idle = 0` for the same reason.
 4. **The arithmetic proposes, the user disposes.** `Generate plan` reads the calendar and
    the timeline, places work with `placeWork`, and asks about one slot at a time.
@@ -149,7 +156,10 @@ wrong data.
    focused app at goal-creation time would be wrong — that app is always Nudgy.
 10. **A plan is a conversation, not a prediction.** `plans.rs` measures real worked time
    inside a plan's blocks and asks the user at the halfway mark whether the estimate
-   still holds. "Needs longer" grows the estimate and reschedules the next question;
+   still holds. "Needs longer" grows the estimate, reschedules the next question, **and puts the extra
+   time on the calendar** (`plans::extend_blocks`) — after the plan's last block, a
+   one-sitting plan stretched rather than split — because the timer and the timeline read
+   blocks, not estimates, and an estimate with no blocks behind it silently stops;
    only "done" ends the loop. Progress is never self-reported — it is tracked time.
 11. **Blocks measure time, not text.** The day runs top to bottom at 72px per hour, so a
     block's height is its real duration. Height is cheap and vertical scrolling is
@@ -199,7 +209,8 @@ wrong data.
 18. **Calendar events are immovable, whoever added them.** Anything from the iCal feed
     becomes a commitment the planner refuses to schedule over, and an event added by hand
     expands into exactly the same `CalendarEvent` — merged in `get_calendar_events`, so
-    nothing downstream can tell them apart or treat them differently. All-day events are
+    nothing downstream can tell them apart or treat them differently. The one exception is
+    `localId`, which only the planner reads, to open a hand-added event for editing. All-day events are
     ignored on purpose: they mark a day rather than occupy it. The feed is re-fetched every
     three minutes, **whenever the window regains focus** — switching back from the browser
     is the moment most likely to follow a change — and on demand from the planner, which
@@ -314,10 +325,19 @@ wrong data.
 
 ## Secrets
 
-The Canvas token and the secret iCal URL live in the OS keychain via the `keyring` crate,
+The Canvas token, the secret iCal URL and each class's announcements feed
+(`announcements_feed:<course id>`) live in the OS keychain via the `keyring` crate,
 wrapped by `src-tauri/src/secrets.rs` (M3). Never in the `settings` table, never in a log
 line, never returned to the frontend — the frontend may ask *whether* a secret is set, not
 what it is.
+
+Every feed, and the Canvas API, is **HTTPS only**: the secret in a feed link and the
+bearer token are the whole of their protection, and plain http hands both to the network.
+The built app's page carries a Content-Security-Policy (the `nudgy-csp` plugin in
+`vite.config.ts`, build only — the dev server needs inline scripts and a websocket). A new
+outside resource means adding its origin there, or it will work in dev and fail in release.
+The presence socket is bound inside a private `0700` directory and renamed into
+`/tmp/nudgy-rpc.sock` already `0600`, so it is never world-connectable, even for an instant.
 
 ## Adding a command
 
@@ -466,3 +486,13 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     midnight, so requiring every ceiling to *pass* would mean a perfect-day flame that is
     never lit while anybody is looking at it. Today lights when every habit is ticked and
     every floor is met; going *over* a ceiling still takes the run away there and then.
+46. **Grades are read, never trusted — and never need a token.** Most students cannot get
+    a Canvas API token, and the calendar feed carries no scores, points or weights. So a
+    class's grades come from its Canvas **Grades page, copied and pasted**, and its weights
+    from a pasted syllabus; `gradeImport.ts` reads both, and `GradesImportDialog` shows
+    every row with a checkbox and writes only what is confirmed — invariant 44's rule,
+    applied to numbers. Rows are keyed `(course_id, title)`, so pasting the same page again
+    updates rather than duplicates. The arithmetic is **Canvas's**: a weighted class
+    renormalises over the categories that have anything graded, so a class with only
+    homework back is graded on homework, not on homework plus a zero for an unsat final.
+    What-if letters on the GPA are never saved — a what-if is a question, not a record.

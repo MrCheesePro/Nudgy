@@ -696,6 +696,28 @@ pub fn load_events(conn: &Connection) -> Result<Vec<LocalEvent>> {
     Ok(rows)
 }
 
+/// Rewrites a rule in place. Every occurrence moves with it, because there is only the one
+/// row — which is what "edit the Tuesday class" means for a class that repeats.
+pub fn update_event(conn: &Connection, event: &LocalEvent) -> Result<usize> {
+    Ok(conn.execute(
+        "UPDATE events
+            SET title = ?2, kind = ?3, location = ?4, start_ts = ?5, end_ts = ?6,
+                repeat = ?7, weekdays = ?8, until_ts = ?9
+          WHERE id = ?1",
+        params![
+            event.id,
+            event.title,
+            event.kind,
+            event.location,
+            event.start_ts,
+            event.end_ts,
+            event.repeat,
+            join_weekdays(&event.weekdays),
+            event.until_ts,
+        ],
+    )?)
+}
+
 /// Deleting an event removes every occurrence of it, because there is only ever one row.
 pub fn delete_event(conn: &Connection, id: i64) -> Result<usize> {
     Ok(conn.execute("DELETE FROM events WHERE id = ?1", params![id])?)

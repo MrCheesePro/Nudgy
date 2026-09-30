@@ -56,7 +56,7 @@ export function planQueue(
   );
 
   const fromGoals: QueueItem[] = goals
-    .filter((goal) => !plannedTitles.has(goal.label))
+    .filter((goal) => !goal.completedAt && !plannedTitles.has(goal.label))
     .map((goal) => ({
       id: `goal-${goal.label}`,
       taskId: null,

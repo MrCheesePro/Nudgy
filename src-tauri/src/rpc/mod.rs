@@ -13,9 +13,9 @@
 
 use anyhow::{anyhow, Result};
 use interprocess::local_socket::tokio::prelude::*;
-use interprocess::local_socket::{ListenerOptions, Name};
+use interprocess::local_socket::ListenerOptions;
 #[cfg(windows)]
-use interprocess::local_socket::GenericNamespaced;
+use interprocess::local_socket::{GenericNamespaced, Name};
 #[cfg(unix)]
 use interprocess::local_socket::GenericFilePath;
 use serde::Deserialize;
@@ -85,10 +85,6 @@ fn socket_name() -> Result<Name<'static>> {
     Ok(PIPE_NAME.to_ns_name::<GenericNamespaced>()?)
 }
 
-#[cfg(unix)]
-fn socket_name() -> Result<Name<'static>> {
-    Ok(SOCKET_PATH.to_fs_name::<GenericFilePath>()?)
-}
 
 /// What clients should connect to, for logs and error messages.
 fn endpoint_label() -> String {
@@ -100,6 +96,42 @@ fn endpoint_label() -> String {
     {
         SOCKET_PATH.to_string()
     }
+}
+
+/// Binds the socket owner-only **before** anything can reach it.
+///
+/// `/tmp` is shared by every account on the machine, and a socket bound there and then
+/// `chmod`-ed is world-connectable for the instant in between. macOS cannot set a socket's
+/// mode before `bind`, so the socket is born inside a fresh `0700` directory nobody else
+/// can enter, locked to `0600` there, and only then renamed into place. A rename keeps the
+/// listener working, and clients still connect to the same path.
+#[cfg(unix)]
+fn bind_private() -> Result<interprocess::local_socket::tokio::Listener> {
+    use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+
+    let staging = format!("/tmp/nudgy-rpc.{}", std::process::id());
+    // A leftover of our own from a crashed run with the same pid. Anybody else's cannot be
+    // removed from sticky /tmp, and `create` below then refuses rather than binding into it.
+    let _ = std::fs::remove_dir_all(&staging);
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&staging)
+        .map_err(|error| anyhow!("creating a private directory for the socket: {error}"))?;
+
+    let staged = format!("{staging}/rpc.sock");
+    let bound = (|| -> Result<_> {
+        let listener = ListenerOptions::new()
+            .name(staged.as_str().to_fs_name::<GenericFilePath>()?)
+            .create_tokio()
+            .map_err(|error| anyhow!("binding rich presence socket: {error}"))?;
+        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))?;
+        std::fs::rename(&staged, SOCKET_PATH)
+            .map_err(|error| anyhow!("moving the socket to {SOCKET_PATH}: {error}"))?;
+        Ok(listener)
+    })();
+
+    let _ = std::fs::remove_dir_all(&staging);
+    bound
 }
 
 pub fn spawn(app: AppHandle) {
@@ -128,18 +160,13 @@ async fn serve(app: AppHandle) -> Result<()> {
         }
     }
 
+    #[cfg(unix)]
+    let listener = bind_private()?;
+    #[cfg(windows)]
     let listener = ListenerOptions::new()
         .name(socket_name()?)
         .create_tokio()
         .map_err(|error| anyhow!("binding rich presence socket: {error}"))?;
-
-    // Owner-only. The socket carries no secrets, but nothing else on the machine has any
-    // business writing to it either.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(SOCKET_PATH, std::fs::Permissions::from_mode(0o600));
-    }
 
     log::info!("rich presence listening on {}", endpoint_label());
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarOff, Coffee, Zap } from "lucide-react";
 
 import { categoryColor } from "../lib/categories";
@@ -11,6 +11,8 @@ interface Props {
   next: UpcomingWork | null;
   /** Category of the block, for the ring colour. */
   category: string;
+  /** Called once when a focus session gives way to a break. */
+  onBreak?: () => void;
 }
 
 /**
@@ -28,7 +30,7 @@ interface Props {
  * you are not using advances nothing. The countdown answers "how long is left in this
  * sitting", which is a different question from "how much of this is done".
  */
-export function SessionTimer({ work, next, category }: Props) {
+export function SessionTimer({ work, next, category, onBreak }: Props) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -53,6 +55,19 @@ export function SessionTimer({ work, next, category }: Props) {
           length: Math.max(1, next.breakSeconds),
         }
       : { kind: "focus", remaining: 0, length: 1 };
+
+  // The moment focus turns into a break — within a long block, or when a session ends and
+  // the gap before the next one begins. Arriving already on a break does not count: that
+  // is opening the app, not the break starting.
+  const previous = useRef<Phase["kind"] | null>(null);
+  useEffect(() => {
+    if (!running) {
+      previous.current = null;
+      return;
+    }
+    if (previous.current === "focus" && phase.kind === "break") onBreak?.();
+    previous.current = phase.kind;
+  }, [running, phase.kind, onBreak]);
 
   const color = categoryColor(category);
   const ring = !running

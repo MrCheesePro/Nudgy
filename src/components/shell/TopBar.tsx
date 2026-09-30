@@ -6,6 +6,7 @@ import type { View } from "./IconRail";
 const VIEW_TITLES: Record<View, string> = {
   overview: "Today",
   timeline: "Planner",
+  classes: "Classes",
   progress: "Progress",
   apps: "App Registry",
 };

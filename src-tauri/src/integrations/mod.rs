@@ -1,3 +1,4 @@
+pub mod announcements;
 pub mod calendar;
 pub mod canvas;
 pub mod lms;
