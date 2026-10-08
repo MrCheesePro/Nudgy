@@ -157,14 +157,7 @@ export const TOUR_STEPS: TourStep[] = [
     view: "overview",
     settings: true,
     title: "Make it yours",
-    body: "Change the text size, panel see-through and background while looking at the real app. The typeface and background image are just below.",
-  },
-  {
-    target: "colours",
-    view: "overview",
-    settings: true,
-    title: "Colours",
-    body: "Pick a preset, or choose any one colour and Nudgy builds a whole theme from it.",
+    body: "Change the colour, text size, typeface and panel see-through while looking at the real app. Pick any one colour and Nudgy builds a whole theme from it.",
   },
   {
     target: "help",

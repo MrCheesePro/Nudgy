@@ -12,17 +12,20 @@ import {
 import type { CategoryTarget, DailyTotal } from "../lib/types";
 import { dailySeries } from "../services/progress";
 
-/** How far back the page can look. The longest one bounds what is ever fetched. */
 /** At most one refresh per this many milliseconds in response to a flush. */
 const FLUSH_COALESCE_MS = 30_000;
 
-export const RANGES = [7, 14, 30] as const;
-export type Range = (typeof RANGES)[number];
+/**
+ * How far back the page can look — a year and change, the same window as habit ticks
+ * (`HISTORY_DAYS` in `habits.rs`). Daily totals are a row per category per day, so a
+ * year of them is a few thousand rows and one query.
+ */
+export const FETCH_DAYS = 400;
 
 /**
  * History and targets, behind one `refresh`.
  *
- * The fetch always covers the longest range plus a matching window before it — `trend`
+ * The fetch always covers the whole window; what a caller draws is a slice of it — `trend`
  * compares one period against the one preceding it, so asking for exactly what the chart
  * draws would leave nothing to compare against. Narrowing to 7 days is then a slice, not
  * another round trip.
@@ -66,7 +69,7 @@ async function load(flushFirst: boolean, force: boolean): Promise<void> {
       if (flushFirst) await flushSamples();
       const start = new Date();
       start.setHours(0, 0, 0, 0);
-      start.setDate(start.getDate() - (Math.max(...RANGES) * 2 - 1));
+      start.setDate(start.getDate() - (FETCH_DAYS - 1));
       const end = new Date();
       end.setHours(0, 0, 0, 0);
       end.setDate(end.getDate() + 1);
@@ -89,7 +92,12 @@ async function load(flushFirst: boolean, force: boolean): Promise<void> {
   return inflight;
 }
 
-export function useProgress(range: Range) {
+/**
+ * `days` days ending on `endDay` (a `YYYY-MM-DD`, today when omitted) — a calendar week or
+ * month on the Progress page, the last week on Today. A string rather than a `Date` so a
+ * caller building one per render does not recompute the series every second.
+ */
+export function useProgress(days: number, endDay?: string) {
   // Seeded from the cache, so an instance mounting into a warm one renders with data on
   // its very first pass — no blank frame, nothing to wait for.
   const [{ rows, targets, error, loaded }, setSnapshot] = useState<Snapshot>(cache);
@@ -140,9 +148,13 @@ export function useProgress(range: Range) {
   }, []);
 
   /** What the chart draws. */
-  const series = useMemo(() => dailySeries(rows, range), [rows, range]);
-  /** The full window, so `trend` has a prior period to measure against. */
-  const full = useMemo(() => dailySeries(rows, Math.max(...RANGES) * 2), [rows]);
+  const series = useMemo(() => {
+    if (!endDay) return dailySeries(rows, days);
+    const [year, month, date] = endDay.split("-").map(Number);
+    return dailySeries(rows, days, new Date(year, month - 1, date));
+  }, [rows, days, endDay]);
+  /** The whole window, so streaks and past months both have something to read. */
+  const full = useMemo(() => dailySeries(rows, FETCH_DAYS), [rows]);
 
   const saveTarget = useCallback(
     async (category: string, direction: "at_least" | "at_most", secondsPerDay: number) => {

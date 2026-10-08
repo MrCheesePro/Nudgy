@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { LiveStatus, LmsTask, PlanProgress, ScheduleBlock } from "../lib/types";
 
 export interface CurrentWork {
+  /** The plan this block belongs to, or null for a standalone block. */
+  planId: number | null;
   /** The block's own label, with the course code stripped when the chip carries it. */
   title: string;
   /** `MATH241` for a Canvas assignment; null for a goal the user typed. */
@@ -69,6 +71,7 @@ export function useCurrentWork(
     const sitting = plan?.plan.mode === "continuous";
 
     return {
+      planId: block.planId,
       title: stripCourseCode(block.label, courseCode),
       courseCode,
       blockStartTs: block.startTs,
@@ -119,6 +122,7 @@ function escapeRegex(value: string): string {
 
 /** The next block, and the gap before it. */
 export interface UpcomingWork {
+  planId: number | null;
   title: string;
   courseCode: string | null;
   startTs: number;
@@ -186,6 +190,7 @@ export function useNextWork(
     const courseCode = task?.courseCode ?? null;
 
     return {
+      planId: upcoming.planId,
       title: stripCourseCode(upcoming.label, courseCode),
       courseCode,
       startTs: upcoming.startTs,

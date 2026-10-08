@@ -56,6 +56,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/checkin.rs` | Once-a-minute worker that fires the halfway check-in |
 | `src-tauri/src/nudge.rs` | Five-minute worker that announces a passed ceiling, once a day |
 | `src-tauri/src/reminder.rs` | Minute worker that warns before a block; owns the notifications switch |
+| `src-tauri/src/integrations/share.rs` | "Send my app categories": posts the registry to the maintainer's Apps Script (`scripts/registry-sheet.gs`), one sheet tab per sender. Only on the button |
 | `src-tauri/src/integrations/lms.rs` | Coursework from any LMS's iCal feed — no API key |
 | `src-tauri/src/events.rs` | Hand-added events and their repeat rules, expanded per window |
 | `src-tauri/src/habits.rs` | Habits and their ticks. Storage only — the streaks are in TS |
@@ -70,7 +71,9 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src-tauri/src/commands.rs` | Every `#[tauri::command]` |
 | `src/services/` | `slotFinder.ts` (free-gap arithmetic), `workPlanner.ts` (splits an estimate into blocks), `dayPlanner.ts` (what to ask about next, and why nothing fits), `progress.ts` (streaks, averages, direction-aware trend) |
 | `src/components/ProgressPage.tsx` | Day-by-day history, commitments, and whether it is getting better |
-| `src/components/CommitmentGrid.tsx` | Every commitment against every day — kept, missed, open, not due, unwatched |
+| `src/components/HabitBoard.tsx` | The Habit tab: daily tallies and %, every commitment against every day, the period ring, top 5 |
+| `src/services/period.ts` | Sunday-start weeks and calendar months: `periodOf`, `shift`, `periodTitle`, `weeksOf` |
+| `src/services/habitBoard.ts` | `dayTally`, `periodPercent`, `topHabits` — read off `stateOn`, pure and tested |
 | `src/components/CommitmentStrip.tsx` | What you owe today: habit chips you tick, target chips the watcher fills |
 | `src/components/CommitmentsDialog.tsx` | Adding and editing both kinds, behind one toggle |
 | `src/lib/ipc.ts` | One typed wrapper per command; components never call `invoke` directly |
@@ -88,7 +91,7 @@ To prevent context bloat and preserve prompt caching, the agent must adhere to t
 | `src/components/AppRegistry.tsx` | The App registry tab: unrecognised apps, every known app, the category list |
 | `src/lib/categories.ts` | The category vocabulary as a live store — `useCategories`, `categoryColor` |
 | `src/lib/appearance.ts` | Text size, typeface and background, written onto `:root` |
-| `src/lib/theme.ts` | The presets, and a whole theme derived from one picked colour |
+| `src/lib/theme.ts` | The base theme, and a whole theme derived from one picked colour |
 | `src/components/SessionTimer.tsx` | The block's countdown. Reads the clock, writes nothing |
 | `src-tauri/src/grades.rs` | Classes, grade categories and grade items. Storage only — the grade is in TS |
 | `src/services/grades.ts` | `currentGrade`, `letterFor`, `gpa`, `neededAverage` — pure and tested |
@@ -422,11 +425,11 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     `color-mix`, in the proportions Blush already uses — canvas a tenth of the accent over
     white, edge a fifth, ink a third of it over black. Every surface is mixed toward white
     and every ink toward black, which is the whole legibility argument: there is no hue
-    that can produce grey text on a grey card. It is stored beside the theme rather than
-    inside `THEMES` because it is a modifier — clearing it has to put back whatever the
-    preset said — and choosing a preset clears it, since otherwise the preset you just
-    picked would have no visible effect. Category colours are still untouched: they live
-    in the database and mean something specific.
+    that can produce grey text on a grey card. There are **no presets**: Blush is the one
+    base theme, and the colour is picked in Edit appearance (`AppearanceBar`), previewed
+    live and written on Save like the rest of that bar. Clearing it (Reset) puts Blush
+    back. A stored `theme` setting from older builds is ignored. Category colours are
+    still untouched: they live in the database and mean something specific.
 41. **The session clock re-renders the whole app once a second.** `useLiveActivity` bumps
     a counter every second so the counter counts, and everything `App` renders goes with
     it. Anything expensive to *draw* — the charts especially, which are hundreds of SVG
@@ -454,8 +457,14 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     morning spoil a day that was perfect at the time. **Archiving keeps the history and
     deleting destroys it**, which is why they are separate buttons and only one of them
     asks. Habits live on **Progress**, not Today: the tick is a small act but "am I keeping
-    this up" is a progress question, and the grid is the answer — a third chart mode drawing
-    every commitment against every day.
+    this up" is a progress question, and the grid is the answer — the **Habit** tab
+    (`HabitBoard`) draws every daily commitment against every day of a calendar week or
+    month, with each day's kept / not kept / percentage above it. A day not due and a day
+    nothing was recorded count for nothing either way. Ticks are sent by the day they
+    belong to, not when they were clicked, so a backfilled day shows on its own month.
+    **Monthly habits** (`habits.period = 'monthly'`) are plain checks in their own box on
+    the board, one `habit_days` row on the month's first day; they never enter a streak, a
+    perfect day or a day's tally. Top 5 is always shown.
 44. **A syllabus is read, never trusted.** `syllabus.rs` understands one grammar — a day
     token, a time range, an optional room — and nothing else, because there is still no
     model in Nudgy. It will miss unusual layouts and will happily offer your own office
@@ -495,4 +504,8 @@ sqlite3 ~/Library/Application\ Support/com.nudgy.app/nudgy.db \
     updates rather than duplicates. The arithmetic is **Canvas's**: a weighted class
     renormalises over the categories that have anything graded, so a class with only
     homework back is graded on homework, not on homework plus a zero for an unsat final.
-    What-if letters on the GPA are never saved — a what-if is a question, not a record.
+    A target is any percentage typed in; the letters only fill it. A lab section can be
+    **linked** to its lecture (`courses.parent_id`, `parent_category_id`): the lab keeps its
+    own breakdown, and its percentage enters the lecture as one 100-point entry in the
+    chosen category. Links are one level deep, and a linked lab is left out of the GPA —
+    its work is already inside the lecture's letter.

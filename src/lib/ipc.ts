@@ -48,6 +48,9 @@ export const listUnmappedProcesses = (sinceTs?: number) =>
 
 export const getAppRules = () => invoke<AppRule[]>("get_app_rules");
 
+/** Sends the registry to the maintainer's sheet under `name`. Returns how many apps. */
+export const shareRegistry = (name: string) => invoke<number>("share_registry", { name });
+
 export const registerApp = (input: {
   matchType: string;
   pattern: string;
@@ -82,6 +85,9 @@ export const clearCategoryTarget = (category: string) =>
 export const addCategory = (name: string, color: string) =>
   invoke<void>("add_category", { name, color });
 
+export const setCategoryColor = (id: number, color: string) =>
+  invoke<void>("set_category_color", { id, color });
+
 export const deleteCategory = (id: number) => invoke<void>("delete_category", { id });
 
 /** `[rules, seconds]` that would fall back to Neutral if this category were deleted. */
@@ -93,7 +99,6 @@ export const suggestCategory = (processName: string, appName?: string | null) =>
   invoke<CategorySuggestion>("suggest_category", { processName, appName: appName ?? null });
 
 /** Deletes every recorded sample. Plans, schedule, tasks and rules are untouched. */
-export const clearActivityData = () => invoke<number>("clear_activity_data");
 
 /** Guesses which app a goal is about from its wording; null when it cannot tell. */
 export const resolveAppForText = (text: string) =>
@@ -150,8 +155,11 @@ export const readSyllabus = (text: string) =>
 
 export const listHabits = () => invoke<HabitsSnapshot>("list_habits");
 
-export const createHabit = (name: string, weekdays: number[]) =>
-  invoke<number>("create_habit", { name, weekdays });
+export const createHabit = (
+  name: string,
+  weekdays: number[],
+  period: "daily" | "monthly" = "daily",
+) => invoke<number>("create_habit", { name, weekdays, period });
 
 export const updateHabit = (id: number, name: string, weekdays: number[]) =>
   invoke<void>("update_habit", { id, name, weekdays });

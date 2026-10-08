@@ -96,25 +96,31 @@ fn due(app: &AppHandle) -> anyhow::Result<Vec<(String, i64)>> {
     let horizon = now + default_lead.max(24 * 60 * 60) + WINDOW_SECONDS;
 
     let mut stmt = conn.prepare_cached(
-        "SELECT id, label, start_ts, reminder_lead_seconds
-           FROM schedule_blocks
-          WHERE start_ts > ?1 AND start_ts <= ?2
-          ORDER BY start_ts",
+        // `prev_end` is when the previous sitting of the same plan finishes, if any.
+        // A zero lead fires at the start itself, so a block that began within the window
+        // is still a candidate.
+        "SELECT b.id, b.label, b.start_ts, b.reminder_lead_seconds,
+                (SELECT MAX(p.end_ts) FROM schedule_blocks p
+                  WHERE p.plan_id = b.plan_id AND p.id <> b.id AND p.end_ts <= b.start_ts)
+           FROM schedule_blocks b
+          WHERE b.start_ts > ?1 - ?3 AND b.start_ts <= ?2
+          ORDER BY b.start_ts",
     )?;
     let candidates = stmt
-        .query_map(rusqlite::params![now, horizon], |row| {
+        .query_map(rusqlite::params![now, horizon, WINDOW_SECONDS], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, i64>(2)?,
                 row.get::<_, Option<i64>>(3)?,
+                row.get::<_, Option<i64>>(4)?,
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut ready = Vec::new();
-    for (id, label, start_ts, lead) in candidates {
-        let lead = lead.unwrap_or(default_lead).max(0);
+    for (id, label, start_ts, lead, prev_end) in candidates {
+        let lead = lead_for(lead.unwrap_or(default_lead), start_ts, prev_end);
         let fire_at = start_ts - lead;
 
         // The window, not an instant.
@@ -129,6 +135,17 @@ fn due(app: &AppHandle) -> anyhow::Result<Vec<(String, i64)>> {
         ready.push((label, start_ts - now));
     }
     Ok(ready)
+}
+
+/// A sitting that follows another of the same plan by less than the lead time is the end
+/// of a break, not something coming up: warning ten minutes ahead of it lands in the
+/// middle of the sitting before, which is the one thing a focus block must not do. It is
+/// announced as it begins instead.
+fn lead_for(lead: i64, start_ts: i64, prev_end: Option<i64>) -> i64 {
+    match prev_end {
+        Some(end) if start_ts - end < lead => 0,
+        _ => lead.max(0),
+    }
 }
 
 fn announce(app: &AppHandle, label: &str, starts_in: i64) {
@@ -201,6 +218,20 @@ mod tests {
         let start = 10_000;
         assert!(!should_fire(start - 600 + WINDOW_SECONDS, start, 600));
         assert!(!should_fire(start - 60, start, 600));
+    }
+
+    // 09:20–09:45, five-minute break, next sitting 09:50: the ten-minute warning would
+    // have gone off at 09:40, mid-session. It fires at 09:50 instead.
+    #[test]
+    fn a_sitting_after_a_short_break_is_announced_as_it_begins() {
+        let start = 10_000;
+        let lead = lead_for(600, start, Some(start - 300));
+        assert_eq!(lead, 0);
+        assert!(!should_fire(start - 600, start, lead));
+        assert!(should_fire(start, start, lead));
+        // A first sitting, or one after a long gap, keeps its warning.
+        assert_eq!(lead_for(600, start, None), 600);
+        assert_eq!(lead_for(600, start, Some(start - 3_600)), 600);
     }
 
     #[test]

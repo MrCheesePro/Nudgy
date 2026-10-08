@@ -19,6 +19,11 @@ export interface Habit {
   createdDay: string;
   /** `YYYY-MM-DD` when it was put away, or null while it is live. */
   archivedDay: string | null;
+  /**
+   * `monthly` is a plain check once a month, ticked on the month's first day. It never
+   * enters a streak, a perfect day or a day's tally. Absent means daily.
+   */
+  period?: "daily" | "monthly";
 }
 
 /** Which days each habit was ticked, keyed by habit id. */

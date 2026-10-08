@@ -7,6 +7,7 @@ const START = 1_789_700_100;
 
 function work(overrides: Partial<CurrentWork> = {}): CurrentWork {
   return {
+    planId: null,
     title: "Problem set",
     courseCode: null,
     blockStartTs: START,

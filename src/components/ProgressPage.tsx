@@ -1,19 +1,17 @@
 import { memo, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 
-import { RANGES, useProgress, type Range } from "../hooks/useProgress";
-import { CommitmentGrid } from "./CommitmentGrid";
+import { FETCH_DAYS, useProgress } from "../hooks/useProgress";
+import { HabitBoard } from "./HabitBoard";
 import { CommitmentStrip } from "./CommitmentStrip";
 import { CommitmentsDialog } from "./CommitmentsDialog";
 import { useHabits } from "../hooks/useHabits";
@@ -28,8 +26,20 @@ import {
   streakFor,
   type Commitment,
 } from "../services/commitments";
-import { runByDay } from "../services/habits";
-import { categoriesInSeries, IDLE, secondsOn, type StreakState } from "../services/progress";
+import {
+  monthTitle,
+  periodOf,
+  periodTitle,
+  shift,
+  type PeriodKind,
+} from "../services/period";
+import {
+  categoriesInSeries,
+  dayKey,
+  IDLE,
+  secondsOn,
+  type StreakState,
+} from "../services/progress";
 
 /**
  * Whether it is actually getting better.
@@ -60,23 +70,44 @@ type Ceiling = (typeof CEILINGS)[number];
  * to compare, so `memo` skips the render entirely and the page redraws only when its own
  * data changes.
  */
-/** How the days are drawn. */
-type Mode = "bars" | "lines" | "commitments";
+/** How the days are drawn: hours by category, or the habit board. */
+type Mode = "bars" | "habit";
 
 const MODES: [Mode, string][] = [
   ["bars", "Bars"],
-  ["lines", "Lines"],
-  ["commitments", "Kept"],
+  ["habit", "Habit"],
+];
+
+const PERIODS: [PeriodKind, string][] = [
+  ["week", "Weekly"],
+  ["month", "Monthly"],
 ];
 
 export const ProgressPage = memo(function ProgressPage() {
   // Remembered across navigation: leaving the page and coming back should not undo a
   // choice you made about how to read it.
-  const [range, setRange] = usePref<Range>("progress.range", 7);
-  const [mode, setMode] = usePref<Mode>("progress.mode", "bars");
+  const [storedMode, setMode] = usePref<string>("progress.mode", "bars");
+  // Older builds stored "lines" and "commitments"; they read as the views that replaced them.
+  const mode: Mode = storedMode === "habit" || storedMode === "commitments" ? "habit" : "bars";
+  const [kind, setKind] = usePref<PeriodKind>("progress.period", "week");
   const [ceiling, setCeiling] = usePref<Ceiling>("progress.ceiling", 12);
-  const { series, full, targets, error, loading, saveTarget, removeTarget } =
-    useProgress(range);
+
+  /*
+   * Which period is shown. Session state, not a pref: opening the page should land on
+   * this week or this month, not wherever you were browsing last Tuesday.
+   */
+  const [anchor, setAnchor] = useState(() => new Date());
+  const period = useMemo(() => periodOf(kind, anchor), [kind, anchor]);
+  const now = new Date();
+  const atLatest = period.end >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // The fetch reaches FETCH_DAYS back; a period wholly before that would be blank.
+  const earliest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - FETCH_DAYS + 1);
+  const atEarliest = shift(kind, anchor, -1) < periodOf(kind, earliest).start;
+
+  const { series, full, targets, error, loading, saveTarget, removeTarget } = useProgress(
+    period.days.length,
+    dayKey(period.end),
+  );
   const habits = useHabits();
   const [manageOpen, setManageOpen] = useState(false);
   /** The row the dialog was opened on, so a measured chip can be clicked to edit it. */
@@ -116,53 +147,22 @@ export const ProgressPage = memo(function ProgressPage() {
     [series],
   );
 
-  /*
-   * Each live habit as a line of its running streak, on its own axis. A habit has no
-   * hours — it is ticked, not measured — so the line is the run as it stood each day:
-   * climbing while it is kept, back to zero the day after a miss.
-   */
-  const habitLines = useMemo(() => {
-    const days = series.map((entry) => entry.day);
-    return habits.live.map((habit, position) => ({
-      key: `habit:${habit.id}`,
-      name: habit.name,
-      color: HABIT_COLORS[position % HABIT_COLORS.length],
-      values: runByDay(habit, habits.ticks[habit.id] ?? new Set<string>(), days),
-    }));
-  }, [series, habits.live, habits.ticks]);
 
   const chartData = useMemo(
     () =>
-      series.map((entry, position) => ({
-        label: shortDay(entry.day),
+      series.map((entry) => ({
+        // Seven days have room for "Sun 4"; thirty-one only for the number.
+        label: kind === "week" ? shortDay(entry.day) : String(Number(entry.day.slice(8))),
         day: entry.day,
         ...Object.fromEntries(
           categories.map((category) => [category, secondsOn(entry, category) / 3600]),
         ),
-        ...Object.fromEntries(habitLines.map((line) => [line.key, line.values[position]])),
       })),
-    [series, categories, habitLines],
+    [series, categories, kind],
   );
 
   const tracked = series.reduce((sum, entry) => sum + entry.activeSeconds, 0);
 
-  /*
-   * Lines draws only what you have committed to — every target's category and every
-   * habit. With nothing committed yet there is nothing to single out, so it falls back to
-   * every category rather than drawing an empty chart.
-   */
-  const lineCategories =
-    commitments.length > 0 ? targets.map((target) => target.category) : categories;
-  const trackingLabel =
-    commitments.length === 0
-      ? "Tracking: every category"
-      : `Tracking: ${[
-          ...targets.map(
-            (target) =>
-              `${target.category} ${target.direction === "at_least" ? "≥" : "≤"} ${formatDuration(target.secondsPerDay)}`,
-          ),
-          ...habitLines.map((line) => line.name),
-        ].join(", ")}`;
 
   /** The tallest stack in view, so `Fit` has something to fit to. */
   const busiestHours = useMemo(
@@ -211,39 +211,60 @@ export const ProgressPage = memo(function ProgressPage() {
       )}
 
       <section className="flex min-h-[22rem] flex-1 flex-col rounded-2xl border border-edge bg-surface p-6">
-        <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
-            {mode === "commitments"
-              ? `What you kept, last ${range} days`
-              : `Last ${range} days`}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          {/* The period by name. The habit board is a month's page, so it is only ever
+              the month; the bars say exactly which days they cover. */}
+          <h2 className="text-2xl font-semibold text-ink">
+            {mode === "habit" ? monthTitle(period.start) : periodTitle(kind, period)}
           </h2>
           <div className="flex items-center gap-2">
-            <span
-              title={mode === "lines" ? trackingLabel : undefined}
-              className="mr-1 max-w-[28rem] truncate font-mono text-xs tabular-nums text-ink-mute"
-            >
-              {mode === "commitments"
+            <span className="mr-1 font-mono text-xs tabular-nums text-ink-mute">
+              {mode === "habit"
                 ? `${perfect.days} perfect ${perfect.days === 1 ? "day" : "days"}`
-                : mode === "lines"
-                  ? trackingLabel
-                  : `${formatDuration(tracked)} total`}
+                : `${formatDuration(tracked)} total`}
             </span>
-            {RANGES.map((option) => (
+
+            <span className="flex items-center">
               <button
-                key={option}
                 type="button"
-                onClick={() => setRange(option)}
-                className={`rounded-lg px-2 py-1 text-mini transition ${
-                  option === range
-                    ? "bg-rose-wash font-medium text-rose-deep"
-                    : "text-ink-mute hover:text-ink-soft"
-                }`}
+                disabled={atEarliest}
+                onClick={() => setAnchor(shift(kind, anchor, -1))}
+                aria-label={kind === "week" ? "Previous week" : "Previous month"}
+                className="rounded-lg p-1 text-ink-mute transition hover:text-ink disabled:opacity-30"
               >
-                {option}d
+                <ChevronLeft size={15} />
               </button>
-            ))}
-            {/* Only the hours views have an hours axis. */}
-            {mode !== "commitments" && (
+              <button
+                type="button"
+                disabled={atLatest}
+                onClick={() => setAnchor(shift(kind, anchor, 1))}
+                aria-label={kind === "week" ? "Next week" : "Next month"}
+                className="rounded-lg p-1 text-ink-mute transition hover:text-ink disabled:opacity-30"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </span>
+
+            <span className="flex items-center rounded-lg border border-edge p-0.5">
+              {PERIODS.map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setKind(id)}
+                  aria-pressed={kind === id}
+                  className={`rounded-md px-2 py-0.5 text-mini transition ${
+                    kind === id
+                      ? "bg-rose-wash font-medium text-rose-deep"
+                      : "text-ink-mute hover:text-ink-soft"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </span>
+
+            {/* Only the bars have an hours axis. */}
+            {mode === "bars" && (
             <select
               value={ceiling ?? "fit"}
               onChange={(event) =>
@@ -262,7 +283,7 @@ export const ProgressPage = memo(function ProgressPage() {
             </select>
             )}
 
-            {/* Three ways of reading the same days, named rather than cycled: with a
+            {/* Two ways of reading the same days, named rather than cycled: with a
                 toggle you have to click to find out what is on the other side. */}
             <span className="flex items-center rounded-lg border border-edge p-0.5">
               {MODES.map(([id, label]) => (
@@ -284,13 +305,18 @@ export const ProgressPage = memo(function ProgressPage() {
           </div>
         </div>
 
-        {mode === "commitments" ? (
+        {mode === "habit" ? (
           <div className="mt-5 flex min-h-0 flex-1 flex-col">
-            <CommitmentGrid
+            <HabitBoard
               commitments={commitments}
               ledger={ledger}
-              streaks={streaks}
-              days={range}
+              days={period.days}
+              monthly={habits.monthly}
+              ticks={habits.ticks}
+              monthKey={dayKey(period.start).slice(0, 8) + "01"}
+              onAddMonthly={habits.addMonthly}
+              onDeleteMonthly={habits.remove}
+              onToggleHabit={(habit, day) => void habits.toggle(habit, day)}
             />
           </div>
         ) : loading && series.length === 0 ? (
@@ -303,7 +329,6 @@ export const ProgressPage = memo(function ProgressPage() {
         ) : (
           <div className="mt-5 min-h-0 flex-1">
             <ResponsiveContainer width="100%" height="100%">
-              {mode === "bars" ? (
                 <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
                   <CartesianGrid vertical={false} stroke="currentColor" className="text-edge" />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="var(--text-tiny)" />
@@ -338,91 +363,13 @@ export const ProgressPage = memo(function ProgressPage() {
                     />
                   ))}
                 </BarChart>
-              ) : (
-                <LineChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -8 }}>
-                  <CartesianGrid
-                    yAxisId="hours"
-                    vertical={false}
-                    stroke="currentColor"
-                    className="text-edge"
-                  />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize="var(--text-tiny)" />
-                  <YAxis
-                    yAxisId="hours"
-                    domain={[0, top]}
-                    ticks={ticks}
-                    interval={0}
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize="var(--text-tiny)"
-                    width={34}
-                    tickFormatter={(value: number) => `${value}h`}
-                  />
-                  {/* Streaks are days, not hours, so they get their own scale on the right —
-                      at least a week tall, so a two-day run does not fill the chart. */}
-                  {habitLines.length > 0 && (
-                    <YAxis
-                      yAxisId="streak"
-                      orientation="right"
-                      allowDecimals={false}
-                      domain={[0, (most: number) => Math.max(7, most)]}
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize="var(--text-tiny)"
-                      width={30}
-                      tickFormatter={(value: number) => `${value}d`}
-                    />
-                  )}
-                  <Tooltip content={<HoursTooltip />} isAnimationActive={false} />
-                  {/* In line mode the targets are the point, so each one gets a rule it
-                      can be read against. */}
-                  {targets.map((target) => (
-                    <ReferenceLine
-                      key={`rule-${target.category}`}
-                      yAxisId="hours"
-                      y={target.secondsPerDay / 3600}
-                      stroke={categoryColor(target.category)}
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.7}
-                    />
-                  ))}
-                  {lineCategories.map((category) => (
-                    <Line
-                      key={category}
-                      yAxisId="hours"
-                      type="monotone"
-                      dataKey={category}
-                      stroke={categoryColor(category)}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  ))}
-                  {/* Stepped, because a streak moves a whole day at a time. */}
-                  {habitLines.map((line) => (
-                    <Line
-                      key={line.key}
-                      yAxisId="streak"
-                      type="stepAfter"
-                      dataKey={line.key}
-                      name={line.name}
-                      stroke={line.color}
-                      strokeWidth={2}
-                      strokeDasharray="6 3"
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  ))}
-                </LineChart>
-              )}
             </ResponsiveContainer>
           </div>
         )}
 
-        {/* What is drawn, and nothing else: in Lines that is the commitments. */}
-        {mode !== "commitments" && categories.length > 0 && (
+        {mode === "bars" && categories.length > 0 && (
           <ul className="mt-4 flex shrink-0 flex-wrap gap-x-4 gap-y-1.5">
-            {(mode === "lines" ? lineCategories : categories).map((category) => (
+            {categories.map((category) => (
               <li key={category} className="flex items-center gap-1.5 text-mini text-ink-soft">
                 <span
                   className="h-2 w-2 shrink-0 rounded-full"
@@ -431,17 +378,6 @@ export const ProgressPage = memo(function ProgressPage() {
                 {category}
               </li>
             ))}
-            {mode === "lines" &&
-              habitLines.map((line) => (
-                <li key={line.key} className="flex items-center gap-1.5 text-mini text-ink-soft">
-                  <span
-                    className="h-0.5 w-3 shrink-0 rounded-full"
-                    style={{ background: line.color }}
-                  />
-                  {line.name}
-                  <span className="text-ink-mute">streak</span>
-                </li>
-              ))}
           </ul>
         )}
       </section>
@@ -497,10 +433,6 @@ interface TooltipEntry {
   dataKey?: string | number;
 }
 
-/** Habits have no category colour of their own, so their lines take one of these. */
-const HABIT_COLORS = ["var(--color-rose-deep)", "#7c6fd6", "#3a9e96", "#d49a2e", "#5b8def"];
-
-const isStreak = (entry: TooltipEntry) => String(entry.dataKey ?? "").startsWith("habit:");
 
 function HoursTooltip({
   active,
@@ -516,10 +448,7 @@ function HoursTooltip({
   if (rows.length === 0) return null;
 
   // The stack's own height, which the segments make you add up in your head otherwise.
-  // Streaks are days, not hours, and stay out of it.
-  const total = rows
-    .filter((entry) => !isStreak(entry))
-    .reduce((sum, entry) => sum + (entry.value ?? 0), 0);
+  const total = rows.reduce((sum, entry) => sum + (entry.value ?? 0), 0);
 
   return (
     <div className="rounded-xl border border-edge bg-surface px-3 py-2 shadow-lg">
@@ -540,9 +469,7 @@ function HoursTooltip({
             />
             <span className="text-ink-soft">{entry.name}</span>
             <span className="ml-auto font-mono tabular-nums text-ink-mute">
-              {isStreak(entry)
-                ? `${entry.value}d streak`
-                : formatDuration((entry.value ?? 0) * 3600)}
+              {formatDuration((entry.value ?? 0) * 3600)}
             </span>
           </li>
         ))}

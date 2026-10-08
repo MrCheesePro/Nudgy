@@ -176,6 +176,8 @@ export interface HabitRow {
   weekdays: number[];
   createdDay: string;
   archivedDay: string | null;
+  /** `monthly` is a plain check once a month, ticked on the month's first day. */
+  period: "daily" | "monthly";
 }
 
 /** Habits and their ticks together, because a streak needs both to mean anything. */
@@ -374,6 +376,10 @@ export interface Course {
   credits: number;
   targetPercent: number | null;
   notes: string | null;
+  /** The class this one counts toward — a lab section folding into its lecture. */
+  parentId: number | null;
+  /** The parent's category this class's percentage is filed under. */
+  parentCategoryId: number | null;
 }
 
 export interface GradeCategory {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarOff, Coffee, Zap } from "lucide-react";
+import { CalendarOff, CircleCheckBig, Coffee, Zap } from "lucide-react";
 
 import { categoryColor } from "../lib/categories";
 import type { CurrentWork, UpcomingWork } from "../hooks/useCurrentWork";
@@ -13,6 +13,8 @@ interface Props {
   category: string;
   /** Called once when a focus session gives way to a break. */
   onBreak?: () => void;
+  /** Finishes the plan this session belongs to — done early, with time to spare. */
+  onFinish?: (planId: number) => void;
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  * you are not using advances nothing. The countdown answers "how long is left in this
  * sitting", which is a different question from "how much of this is done".
  */
-export function SessionTimer({ work, next, category, onBreak }: Props) {
+export function SessionTimer({ work, next, category, onBreak, onFinish }: Props) {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   useEffect(() => {
@@ -165,7 +167,23 @@ export function SessionTimer({ work, next, category, onBreak }: Props) {
             <div className="truncate text-xs font-medium text-ink-soft">{next.title}</div>
             <div className="text-mini text-ink-mute">until the next session</div>
           </div>
-        ) : (
+        ) : null}
+
+        {/* Finishing early is the one thing the timer can say that the schedule cannot.
+            It is the same "done" as the check-in: the sitting underway is cut to now and
+            the ones not started are dropped. A standalone block has no plan to finish. */}
+        {session?.planId != null && onFinish && (
+          <button
+            type="button"
+            onClick={() => onFinish(session.planId!)}
+            className="flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1 text-mini font-medium text-ink-soft transition hover:border-edge-strong hover:text-ink"
+          >
+            <CircleCheckBig size={12} />
+            Done — finish task
+          </button>
+        )}
+
+        {session ? null : (
           // Nothing scheduled is a real answer, and a Start button here would have been a
           // second timer with a second opinion about the same hour. Plan something and
           // this fills itself in.

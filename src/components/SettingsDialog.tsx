@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyRound, TriangleAlert, Type, X } from "lucide-react";
+import { TriangleAlert, Type, X } from "lucide-react";
 
-import { clearActivityData, clearSecret, getSettings, hasSecret, importSound, setLmsProvider, setSecret, setSetting } from "../lib/ipc";
+import { clearSecret, shareRegistry, getSettings, hasSecret, importSound, setLmsProvider, setSecret, setSetting } from "../lib/ipc";
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as autostartEnabled } from "@tauri-apps/plugin-autostart";
 import {
+  addSavedFont,
   FONTS,
   MAX_SAVED_BACKGROUNDS,
+  removeSavedFont,
   forgetBackground,
   saveAppearance,
   saveCurrentBackground,
@@ -21,9 +23,7 @@ import {
   type ChimeId,
 } from "../lib/chime";
 import { open as pickFile } from "@tauri-apps/plugin-dialog";
-import { readPref, writePref } from "../lib/prefs";
-import { THEMES, chooseAccent, chooseTheme, useAccent, useTheme } from "../lib/theme";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { readPref, usePref, writePref } from "../lib/prefs";
 import {
   SECRET_CALENDAR_ICS_URL,
   SECRET_CANVAS_TOKEN,
@@ -104,11 +104,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
 
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmingWipe, setConfirmingWipe] = useState(false);
-  const [wiping, setWiping] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
-  const theme = useTheme();
-  const accent = useAccent();
   const appearance = useAppearance();
   const [customFont, setCustomFont] = useState("");
   const [background, setBackground] = useState(appearance.background);
@@ -243,6 +239,12 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, confirmingClose, requestClose, save]);
 
+  // Above the early return: a hook after it runs only while open, and the render that
+  // opens the dialog would then call more hooks than the one before it, which React
+  // treats as a crash — the dialog simply never appears.
+  const [shareName, setShareName] = usePref<string>("share.name", "");
+  const [sharing, setSharing] = useState(false);
+
   if (!open) return null;
 
   const forget = async (key: string) => {
@@ -253,17 +255,16 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
     setStatus("Removed from keychain");
   };
 
-  /** The command drains the sample buffer first, so nothing already measured leaks back
-   *  in on the next flush, and emits `nudgy://flushed` so every chart empties together. */
-  const wipe = async () => {
-    setWiping(true);
+
+  const sendRegistry = async () => {
+    setSharing(true);
     try {
-      const deleted = await clearActivityData();
-      setStatus(`Cleared ${deleted.toLocaleString()} recorded samples`);
+      const count = await shareRegistry(shareName);
+      setStatus(`Sent ${count} ${count === 1 ? "app" : "apps"} — thank you`);
     } catch (cause) {
       setStatus(String(cause));
     } finally {
-      setWiping(false);
+      setSharing(false);
     }
   };
 
@@ -300,7 +301,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
         <div className="mt-6 space-y-5">
           <div data-tour="appearance">
             <span className="text-xs font-medium tracking-wide text-ink-soft">
-              Size, panels and type
+              Appearance
             </span>
             {/* Judged against the page, not against this dialog — which is covering the
                 thing being judged. Settings steps aside and the controls float over the
@@ -311,7 +312,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
               className="mt-2 flex items-center gap-2 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong"
             >
               <Type size={13} />
-              Adjust over the app — text {Math.round(appearance.scale * 100)}%
+              Edit appearance
             </button>
           </div>
 
@@ -319,31 +320,56 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
             <span className="text-xs font-medium tracking-wide text-ink-soft">
               A typeface from Google Fonts
             </span>
-            {/* The list of built-in faces is in the bar, beside the sliders, where it can
-                be seen against the page. A name still has to be typed somewhere, and a
-                text field does not belong in a row of sliders. */}
-            {(
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <input
-                  value={customFont}
-                  onChange={(event) => setCustomFont(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && customFont.trim()) {
-                      void saveAppearance({ font: customFont.trim() });
-                    }
-                  }}
-                  placeholder="Source Serif 4"
-                  className="min-w-40 flex-1 rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
-                />
-                <button
-                  type="button"
-                  disabled={!customFont.trim()}
-                  onClick={() => void saveAppearance({ font: customFont.trim() })}
-                  className="rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong disabled:opacity-40"
-                >
-                  Use it
-                </button>
-              </div>
+            {/* Adding puts the family in the bar's Font list; choosing it happens there,
+                beside the sliders, where it can be judged against the page. A name still
+                has to be typed somewhere, and a text field does not belong in that row. */}
+            <p className="mt-1 text-mini text-ink-mute">
+              Added fonts appear in the Font list under Edit appearance.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                value={customFont}
+                onChange={(event) => setCustomFont(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && customFont.trim()) {
+                    void addSavedFont(customFont);
+                    setCustomFont("");
+                  }
+                }}
+                aria-label="Google Fonts family"
+                className="min-w-40 flex-1 rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
+              />
+              <button
+                type="button"
+                disabled={!customFont.trim()}
+                onClick={() => {
+                  void addSavedFont(customFont);
+                  setCustomFont("");
+                }}
+                className="rounded-lg border border-edge px-2.5 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong disabled:opacity-40"
+              >
+                Add to list
+              </button>
+            </div>
+            {appearance.savedFonts.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {appearance.savedFonts.map((family) => (
+                  <li
+                    key={family}
+                    className="flex items-center gap-1 rounded-full border border-edge py-0.5 pr-1 pl-2.5 text-mini text-ink-soft"
+                  >
+                    {family}
+                    <button
+                      type="button"
+                      onClick={() => void removeSavedFont(family)}
+                      aria-label={`Remove ${family}`}
+                      className="rounded-full p-0.5 text-ink-mute transition hover:text-bad"
+                    >
+                      <X size={11} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
@@ -426,71 +452,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
 
           </div>
 
-          <div data-tour="colours" className="border-t border-edge pt-5">
-            <span className="text-xs font-medium tracking-wide text-ink-soft">Colours</span>
-            <ul className="mt-2.5 flex flex-wrap gap-2">
-              {THEMES.map((entry) => (
-                <li key={entry.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Picking a preset clears a custom colour, because the custom one
-                      // *is* a theme now — leaving both set would mean the preset you
-                      // just chose had no visible effect.
-                      if (accent) void chooseAccent("");
-                      void chooseTheme(entry.id);
-                    }}
-                    aria-pressed={!accent && entry.id === theme}
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                      !accent && entry.id === theme
-                        ? "border-edge-strong bg-canvas font-medium text-ink"
-                        : "border-edge text-ink-soft hover:border-edge-strong"
-                    }`}
-                  >
-                    <span className="flex shrink-0 overflow-hidden rounded-full border border-edge">
-                      {entry.swatch.map((shade) => (
-                        <span
-                          key={shade}
-                          className="h-3.5 w-3"
-                          style={{ background: shade }}
-                        />
-                      ))}
-                    </span>
-                    {entry.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-
-            {/* A theme from one colour. The other eleven are derived from it, because a
-                theme is twelve colours that have to agree and picking twelve is the part
-                that is actually hard. */}
-            <div
-              className={`mt-3 flex items-center gap-2.5 rounded-lg border px-2.5 py-1.5 transition ${
-                accent ? "border-edge-strong bg-canvas" : "border-edge"
-              }`}
-            >
-              <input
-                type="color"
-                value={accent || "#e0919c"}
-                onChange={(event) => void chooseAccent(event.target.value)}
-                aria-label="Build a theme from your own colour"
-                className="h-6 w-9 shrink-0 cursor-pointer rounded border border-edge bg-canvas"
-              />
-              <span className={`text-xs ${accent ? "font-medium text-ink" : "text-ink-soft"}`}>
-                Your own colour
-              </span>
-              {accent && (
-                <button
-                  type="button"
-                  onClick={() => void chooseAccent("")}
-                  className="ml-auto shrink-0 text-mini text-ink-mute transition hover:text-ink-soft"
-                >
-                  Back to a preset
-                </button>
-              )}
-            </div>
-          </div>
 
           <label className="block">
             <span className="text-xs font-medium tracking-wide text-ink-soft">
@@ -518,9 +479,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
             onForget={() => void forget(SECRET_LMS_FEED_URL)}
           />
           <p className="-mt-3 text-xs text-ink-mute">
-            {LMS_LABELS[form.lmsProvider].where} No API key needed. A feed carries titles
-            and due dates but not what you have handed in, so ticking work off stays
-            manual.
+            {LMS_LABELS[form.lmsProvider].where} No API key needed.
           </p>
 
           {/* Canvas only, and framed as the upgrade it is rather than the way in. */}
@@ -530,11 +489,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 Have a Canvas API token? It adds submission status
               </summary>
               <div className="mt-3 space-y-3">
-                <p className="text-xs text-ink-mute">
-                  With a token Nudgy can see what you have already submitted and tick it
-                  off for you. Many institutions disable tokens — if yours has, the
-                  calendar URL above is the whole feature minus that.
-                </p>
                 <Field
                   label="Canvas base URL"
                   hint="e.g. https://canvas.institution.edu"
@@ -562,8 +516,7 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
             />
             <p className="mt-1 text-xs text-ink-mute">
               Google Calendar → Settings and sharing → Integrate calendar → “Secret address
-              in iCal format”. Anyone with that link can read the calendar, so it is kept
-              in the keychain.
+              in iCal format”.
             </p>
           </div>
 
@@ -571,10 +524,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
             <span className="text-xs font-medium tracking-wide text-ink-soft">
               Notifications
             </span>
-            <p className="mt-1 text-xs text-ink-mute">
-              The bell in the top bar turns all of these on and off. This is what they
-              sound like and how much warning you get.
-            </p>
 
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-1.5">
@@ -618,10 +567,6 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 Play
               </button>
             </div>
-            <p className="mt-1 text-mini text-ink-mute">
-              Zero minutes means "tell me as it starts". A task can override this with its
-              own warning when you plan it.
-            </p>
 
             {/* Only for the option that needs it. A URL field sitting under "Soft" is a
                 field that does nothing, which reads as a field that is broken. */}
@@ -693,53 +638,37 @@ export function SettingsDialog({ open, onClose, onPreviewTextSize }: Props) {
                 <span className="text-xs font-medium tracking-wide text-ink-soft">
                   Start Nudgy when I log in
                 </span>
-                <span className="mt-1 block text-xs text-ink-mute">
-                  Nudgy opens by itself after you restart or sign in, so the day is tracked
-                  without you having to remember. It starts in the background — no window
-                  appears until you click the tray icon. Turn this off and nothing is
-                  tracked between a reboot and the next time you open it, which is also how
-                  a streak gets lost to a restart rather than to you.
-                </span>
               </span>
             </label>
           </div>
 
+          {/* The whole registry — built-in rules too, since moving one to another
+              category is a correction worth having — sent to the maintainer's sheet on a
+              tab under the name typed here. Only on this button; never in the background. */}
           <div className="border-t border-edge pt-5">
             <span className="text-xs font-medium tracking-wide text-ink-soft">
-              Tracked activity
+              Share your app registry
             </span>
-            <p className="mt-1 text-xs text-ink-mute">
-              Deletes every recorded sample, so categories can be tested against a clean
-              day. Plans, schedule, tasks and your app rules are kept.
-            </p>
-            <button
-              type="button"
-              disabled={wiping}
-              onClick={() => setConfirmingWipe(true)}
-              className="mt-2.5 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-bad/40 hover:text-bad disabled:opacity-50"
-            >
-              {wiping ? "Clearing…" : "Clear tracked activity"}
-            </button>
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
+              <input
+                value={shareName}
+                onChange={(event) => setShareName(event.target.value)}
+                maxLength={40}
+                aria-label="Your name"
+                placeholder="Your name"
+                className="min-w-40 flex-1 rounded-lg border border-edge bg-canvas px-2.5 py-1.5 text-xs text-ink-soft outline-none focus:border-edge-strong"
+              />
+              <button
+                type="button"
+                disabled={!shareName.trim() || sharing}
+                onClick={() => void sendRegistry()}
+                className="rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-soft transition hover:border-edge-strong disabled:opacity-40"
+              >
+                {sharing ? "Sending…" : "Send my app categories"}
+              </button>
+            </div>
           </div>
         </div>
-
-        <ConfirmDialog
-          open={confirmingWipe}
-          title="Clear tracked activity?"
-          body="Every recorded sample is deleted, so today's chart and every past day go back to empty. Plans, schedule blocks, Canvas tasks and your app rules are kept. This cannot be undone."
-          confirmLabel="Delete it all"
-          onConfirm={() => {
-            setConfirmingWipe(false);
-            void wipe();
-          }}
-          onCancel={() => setConfirmingWipe(false)}
-        />
-
-        <p className="mt-5 flex items-start gap-2 text-xs text-ink-mute">
-          <KeyRound size={13} className="mt-0.5 shrink-0" />
-          Tokens are stored in the system keychain, never in Nudgy's database and never
-          sent back to this window.
-        </p>
 
         <div className="mt-6 flex items-center justify-end gap-3">
           {status && <span className="mr-auto text-xs text-ink-mute">{status}</span>}

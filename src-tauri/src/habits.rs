@@ -29,6 +29,13 @@ pub struct Habit {
     pub created_day: String,
     #[serde(default)]
     pub archived_day: Option<String>,
+    /// `daily`, or `monthly`: a plain check once a month, ticked on the month's first day.
+    #[serde(default = "default_period")]
+    pub period: String,
+}
+
+fn default_period() -> String {
+    "daily".to_string()
 }
 
 /// Habits and their ticks, in one answer.
@@ -43,15 +50,18 @@ pub struct HabitsSnapshot {
     pub ticks: Vec<(i64, String)>,
 }
 
-pub fn create(conn: &Connection, name: &str, weekdays: &[u32]) -> Result<i64> {
+pub fn create(conn: &Connection, name: &str, weekdays: &[u32], period: &str) -> Result<i64> {
     let name = name.trim();
     if name.is_empty() {
         return Err(anyhow::anyhow!("a habit needs a name"));
     }
+    if period != "daily" && period != "monthly" {
+        return Err(anyhow::anyhow!("a habit is daily or monthly"));
+    }
 
     conn.execute(
-        "INSERT INTO habits (name, weekdays, created_at) VALUES (?1, ?2, ?3)",
-        params![name, join(weekdays), chrono::Utc::now().timestamp()],
+        "INSERT INTO habits (name, weekdays, created_at, period) VALUES (?1, ?2, ?3, ?4)",
+        params![name, join(weekdays), chrono::Utc::now().timestamp(), period],
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -111,7 +121,8 @@ pub fn snapshot(conn: &Connection) -> Result<HabitsSnapshot> {
         "SELECT id, name, weekdays,
                 date(created_at, 'unixepoch', 'localtime'),
                 CASE WHEN archived_at IS NULL THEN NULL
-                     ELSE date(archived_at, 'unixepoch', 'localtime') END
+                     ELSE date(archived_at, 'unixepoch', 'localtime') END,
+                period
            FROM habits
           ORDER BY archived_at IS NOT NULL, id",
     )?;
@@ -123,13 +134,17 @@ pub fn snapshot(conn: &Connection) -> Result<HabitsSnapshot> {
                 weekdays: split(row.get::<_, Option<String>>(2)?.as_deref()),
                 created_day: row.get(3)?,
                 archived_day: row.get(4)?,
+                period: row.get(5)?,
             })
         })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
+    // By the day a tick belongs to, not when it was clicked: a day ticked months later
+    // still has to show on its own month.
     let cutoff = chrono::Utc::now().timestamp() - HISTORY_DAYS * 86_400;
     let mut stmt = conn.prepare(
-        "SELECT habit_id, day FROM habit_days WHERE done_at >= ?1 ORDER BY day",
+        "SELECT habit_id, day FROM habit_days
+          WHERE day >= date(?1, 'unixepoch', 'localtime') ORDER BY day",
     )?;
     let ticks = stmt
         .query_map(params![cutoff], |row| Ok((row.get(0)?, row.get(1)?)))?
@@ -174,7 +189,7 @@ mod tests {
     #[test]
     fn a_habit_round_trips_with_its_days() {
         let conn = memory_db();
-        let id = create(&conn, "  Gym  ", &[3, 1, 5, 1]).unwrap();
+        let id = create(&conn, "  Gym  ", &[3, 1, 5, 1], "daily").unwrap();
 
         let stored = snapshot(&conn).unwrap();
         assert_eq!(stored.habits.len(), 1);
@@ -190,7 +205,7 @@ mod tests {
     #[test]
     fn ticking_is_idempotent_in_both_directions() {
         let conn = memory_db();
-        let id = create(&conn, "Journal", &[]).unwrap();
+        let id = create(&conn, "Journal", &[], "daily").unwrap();
 
         set_done(&conn, id, "2026-09-23", true).unwrap();
         set_done(&conn, id, "2026-09-23", true).unwrap();
@@ -205,7 +220,7 @@ mod tests {
     #[test]
     fn archiving_keeps_the_ticks_and_deleting_does_not() {
         let conn = memory_db();
-        let id = create(&conn, "Gym", &[]).unwrap();
+        let id = create(&conn, "Gym", &[], "daily").unwrap();
         set_done(&conn, id, "2026-09-23", true).unwrap();
 
         archive(&conn, id, true).unwrap();
@@ -225,15 +240,15 @@ mod tests {
     #[test]
     fn a_habit_needs_a_name() {
         let conn = memory_db();
-        assert!(create(&conn, "   ", &[]).is_err());
-        let id = create(&conn, "Gym", &[]).unwrap();
+        assert!(create(&conn, "   ", &[], "daily").is_err());
+        let id = create(&conn, "Gym", &[], "daily").unwrap();
         assert!(rename(&conn, id, "", &[]).is_err());
     }
 
     #[test]
     fn an_empty_schedule_means_every_day() {
         let conn = memory_db();
-        create(&conn, "Journal", &[]).unwrap();
+        create(&conn, "Journal", &[], "daily").unwrap();
         assert!(snapshot(&conn).unwrap().habits[0].weekdays.is_empty());
     }
 }

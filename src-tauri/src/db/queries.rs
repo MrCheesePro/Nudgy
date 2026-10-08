@@ -298,6 +298,14 @@ pub fn insert_category(conn: &Connection, name: &str, color: &str) -> Result<()>
     Ok(())
 }
 
+pub fn set_category_color(conn: &Connection, id: i64, color: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE categories SET color = ?2 WHERE id = ?1",
+        params![id, color],
+    )?;
+    Ok(())
+}
+
 pub fn load_category(conn: &Connection, id: i64) -> Result<Option<Category>> {
     let mut stmt = conn.prepare(
         "SELECT id, name, color, sort_order, is_builtin FROM categories WHERE id = ?1",
@@ -426,14 +434,6 @@ pub fn delete_target(conn: &Connection, category: &str) -> Result<usize> {
         "DELETE FROM category_targets WHERE category = ?1",
         params![category],
     )?)
-}
-
-/// Wipes measured activity and nothing else. Plans, schedule, tasks and the registry are
-/// answers to different questions and survive.
-pub fn clear_activity_samples(conn: &Connection) -> Result<usize> {
-    let deleted = conn.execute("DELETE FROM activity_samples", [])?;
-    conn.execute_batch("VACUUM")?;
-    Ok(deleted)
 }
 
 /// Upsert by pattern. Seeding uses `is_user_defined = 0` and must not clobber a rule the

@@ -19,7 +19,6 @@ interface Props {
   /** Only on pages with a layout worth editing, so the button is absent elsewhere. */
   notifications: boolean;
   onToggleNotifications: () => void;
-  onOpenSettings: () => void;
   /** Course code of the block running right now, if any. */
   trackingLabel?: string | null;
 }
@@ -31,7 +30,6 @@ export function TopBar({
   alerts,
   notifications,
   onToggleNotifications,
-  onOpenSettings,
   trackingLabel,
 }: Props) {
   return (
@@ -79,7 +77,6 @@ export function TopBar({
         {paused ? <Play size={11} /> : <Pause size={11} />}
       </button>
 
-
       {/* A switch, not a tray. There is nothing to read in a notification list you have
           already seen as a notification — the only question worth a button here is
           whether you want them at all. */}
@@ -104,15 +101,6 @@ export function TopBar({
         {alerts > 0 && (
           <span className="absolute top-1.5 right-2 h-1.5 w-1.5 rounded-full bg-bad" />
         )}
-      </button>
-
-      <button
-        type="button"
-        aria-label="Settings"
-        onClick={onOpenSettings}
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-wash text-tiny font-semibold text-rose-deep transition hover:bg-edge-strong"
-      >
-        NU
       </button>
     </header>
   );

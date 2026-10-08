@@ -33,6 +33,7 @@ export function useHabits() {
           weekdays: habit.weekdays,
           createdDay: habit.createdDay,
           archivedDay: habit.archivedDay,
+          period: habit.period,
         })),
       );
 
@@ -106,10 +107,25 @@ export function useHabits() {
     [refresh],
   );
 
-  /** What the strip shows: archived habits are history, not today's business. */
+  /**
+   * What the strip and the streaks see: live *daily* habits. Archived ones are history,
+   * and a monthly check is owed once a month, which no single day can miss.
+   */
   const live = useMemo(
-    () => habits.filter((habit) => habit.archivedDay === null),
+    () => habits.filter((habit) => habit.archivedDay === null && habit.period !== "monthly"),
     [habits],
+  );
+  const monthly = useMemo(
+    () => habits.filter((habit) => habit.archivedDay === null && habit.period === "monthly"),
+    [habits],
+  );
+
+  const addMonthly = useCallback(
+    async (name: string) => {
+      await createHabit(name, [], "monthly");
+      await refresh();
+    },
+    [refresh],
   );
 
   /*
@@ -123,6 +139,8 @@ export function useHabits() {
   return {
     habits,
     live,
+    monthly,
+    addMonthly,
     ticks,
     toggle,
     add,

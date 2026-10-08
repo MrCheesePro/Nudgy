@@ -12,7 +12,6 @@ import { setSetting } from "./ipc";
  * you picked a green theme would make two charts disagree about the same hour.
  */
 
-export const SETTING_THEME = "theme";
 export const SETTING_ACCENT = "accent_color";
 
 export interface Theme {
@@ -43,84 +42,6 @@ export const THEMES: Theme[] = [
       "--color-rose-bar": "#f0b6bc",
     },
   },
-  {
-    id: "meadow",
-    name: "Meadow",
-    swatch: ["#f2f7f1", "#6faa84", "#2f3f34"],
-    tokens: {
-      "--color-canvas": "#f2f7f1",
-      "--color-surface": "#ffffff",
-      "--color-surface-sunken": "#e9f1e8",
-      "--color-edge": "#dbe8d9",
-      "--color-edge-strong": "#c2d7bf",
-      "--color-ink": "#2f3f34",
-      "--color-ink-soft": "#566b5b",
-      "--color-ink-mute": "#8aa190",
-      "--color-rose": "#6faa84",
-      "--color-rose-deep": "#4a7d5d",
-      "--color-rose-wash": "#dff0e3",
-      "--color-rose-bar": "#a6d1b3",
-    },
-  },
-  {
-    id: "harbor",
-    name: "Harbor",
-    swatch: ["#f1f5fa", "#5d8fc4", "#2c3a4a"],
-    tokens: {
-      "--color-canvas": "#f1f5fa",
-      "--color-surface": "#ffffff",
-      "--color-surface-sunken": "#e7eef7",
-      "--color-edge": "#d8e3ef",
-      "--color-edge-strong": "#bacfe3",
-      "--color-ink": "#2c3a4a",
-      "--color-ink-soft": "#52657b",
-      "--color-ink-mute": "#8699ad",
-      "--color-rose": "#5d8fc4",
-      "--color-rose-deep": "#3a6795",
-      "--color-rose-wash": "#dde9f6",
-      "--color-rose-bar": "#a3c4e2",
-    },
-  },
-  {
-    id: "sand",
-    name: "Sand",
-    swatch: ["#faf6ef", "#c99a5b", "#463b2c"],
-    tokens: {
-      "--color-canvas": "#faf6ef",
-      "--color-surface": "#ffffff",
-      "--color-surface-sunken": "#f3ece0",
-      "--color-edge": "#eae0cf",
-      "--color-edge-strong": "#d9c8ac",
-      "--color-ink": "#463b2c",
-      "--color-ink-soft": "#6f6150",
-      "--color-ink-mute": "#a3927c",
-      "--color-rose": "#c99a5b",
-      "--color-rose-deep": "#9c723a",
-      "--color-rose-wash": "#f4e7d2",
-      "--color-rose-bar": "#e0c091",
-    },
-  },
-  {
-    id: "dusk",
-    name: "Dusk",
-    swatch: ["#1e1b24", "#b79ae0", "#ece8f2"],
-    tokens: {
-      // Dark, so the ink and canvas swap roles. Surfaces stay lighter than the page for
-      // the same reason they do in the light themes: a card has to lift off the page.
-      "--color-canvas": "#1e1b24",
-      "--color-surface": "#272330",
-      "--color-surface-sunken": "#201d27",
-      "--color-edge": "#37313f",
-      "--color-edge-strong": "#4b4356",
-      "--color-ink": "#ece8f2",
-      "--color-ink-soft": "#bdb4cb",
-      "--color-ink-mute": "#8d84a0",
-      "--color-rose": "#b79ae0",
-      "--color-rose-deep": "#cdb6ee",
-      "--color-rose-wash": "#332c40",
-      "--color-rose-bar": "#6f5f8c",
-    },
-  },
 ];
 
 export const DEFAULT_THEME = THEMES[0].id;
@@ -146,7 +67,7 @@ export function applyTheme(id: string) {
   }
   // Tells the browser to draw native scrollbars and form controls to match, which is the
   // difference between a dark theme and a dark theme with white dropdowns in it.
-  root.style.colorScheme = theme.id === "dusk" ? "dark" : "light";
+  root.style.colorScheme = "light";
 
   current = theme.id;
   // After the theme, never before: the accent overrides four of the tokens it just wrote,
@@ -236,14 +157,4 @@ export function useAccent(): string {
 export async function chooseAccent(hex: string): Promise<void> {
   applyAccent(hex);
   await setSetting(SETTING_ACCENT, accent);
-}
-
-export function useTheme(): string {
-  return useSyncExternalStore(subscribe, () => current);
-}
-
-/** Applies and persists, so the choice survives a restart. */
-export async function chooseTheme(id: string): Promise<void> {
-  applyTheme(id);
-  await setSetting(SETTING_THEME, id);
 }

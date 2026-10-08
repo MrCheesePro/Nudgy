@@ -292,9 +292,22 @@ pub fn seed_from_file(conn: &Connection, path: &Path) -> Result<usize> {
     let seed: SeedFile = serde_json::from_str(&raw)
         .with_context(|| format!("parsing seed registry {}", path.display()))?;
 
+    // A seed rule naming a category the user deleted files under Neutral, as the deletion
+    // did to every rule that already existed.
+    let known: HashSet<String> = queries::load_categories(conn)?
+        .into_iter()
+        .map(|category| category.name)
+        .collect();
+
     let mut inserted = 0usize;
     for rule in &seed.apps {
-        queries::upsert_app_rule(conn, rule, false)?;
+        if known.contains(&rule.category) {
+            queries::upsert_app_rule(conn, rule, false)?;
+        } else {
+            let mut rule = rule.clone();
+            rule.category = CATEGORY_NEUTRAL.to_string();
+            queries::upsert_app_rule(conn, &rule, false)?;
+        }
         inserted += 1;
     }
     for redaction in &seed.redactions {

@@ -10,6 +10,7 @@ import {
   getCategoryUsage,
   registerApp,
   setAppCategory,
+  setCategoryColor,
   suggestCategory,
 } from "../lib/ipc";
 import { formatDuration } from "../lib/time";
@@ -313,6 +314,13 @@ export const AppRegistry = memo(function AppRegistry() {
           })
         }
         onDelete={askDeleteCategory}
+        onRecolor={(category, color) =>
+          run(`category:${category.id}`, async () => {
+            await setCategoryColor(category.id, color);
+            await refreshCategories();
+            return `${category.name} recoloured.`;
+          })
+        }
       />
 
       <ConfirmDialog
@@ -711,9 +719,17 @@ interface CategoriesProps {
   busy: string | null;
   onAdd: (name: string, color: string) => void;
   onDelete: (category: CategoryDef) => void;
+  onRecolor: (category: CategoryDef, color: string) => void;
 }
 
-function CategoriesSection({ categories, counts, busy, onAdd, onDelete }: CategoriesProps) {
+function CategoriesSection({
+  categories,
+  counts,
+  busy,
+  onAdd,
+  onDelete,
+  onRecolor,
+}: CategoriesProps) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("#7fb2e5");
 
@@ -733,15 +749,33 @@ function CategoriesSection({ categories, counts, busy, onAdd, onDelete }: Catego
             key={category.id}
             className="flex items-center gap-2 rounded-full border border-edge bg-canvas py-1.5 pr-2 pl-3"
           >
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
+            {/* The swatch is the picker. Saved on the native `change` (picker closed),
+                not React's onChange, which fires on every pixel of a drag. */}
+            <label
+              className="relative h-3.5 w-3.5 shrink-0 cursor-pointer rounded-full ring-offset-1 ring-offset-canvas transition hover:ring-1 hover:ring-edge-strong"
               style={{ background: category.color }}
-            />
+              title={`Change ${category.name}'s colour`}
+            >
+              <input
+                key={category.color}
+                type="color"
+                defaultValue={category.color}
+                disabled={busy === `category:${category.id}`}
+                ref={(input) => {
+                  if (!input) return;
+                  input.onchange = () => {
+                    if (input.value !== category.color) onRecolor(category, input.value);
+                  };
+                }}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                aria-label={`${category.name} colour`}
+              />
+            </label>
             <span className="text-xs text-ink">{category.name}</span>
             <span className="font-mono text-tiny tabular-nums text-ink-mute">
               {counts.get(category.name) ?? 0}
             </span>
-            {category.isBuiltin ? (
+            {category.name === "Neutral" || category.name === "Idle" ? (
               <span className="w-[18px]" />
             ) : (
               <button

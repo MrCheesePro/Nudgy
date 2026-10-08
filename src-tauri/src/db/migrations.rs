@@ -421,6 +421,21 @@ const MIGRATIONS: &[&str] = &[
         FOREIGN KEY(task_id)     REFERENCES tasks(id)            ON DELETE SET NULL
     );
     "#,
+    // 18 — A lab section that counts toward its lecture. The lab keeps its own categories
+    //      and weights; its percentage lands in the parent as one entry in the category
+    //      named here. Deleting either side unlinks rather than deleting anything.
+    r#"
+    ALTER TABLE courses ADD COLUMN parent_id INTEGER
+        REFERENCES courses(id) ON DELETE SET NULL;
+    ALTER TABLE courses ADD COLUMN parent_category_id INTEGER
+        REFERENCES grade_categories(id) ON DELETE SET NULL;
+    "#,
+    // 19 — A habit's period. Shipped for weekly habits, which were removed; it now holds
+    //      `daily` or `monthly`. A monthly habit's tick is one `habit_days` row on the
+    //      month's first day, so the existing primary key keeps it idempotent.
+    r#"
+    ALTER TABLE habits ADD COLUMN period TEXT NOT NULL DEFAULT 'daily';
+    "#,
 ];
 
 pub fn run_migrations(conn: &Connection) -> Result<()> {

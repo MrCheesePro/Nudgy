@@ -19,6 +19,8 @@ export const SETTING_FONT = "font_family";
 export const SETTING_BACKGROUND = "background_image";
 export const SETTING_PANEL_OPACITY = "panel_opacity";
 export const SETTING_BACKGROUND_SAVED = "background_saved";
+/** Google Fonts families added in Settings, offered in the bar beside the built-in faces. */
+export const SETTING_FONTS_SAVED = "fonts_saved";
 
 /**
  * How many backgrounds can be kept.
@@ -90,6 +92,8 @@ export interface Appearance {
   background: string;
   /** Up to `MAX_SAVED_BACKGROUNDS` kept to switch between, newest first. */
   savedBackgrounds: string[];
+  /** Google Fonts families added in Settings, in the order they were added. */
+  savedFonts: string[];
   /**
    * How opaque the panels in the content area are, 0.4–1.
    *
@@ -105,6 +109,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   font: "default",
   background: "",
   savedBackgrounds: [],
+  savedFonts: [],
   panelOpacity: 1,
 };
 
@@ -209,6 +214,9 @@ export async function saveAppearance(next: Partial<Appearance>): Promise<void> {
       setSetting(SETTING_BACKGROUND_SAVED, JSON.stringify(current.savedBackgrounds)),
     );
   }
+  if (next.savedFonts !== undefined) {
+    writes.push(setSetting(SETTING_FONTS_SAVED, JSON.stringify(current.savedFonts)));
+  }
   if (next.panelOpacity !== undefined) {
     writes.push(setSetting(SETTING_PANEL_OPACITY, String(current.panelOpacity)));
   }
@@ -224,23 +232,47 @@ export function hydrateAppearance(settings: Map<string, string>) {
     font: settings.get(SETTING_FONT) ?? "default",
     background: settings.get(SETTING_BACKGROUND) ?? "",
     savedBackgrounds: parseSaved(settings.get(SETTING_BACKGROUND_SAVED)),
+    savedFonts: parseSaved(settings.get(SETTING_FONTS_SAVED), Infinity),
     panelOpacity:
       Number.isFinite(panelOpacity) && panelOpacity > 0 ? panelOpacity : 1,
   });
 }
 
 /** Whatever was stored, minus anything that is not a non-empty string. */
-function parseSaved(raw: string | undefined): string[] {
+function parseSaved(raw: string | undefined, max = MAX_SAVED_BACKGROUNDS): string[] {
   if (!raw) return [];
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
-      .slice(0, MAX_SAVED_BACKGROUNDS);
+      .slice(0, max);
   } catch {
     return [];
   }
+}
+
+/**
+ * Adds a Google Fonts family to the bar's list without switching to it — choosing it is
+ * the bar's job, where it can be seen against the page. Case-insensitive duplicates are
+ * ignored.
+ */
+export function addSavedFont(family: string): Promise<void> {
+  const name = family.trim();
+  if (!name) return Promise.resolve();
+  const known = [...FONTS.map((entry) => entry.name), ...current.savedFonts];
+  if (known.some((entry) => entry.toLowerCase() === name.toLowerCase())) {
+    return Promise.resolve();
+  }
+  return saveAppearance({ savedFonts: [...current.savedFonts, name] });
+}
+
+/** Takes a family off the list; if it was in use, the app goes back to its own face. */
+export function removeSavedFont(family: string): Promise<void> {
+  return saveAppearance({
+    savedFonts: current.savedFonts.filter((entry) => entry !== family),
+    ...(current.font === family ? { font: "default" } : {}),
+  });
 }
 
 /**

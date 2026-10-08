@@ -119,6 +119,18 @@ export interface Needed {
  * course renormalises over the categories that will have *anything* in them by the end —
  * graded or remaining — which is what the final grade will be computed over.
  */
+/**
+ * A linked class (a lab section) as one entry in its parent's category: its own weighted
+ * percentage, out of 100. Nothing graded yet is 100 points still to earn.
+ *
+ * ponytail: a partly graded lab counts as finished at its current percentage, so the
+ * parent's needed-average ignores what is left in the lab. Fold the lab's remaining
+ * points in proportionally if that ever matters.
+ */
+export function linkedItem(percent: number | null, categoryId: number): ItemInput {
+  return { categoryId, score: percent, points: 100 };
+}
+
 export function neededAverage(
   categories: CategoryInput[],
   items: ItemInput[],

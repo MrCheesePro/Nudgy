@@ -154,8 +154,10 @@ export function CommitmentsDialog({
     }
   };
 
-  const live = habits.filter((habit) => habit.archivedDay === null);
-  const archived = habits.filter((habit) => habit.archivedDay !== null);
+  // Monthly checks are kept in their own box on the Habit board, not here.
+  const daily = habits.filter((habit) => habit.period !== "monthly");
+  const live = daily.filter((habit) => habit.archivedDay === null);
+  const archived = daily.filter((habit) => habit.archivedDay !== null);
 
   // Portalled to <body>: rendered inside a page, the dialog would sit under
   // `.panels-see-through` and inherit its translucent surface (invariant 39).

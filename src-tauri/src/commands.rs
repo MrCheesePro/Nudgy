@@ -194,6 +194,17 @@ pub fn add_category(state: State<'_, AppState>, name: String, color: String) -> 
     state.reload_registry().map_err(AppError::from)
 }
 
+/// Recolours a category. Built-ins included: the colour is a label, not what the name means.
+#[tauri::command]
+pub fn set_category_color(state: State<'_, AppState>, id: i64, color: String) -> CmdResult<()> {
+    let color = color.trim().to_string();
+    if !is_hex_color(&color) {
+        return Err(AppError::msg("colour must be a hex value like #4fa88c"));
+    }
+    with_db(&state, |conn| queries::set_category_color(conn, id, &color))?;
+    state.reload_registry().map_err(AppError::from)
+}
+
 /// Deleting a category keeps everything that was in it — rules, recorded time and any
 /// scheduled block fall back to `Neutral`. The time was really spent; only its label goes.
 #[tauri::command]
@@ -206,7 +217,10 @@ pub fn delete_category(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
     let Some(category) = queries::load_category(&conn, id)? else {
         return Err(AppError::msg("no such category"));
     };
-    if category.is_builtin {
+    // Only the two sentinels are load-bearing: Neutral is where a deleted category's time
+    // goes, and Idle is what the watcher writes for an away machine. The other shipped
+    // categories are a starting vocabulary, and anybody's to drop.
+    if category.name == models::CATEGORY_NEUTRAL || category.name == models::CATEGORY_IDLE {
         return Err(AppError::msg(format!(
             "`{}` is built in and cannot be removed",
             category.name
@@ -445,8 +459,9 @@ pub fn create_habit(
     state: State<'_, AppState>,
     name: String,
     weekdays: Vec<u32>,
+    period: String,
 ) -> CmdResult<i64> {
-    with_db(&state, |conn| habits::create(conn, &name, &weekdays))
+    with_db(&state, |conn| habits::create(conn, &name, &weekdays, &period))
 }
 
 #[tauri::command]
@@ -541,6 +556,16 @@ pub async fn set_announcements_feed(course_id: i64, url: String) -> CmdResult<()
 #[tauri::command]
 pub fn clear_announcements_feed(course_id: i64) -> CmdResult<()> {
     secrets::clear(&secrets::announcements_key(course_id)).map_err(AppError::from)
+}
+
+/// Sends the whole app registry to the maintainer's sheet, on a tab named for `name`.
+/// The rules are read before the request, so no lock is held across the await.
+#[tauri::command]
+pub async fn share_registry(state: State<'_, AppState>, name: String) -> CmdResult<usize> {
+    let rules = with_db(&state, queries::load_app_rules)?;
+    crate::integrations::share::send(&name, &rules)
+        .await
+        .map_err(AppError::from)
 }
 
 /// A class's announcements, read fresh from its feed and never stored.
@@ -745,10 +770,14 @@ pub fn save_schedule(
 /// answer, shown as "no idea" rather than filled in with something plausible.
 #[tauri::command]
 pub fn suggest_category(
+    state: State<'_, AppState>,
     process_name: String,
     app_name: Option<String>,
 ) -> CmdResult<CategorySuggestion> {
-    Ok(match categorize::guess(&process_name, app_name.as_deref()) {
+    // The keyword table names the shipped categories; one the user deleted is no answer.
+    let guess = categorize::guess(&process_name, app_name.as_deref())
+        .filter(|category| ensure_category(&state, category).is_ok());
+    Ok(match guess {
         Some(category) => CategorySuggestion {
             category: Some(category),
             source: categorize::SOURCE_HEURISTIC.to_string(),
@@ -841,25 +870,6 @@ pub fn set_category_target(
 pub fn clear_category_target(state: State<'_, AppState>, category: String) -> CmdResult<()> {
     with_db(&state, |conn| queries::delete_target(conn, &category))?;
     Ok(())
-}
-
-/// Deletes every recorded sample and nothing else.
-///
-/// The in-memory buffer is drained first: without that, the next 45-second flush would
-/// write pre-wipe samples straight back into the table that was just emptied.
-#[tauri::command]
-pub fn clear_activity_data(app: AppHandle, state: State<'_, AppState>) -> CmdResult<usize> {
-    {
-        let mut buffer = state
-            .buffer
-            .lock()
-            .map_err(|_| AppError::msg("sample buffer lock poisoned"))?;
-        buffer.clear();
-    }
-    let deleted = with_db(&state, queries::clear_activity_samples)?;
-    // Every hook listens for this, so the charts empty together instead of one at a time.
-    let _ = app.emit("nudgy://flushed", deleted);
-    Ok(deleted)
 }
 
 /// Re-checks every block for a day against recorded activity and returns the verdicts.

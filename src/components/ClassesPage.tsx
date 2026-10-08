@@ -29,7 +29,9 @@ import {
   DEFAULT_SCALE,
   gpa,
   letterFor,
+  linkedItem,
   neededAverage,
+  type ItemInput,
 } from "../services/grades";
 import type { ImportedItem, ImportedWeight } from "../services/gradeImport";
 
@@ -68,8 +70,6 @@ export const ClassesPage = memo(function ClassesPage({
 }: Props) {
   const grades = useGrades();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  /** What-if letters for the GPA. Not saved: a what-if is a question, not a record. */
-  const [whatIf, setWhatIf] = useState<Record<number, string>>({});
   const [importing, setImporting] = useState<"grades" | "syllabus" | null>(null);
   const [addingCourse, setAddingCourse] = useState(false);
   const [newCourse, setNewCourse] = useState("");
@@ -85,28 +85,54 @@ export const ClassesPage = memo(function ClassesPage({
     }
   }, [grades.courses, selectedId]);
 
+  /**
+   * Each class's grade inputs: its own items, plus one entry per linked class (a lab
+   * section) in the category it was linked into. A linked class is graded on its own
+   * items only — links are one level deep.
+   */
+  const linked = useMemo(() => {
+    const out = new Map<number, ItemInput[]>();
+    for (const child of grades.courses) {
+      if (child.parentId === null || child.parentCategoryId === null) continue;
+      const percent = currentGrade(
+        grades.categories.filter((entry) => entry.courseId === child.id),
+        grades.items.filter((entry) => entry.courseId === child.id),
+      );
+      const list = out.get(child.parentId) ?? [];
+      list.push(linkedItem(percent, child.parentCategoryId));
+      out.set(child.parentId, list);
+    }
+    return out;
+  }, [grades.courses, grades.categories, grades.items]);
+
   /** Each course's current grade, for the list and the GPA. */
   const summaries = useMemo(
     () =>
       new Map(
         grades.courses.map((course) => {
           const categories = grades.categories.filter((entry) => entry.courseId === course.id);
-          const items = grades.items.filter((entry) => entry.courseId === course.id);
+          const items = [
+            ...grades.items.filter((entry) => entry.courseId === course.id),
+            ...(linked.get(course.id) ?? []),
+          ];
           const percent = currentGrade(categories, items);
           return [course.id, { percent, letter: percent === null ? null : letterFor(percent).letter }];
         }),
       ),
-    [grades.courses, grades.categories, grades.items],
+    [grades.courses, grades.categories, grades.items, linked],
   );
 
+  // A linked lab is already inside its lecture's grade; counting it again would weigh
+  // the same work twice.
+  const gpaCourses = grades.courses.filter((course) => course.parentId === null);
   const termGpa = gpa(
-    grades.courses.map((course) => ({
+    gpaCourses.map((course) => ({
       credits: course.credits,
-      letter: whatIf[course.id] ?? summaries.get(course.id)?.letter ?? null,
+      letter: summaries.get(course.id)?.letter ?? null,
     })),
   );
-  const countedCredits = grades.courses
-    .filter((course) => (whatIf[course.id] ?? summaries.get(course.id)?.letter) != null)
+  const countedCredits = gpaCourses
+    .filter((course) => summaries.get(course.id)?.letter != null)
     .reduce((sum, course) => sum + course.credits, 0);
 
   const course = grades.courses.find((entry) => entry.id === selectedId) ?? null;
@@ -121,16 +147,11 @@ export const ClassesPage = memo(function ClassesPage({
         </p>
       )}
 
-      {/* GPA across every class that has a letter, real or what-if. */}
+      {/* GPA across every class that has a letter. */}
       <section className="shrink-0 rounded-2xl border border-edge bg-surface p-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
-            Term GPA
-          </h2>
-          <span className="text-mini text-ink-mute">
-            Change a letter to see what it would do. Nothing is saved.
-          </span>
-        </div>
+        <h2 className="text-mini font-semibold tracking-widest text-ink-soft uppercase">
+          Term GPA
+        </h2>
         <div className="mt-2 flex items-baseline gap-3">
           <span className="font-mono text-3xl font-semibold tabular-nums text-ink">
             {termGpa === null ? "–" : termGpa.toFixed(2)}
@@ -139,39 +160,18 @@ export const ClassesPage = memo(function ClassesPage({
             {countedCredits > 0 ? `over ${fmt(countedCredits)} credits` : "no graded classes yet"}
           </span>
         </div>
-        {grades.courses.length > 0 && (
+        {gpaCourses.length > 0 && (
           <ul className="mt-3 flex flex-wrap gap-2">
-            {grades.courses.map((entry) => {
-              const actual = summaries.get(entry.id)?.letter ?? null;
-              const shown = whatIf[entry.id] ?? actual ?? "";
+            {gpaCourses.map((entry) => {
               return (
                 <li
                   key={entry.id}
-                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
-                    whatIf[entry.id] ? "border-rose-deep bg-rose-wash" : "border-edge"
-                  }`}
+                  className="flex items-center gap-2 rounded-lg border border-edge px-2.5 py-1.5 text-xs"
                 >
                   <span className="font-mono text-mini font-medium text-ink-soft">{entry.code}</span>
-                  <select
-                    value={shown}
-                    onChange={(event) =>
-                      setWhatIf((current) => {
-                        const next = { ...current };
-                        if (!event.target.value || event.target.value === actual) delete next[entry.id];
-                        else next[entry.id] = event.target.value;
-                        return next;
-                      })
-                    }
-                    aria-label={`Letter for ${entry.code}`}
-                    className="rounded border border-edge bg-canvas px-1 py-0.5 text-mini text-ink-soft outline-none"
-                  >
-                    <option value="">–</option>
-                    {DEFAULT_SCALE.map((band) => (
-                      <option key={band.letter} value={band.letter}>
-                        {band.letter}
-                      </option>
-                    ))}
-                  </select>
+                  <span className="font-mono text-mini font-semibold text-ink">
+                    {summaries.get(entry.id)?.letter ?? "–"}
+                  </span>
                   <NumberCell
                     value={entry.credits}
                     onCommit={(value) =>
@@ -273,6 +273,9 @@ export const ClassesPage = memo(function ClassesPage({
             course={course}
             categories={grades.categories.filter((entry) => entry.courseId === course.id)}
             items={grades.items.filter((entry) => entry.courseId === course.id)}
+            linked={linked.get(course.id) ?? []}
+            courses={grades.courses}
+            allCategories={grades.categories}
             tasks={allTasks.filter((task) => task.courseCode === course.code)}
             run={grades.run}
             onToggleTask={onToggleTask}
@@ -388,6 +391,10 @@ interface DetailProps {
   course: Course;
   categories: GradeCategory[];
   items: GradeItem[];
+  /** Linked classes (lab sections), each as one entry in this class's categories. */
+  linked: ItemInput[];
+  courses: Course[];
+  allCategories: GradeCategory[];
   tasks: LmsTask[];
   run: (write: () => Promise<unknown>) => Promise<void>;
   onToggleTask: (task: LmsTask) => unknown;
@@ -399,6 +406,9 @@ function CourseDetail({
   course,
   categories,
   items,
+  linked,
+  courses,
+  allCategories,
   tasks,
   run,
   onToggleTask,
@@ -410,8 +420,13 @@ function CourseDetail({
   const [draftName, setDraftName] = useState("");
   const [draftWeight, setDraftWeight] = useState("");
 
-  const percent = currentGrade(categories, items);
+  const graded = [...items, ...linked];
+  const percent = currentGrade(categories, graded);
   const letter = percent === null ? null : letterFor(percent);
+  /** Classes this one could count toward: not itself, not already linked to something. */
+  const parents = courses.filter((entry) => entry.id !== course.id && entry.parentId === null);
+  const parentCategories = allCategories.filter((entry) => entry.courseId === course.parentId);
+  const isParent = courses.some((entry) => entry.parentId === course.id);
   const weightSum = categories.reduce((sum, entry) => sum + entry.weight, 0);
   /** What is left to give out. A class is worth 100% and no more. */
   const weightLeft = Math.max(0, Math.round((100 - weightSum) * 100) / 100);
@@ -424,8 +439,8 @@ function CourseDetail({
     draftNumber <= weightLeft;
 
   const target = course.targetPercent;
-  const needed = target === null ? null : neededAverage(categories, items, target);
-  const remainingPoints = items
+  const needed = target === null ? null : neededAverage(categories, graded, target);
+  const remainingPoints = graded
     .filter((item) => item.score === null && (item.points ?? 0) > 0)
     .reduce((sum, item) => sum + (item.points ?? 0), 0);
 
@@ -504,6 +519,65 @@ function CourseDetail({
         </button>
       </div>
 
+      {/* A lab section counts toward its lecture: its own grade lands in one of the
+          lecture's categories. A class that others count toward cannot itself be linked. */}
+      {!isParent && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
+          <span>Counts toward</span>
+          <select
+            value={course.parentId ?? ""}
+            onChange={(event) => {
+              const parentId = event.target.value === "" ? null : Number(event.target.value);
+              void run(() => saveCourse({ ...course, parentId, parentCategoryId: null }));
+            }}
+            aria-label="Class this one counts toward"
+            className="rounded-lg border border-edge bg-surface px-2 py-1 text-xs text-ink-soft outline-none"
+          >
+            <option value="">no other class</option>
+            {parents.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.code}
+              </option>
+            ))}
+          </select>
+          {course.parentId !== null && (
+            <>
+              <span>as</span>
+              <select
+                value={course.parentCategoryId ?? ""}
+                onChange={(event) => {
+                  const parentCategoryId =
+                    event.target.value === "" ? null : Number(event.target.value);
+                  void run(() => saveCourse({ ...course, parentCategoryId }));
+                }}
+                aria-label="Category in that class"
+                className="rounded-lg border border-edge bg-surface px-2 py-1 text-xs text-ink-soft outline-none"
+              >
+                <option value="">choose a category…</option>
+                {parentCategories.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name} ({fmt(entry.weight)}%)
+                  </option>
+                ))}
+              </select>
+              {parentCategories.length === 0 && (
+                <span className="text-ink-mute">— add a grading breakdown to that class first</span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {linked.length > 0 && (
+        <p className="text-xs text-ink-mute">
+          Includes{" "}
+          {courses
+            .filter((entry) => entry.parentId === course.id && entry.parentCategoryId !== null)
+            .map((entry) => entry.code)
+            .join(", ")}{" "}
+          as {linked.length === 1 ? "one entry" : "entries"} in its category.
+        </p>
+      )}
+
       <AnnouncementsPanel courseId={course.id} />
 
       {/* What it takes to reach a target. */}
@@ -511,40 +585,34 @@ function CourseDetail({
         <div className="flex flex-wrap items-center gap-2">
           <Target size={14} className="text-rose-deep" />
           <span className="text-xs font-medium text-ink-soft">I want to finish with</span>
+          {/* Type any percentage; the letters are shortcuts that fill it in. */}
+          <NumberCell
+            value={target}
+            onCommit={(value) => {
+              if (value !== null && value > 100) return;
+              void run(() => saveCourse({ ...course, targetPercent: value }));
+            }}
+            label="Target percentage"
+            width="w-16 border-edge! bg-surface!"
+            placeholder="e.g. 85"
+          />
+          <span className="text-xs text-ink-mute">%</span>
           <select
-            value={
-              target === null
-                ? ""
-                : (DEFAULT_SCALE.find((band) => band.min === target)?.letter ?? "custom")
-            }
+            value={DEFAULT_SCALE.find((band) => band.min === target)?.letter ?? ""}
             onChange={(event) => {
               const band = DEFAULT_SCALE.find((entry) => entry.letter === event.target.value);
-              const next = event.target.value === "" ? null : band ? band.min : (target ?? 90);
-              void run(() => saveCourse({ ...course, targetPercent: next }));
+              if (band) void run(() => saveCourse({ ...course, targetPercent: band.min }));
             }}
+            aria-label="Pick a letter"
             className="rounded-lg border border-edge bg-surface px-2 py-1 text-xs text-ink-soft outline-none"
           >
-            <option value="">choose…</option>
+            <option value="">or a letter…</option>
             {DEFAULT_SCALE.filter((band) => band.letter !== "F").map((band) => (
               <option key={band.letter} value={band.letter}>
                 {band.letter} ({band.min}%)
               </option>
             ))}
-            <option value="custom">a percentage</option>
           </select>
-          {target !== null && (
-            <>
-              <NumberCell
-                value={target}
-                onCommit={(value) =>
-                  value !== null && void run(() => saveCourse({ ...course, targetPercent: value }))
-                }
-                label="Target percentage"
-                width="w-14"
-              />
-              <span className="text-xs text-ink-mute">%</span>
-            </>
-          )}
         </div>
         {needed && (
           <p className="mt-2.5 text-sm text-ink">

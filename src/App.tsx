@@ -58,7 +58,7 @@ import {
 import { PanelRightOpen } from "lucide-react";
 
 import { clearPref, readPref, usePref } from "./lib/prefs";
-import { DEFAULT_THEME, SETTING_ACCENT, SETTING_THEME, applyAccent, applyTheme } from "./lib/theme";
+import { DEFAULT_THEME, SETTING_ACCENT, applyAccent, applyTheme } from "./lib/theme";
 import {
   enable as enableAutostart,
   isEnabled as autostartEnabled,
@@ -188,7 +188,8 @@ export default function App() {
         // The accent before the theme would be overwritten by it; `applyTheme` repaints
         // the accent itself, so this order is the one that survives.
         applyAccent(settings.get(SETTING_ACCENT) ?? "");
-        applyTheme(settings.get(SETTING_THEME) ?? DEFAULT_THEME);
+        // Presets are gone: the base theme, recoloured by the one colour you picked.
+        applyTheme(DEFAULT_THEME);
         hydrateAppearance(settings);
 
         // Launch at login is on unless the user turns it off. A streak that dies because
@@ -490,6 +491,30 @@ export default function App() {
     [plans.plans, removeGoal, schedule.goals, schedule.horizonBlocks],
   );
 
+  /** "Done" from the timer. Says what goes, because the sittings not started are dropped. */
+  const askFinishPlan = useCallback(
+    (id: number) => {
+      const plan = plans.plans.find((entry) => entry.plan.id === id);
+      if (!plan) return;
+      const now = Math.floor(Date.now() / 1000);
+      const later = schedule.horizonBlocks.filter(
+        (block) => block.planId === id && block.startTs > now,
+      ).length;
+
+      setConfirm({
+        title: `Finish “${plan.plan.title}”?`,
+        body: `The session ends now${
+          later > 0
+            ? ` and the ${later} remaining ${later === 1 ? "session is" : "sessions are"} taken off the timeline`
+            : ""
+        }. Time already worked stays in your history.`,
+        confirmLabel: "Mark done",
+        run: () => void finishPlan(id),
+      });
+    },
+    [plans.plans, schedule.horizonBlocks, finishPlan],
+  );
+
   const askDropPlan = useCallback(
     (id: number) => {
       const plan = plans.plans.find((entry) => entry.plan.id === id);
@@ -693,7 +718,6 @@ export default function App() {
         alerts={alerts}
         notifications={notifications}
         onToggleNotifications={() => void toggleNotifications()}
-        onOpenSettings={() => setSettingsOpen(true)}
         trackingLabel={currentWork?.courseCode ?? null}
       />
 
@@ -781,6 +805,7 @@ export default function App() {
                     next={nextWork}
                     category={status?.category ?? "Neutral"}
                     onBreak={raiseDashboard}
+                    onFinish={askFinishPlan}
                   />
                 </div>
                 {/* Fills what is left of the viewport rather than growing past it, so

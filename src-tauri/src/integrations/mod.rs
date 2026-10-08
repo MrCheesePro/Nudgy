@@ -2,6 +2,7 @@ pub mod announcements;
 pub mod calendar;
 pub mod canvas;
 pub mod lms;
+pub mod share;
 
 use anyhow::Result;
 use async_trait::async_trait;

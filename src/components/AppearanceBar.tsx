@@ -11,6 +11,7 @@ import {
   saveAppearance,
   useAppearance,
 } from "../lib/appearance";
+import { applyAccent, chooseAccent, useAccent } from "../lib/theme";
 
 interface Props {
   open: boolean;
@@ -22,6 +23,8 @@ interface Draft {
   scale: number;
   panelOpacity: number;
   font: string;
+  /** One colour the whole theme is derived from, or "" for the app's own. */
+  accent: string;
 }
 
 /**
@@ -46,16 +49,17 @@ interface Draft {
  */
 export function AppearanceBar({ open, onClose }: Props) {
   const appearance = useAppearance();
-  const [draft, setDraft] = useState<Draft>(() => snapshot(appearance));
+  const accent = useAccent();
+  const [draft, setDraft] = useState<Draft>(() => snapshot(appearance, accent));
   /** What to go back to. Captured on open, before any dragging. */
-  const original = useRef<Draft>(snapshot(appearance));
+  const original = useRef<Draft>(snapshot(appearance, accent));
   /** Set briefly when a click is refused, to point at the button that would allow it. */
   const [nagging, setNagging] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    original.current = snapshot(appearance);
-    setDraft(snapshot(appearance));
+    original.current = snapshot(appearance, accent);
+    setDraft(snapshot(appearance, accent));
     // Read on open only: re-running as they change would fight the drag it reacts to.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -65,6 +69,7 @@ export function AppearanceBar({ open, onClose }: Props) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       applyAppearance(original.current);
+      applyAccent(original.current.accent);
       onClose();
     };
     window.addEventListener("keydown", onKeyDown);
@@ -76,21 +81,26 @@ export function AppearanceBar({ open, onClose }: Props) {
   const dirty =
     draft.scale !== original.current.scale ||
     draft.panelOpacity !== original.current.panelOpacity ||
-    draft.font !== original.current.font;
+    draft.font !== original.current.font ||
+    draft.accent !== original.current.accent;
 
   const change = (next: Partial<Draft>) => {
     const merged = { ...draft, ...next };
     setDraft(merged);
     applyAppearance(merged);
+    if (merged.accent !== draft.accent) applyAccent(merged.accent);
   };
 
   const cancel = () => {
     applyAppearance(original.current);
+    applyAccent(original.current.accent);
     onClose();
   };
 
   const save = () => {
-    void saveAppearance(draft);
+    const { accent: colour, ...rest } = draft;
+    void saveAppearance(rest);
+    void chooseAccent(colour);
     onClose();
   };
 
@@ -121,6 +131,22 @@ export function AppearanceBar({ open, onClose }: Props) {
         className="fixed left-1/2 z-[60] flex -translate-x-1/2 items-center rounded-full border border-edge bg-surface shadow-2xl"
         style={{ bottom: "20px", gap: "14px", fontSize: "13px", padding: "10px 20px" }}
       >
+        {/* One colour; the other eleven are derived from it (invariant 40). Previewed
+            live like everything else here, and written only on Save. */}
+        <label className="flex shrink-0 items-center" style={{ gap: "8px" }}>
+          <span className="text-ink-mute">Colour</span>
+          <input
+            type="color"
+            value={draft.accent || "#e0919c"}
+            onChange={(event) => change({ accent: event.target.value })}
+            aria-label="Theme colour"
+            className="cursor-pointer rounded border border-edge bg-canvas"
+            style={{ height: "24px", width: "34px" }}
+          />
+        </label>
+
+        <Divider />
+
         <Slider
           label="Text"
           value={draft.scale}
@@ -150,7 +176,7 @@ export function AppearanceBar({ open, onClose }: Props) {
         <label className="flex shrink-0 items-center" style={{ gap: "8px" }}>
           <span className="text-ink-mute">Font</span>
           <select
-            value={FONTS.some((entry) => entry.id === draft.font) ? draft.font : "custom"}
+            value={draft.font}
             onChange={(event) => change({ font: event.target.value })}
             aria-label="Typeface"
             className="rounded-full border border-edge bg-canvas text-ink-soft outline-none"
@@ -161,11 +187,18 @@ export function AppearanceBar({ open, onClose }: Props) {
                 {entry.name}
               </option>
             ))}
-            {/* A family typed in Settings is not in the list, and picking it back is not
-                this bar's job — but it must not look like it was lost. */}
-            {!FONTS.some((entry) => entry.id === draft.font) && (
-              <option value="custom">{draft.font}</option>
-            )}
+            {/* Families added in Settings. Their value is the family name, which
+                `applyAppearance` loads from Google Fonts. */}
+            {appearance.savedFonts.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
+            {/* One chosen before it could be listed must not look like it was lost. */}
+            {!FONTS.some((entry) => entry.id === draft.font) &&
+              !appearance.savedFonts.includes(draft.font) && (
+                <option value={draft.font}>{draft.font}</option>
+              )}
           </select>
         </label>
 
@@ -177,7 +210,7 @@ export function AppearanceBar({ open, onClose }: Props) {
           <button
             type="button"
             disabled={!dirty}
-            onClick={() => change(snapshot(undefined))}
+            onClick={() => change(snapshot(undefined, ""))}
             className="text-ink-mute transition hover:text-ink-soft disabled:opacity-30 disabled:hover:text-ink-mute"
             style={{ fontSize: "12px" }}
           >
@@ -186,7 +219,7 @@ export function AppearanceBar({ open, onClose }: Props) {
           <button
             type="button"
             onClick={cancel}
-            className="flex items-center rounded-full border border-edge text-ink-soft transition hover:border-edge-strong"
+            className="flex items-center rounded-full border border-ink-mute/40 text-ink-soft transition hover:border-ink-mute"
             style={{ fontSize: "12px", padding: "6px 12px", gap: "6px" }}
           >
             <X size={13} />
@@ -196,7 +229,9 @@ export function AppearanceBar({ open, onClose }: Props) {
             type="button"
             onClick={save}
             onAnimationEnd={() => setNagging(false)}
-            className={`flex items-center rounded-full bg-rose font-semibold text-white transition hover:bg-rose-deep ${
+            // Ink, not the accent: a bright picked colour made a bright button with white text
+            // on it, and Save is the one control that has to be readable at any colour.
+            className={`flex items-center rounded-full bg-ink font-semibold text-surface transition hover:bg-ink-soft ${
               nagging ? "attention" : ""
             }`}
             style={{ fontSize: "12px", padding: "6px 14px", gap: "6px" }}
@@ -212,11 +247,15 @@ export function AppearanceBar({ open, onClose }: Props) {
 }
 
 /** The defaults, or what a given appearance currently holds. */
-function snapshot(from: { scale: number; panelOpacity: number; font: string } | undefined): Draft {
+function snapshot(
+  from: { scale: number; panelOpacity: number; font: string } | undefined,
+  accent: string,
+): Draft {
   return {
     scale: from?.scale ?? 1,
     panelOpacity: from?.panelOpacity ?? 1,
     font: from?.font ?? "default",
+    accent,
   };
 }
 

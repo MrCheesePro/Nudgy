@@ -23,6 +23,12 @@ pub struct Course {
     pub target_percent: Option<f64>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// The class this one counts toward — a lab section folding into its lecture.
+    #[serde(default)]
+    pub parent_id: Option<i64>,
+    /// The parent's category this class's percentage is filed under.
+    #[serde(default)]
+    pub parent_category_id: Option<i64>,
 }
 
 fn default_credits() -> f64 {
@@ -92,7 +98,8 @@ pub fn snapshot(conn: &Connection) -> Result<GradesSnapshot> {
 
     let courses = conn
         .prepare_cached(
-            "SELECT id, code, name, credits, target_percent, notes FROM courses ORDER BY code",
+            "SELECT id, code, name, credits, target_percent, notes, parent_id, parent_category_id
+               FROM courses ORDER BY code",
         )?
         .query_map([], |row| {
             Ok(Course {
@@ -102,6 +109,8 @@ pub fn snapshot(conn: &Connection) -> Result<GradesSnapshot> {
                 credits: row.get(3)?,
                 target_percent: row.get(4)?,
                 notes: row.get(5)?,
+                parent_id: row.get(6)?,
+                parent_category_id: row.get(7)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -163,8 +172,24 @@ pub fn save_course(conn: &Connection, course: &Course) -> Result<()> {
     if !(0.0..=30.0).contains(&course.credits) {
         return Err(anyhow::anyhow!("credits must be between 0 and 30"));
     }
+    if let Some(parent) = course.parent_id {
+        // One level only: a class cannot count toward itself, toward a class that is
+        // itself linked, or be a parent while it is linked.
+        let nested: bool = conn.query_row(
+            "SELECT ?1 = ?2
+                 OR EXISTS (SELECT 1 FROM courses WHERE id = ?2 AND parent_id IS NOT NULL)
+                 OR EXISTS (SELECT 1 FROM courses WHERE parent_id = ?1)",
+            params![course.id, parent],
+            |row| row.get(0),
+        )?;
+        if nested {
+            return Err(anyhow::anyhow!("a class can only count toward one class that is not itself linked"));
+        }
+    }
+    let category = course.parent_id.and(course.parent_category_id);
     conn.execute(
-        "UPDATE courses SET name = ?2, credits = ?3, target_percent = ?4, notes = ?5
+        "UPDATE courses SET name = ?2, credits = ?3, target_percent = ?4, notes = ?5,
+                            parent_id = ?6, parent_category_id = ?7
           WHERE id = ?1",
         params![
             course.id,
@@ -172,6 +197,8 @@ pub fn save_course(conn: &Connection, course: &Course) -> Result<()> {
             course.credits,
             course.target_percent,
             course.notes,
+            course.parent_id,
+            category,
         ],
     )?;
     Ok(())
@@ -337,6 +364,42 @@ mod tests {
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         crate::db::migrations::run_migrations(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn a_lab_links_one_level_and_unlinks_when_its_lecture_goes() {
+        let conn = memory_db();
+        let lecture = create_course(&conn, "PHYS 040", None).unwrap();
+        let lab = create_course(&conn, "PHYS 040L", None).unwrap();
+        let other = create_course(&conn, "MATH 9A", None).unwrap();
+        let lab_category = save_categories(
+            &conn,
+            lecture,
+            &[GradeCategory { id: 0, course_id: lecture, name: "Lab".into(), weight: 20.0 }],
+        )
+        .unwrap()[0]
+            .id;
+
+        let course = |id| snapshot(&conn).unwrap().courses.into_iter().find(|c| c.id == id).unwrap();
+        let mut linked = course(lab);
+        linked.parent_id = Some(lecture);
+        linked.parent_category_id = Some(lab_category);
+        save_course(&conn, &linked).unwrap();
+        assert_eq!(course(lab).parent_category_id, Some(lab_category));
+
+        // Not toward itself, not toward a linked class, and a parent cannot be linked.
+        let mut selfish = course(other);
+        selfish.parent_id = Some(other);
+        assert!(save_course(&conn, &selfish).is_err());
+        selfish.parent_id = Some(lab);
+        assert!(save_course(&conn, &selfish).is_err());
+        let mut parent = course(lecture);
+        parent.parent_id = Some(other);
+        assert!(save_course(&conn, &parent).is_err());
+
+        delete_course(&conn, lecture).unwrap();
+        let orphan = course(lab);
+        assert_eq!((orphan.parent_id, orphan.parent_category_id), (None, None));
     }
 
     fn item(title: &str, score: Option<f64>, points: f64) -> GradeItem {
